@@ -144,10 +144,19 @@ impl IncludeHandler {
         } else {
             PathBuf::from(virtual_path)
         };
-        if virtual_path.starts_with("/") || virtual_path.starts_with("\\") {
+
+        // Check if it's a virtual path (starts with / or Packages/)
+        if virtual_path.starts_with("/") || virtual_path.starts_with("\\") || virtual_path.starts_with("Packages/") {
+            // Normalize the path to handle Packages/ uniformly
+            let normalized_path = if virtual_path.starts_with("Packages/") {
+                Path::new("/").join(virtual_path)
+            } else {
+                virtual_path
+            };
+
             // Browse possible mapping & find a match.
             for (virtual_folder, target_path) in virtual_folders {
-                let mut path_components = virtual_path.components();
+                let mut path_components = normalized_path.components();
                 let mut found = true;
                 for virtual_folder_component in virtual_folder.components() {
                     match path_components.next() {
