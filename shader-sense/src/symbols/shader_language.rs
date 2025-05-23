@@ -13,12 +13,12 @@ use super::{
     hlsl::create_hlsl_symbol_provider,
     symbol_provider::SymbolProvider,
     symbol_tree::ShaderModule,
-    symbols::{ShaderRange, ShaderSymbolList},
+    symbols::{ShaderBuiltinSymbol, ShaderRange, ShaderSymbolTree},
     wgsl::create_wgsl_symbol_provider,
 };
 pub struct ShaderLanguage {
     shading_language: ShadingLanguage,
-    shader_intrinsics: ShaderSymbolList,
+    shader_intrinsics: ShaderBuiltinSymbol,
     tree_sitter_language: tree_sitter::Language,
     tree_sitter_parser: tree_sitter::Parser,
 }
@@ -55,7 +55,7 @@ impl ShaderLanguage {
             shading_language,
             tree_sitter_language,
             tree_sitter_parser,
-            shader_intrinsics: ShaderSymbolList::parse_from_json(
+            shader_intrinsics: ShaderSymbolTree::parse_from_json(
                 Self::get_symbol_intrinsic_path(shading_language).into(),
             ),
         }
@@ -71,7 +71,7 @@ impl ShaderLanguage {
     pub fn create_validator(&self) -> Box<dyn Validator> {
         create_validator(self.shading_language)
     }
-    pub fn get_intrinsics_symbol(&self) -> &ShaderSymbolList {
+    pub fn get_intrinsics_symbol(&self) -> &ShaderBuiltinSymbol {
         &self.shader_intrinsics
     }
     // Create shader module from file.

@@ -10,7 +10,7 @@ use super::{
     shader_language::ShaderLanguage,
     symbol_provider::ShaderSymbolParams,
     symbols::{
-        ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude, ShaderSymbolList,
+        ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude, ShaderSymbolTree,
     },
 };
 
@@ -27,7 +27,7 @@ pub type ShaderModuleHandle = Rc<RefCell<ShaderModule>>;
 #[derive(Debug, Default, Clone)]
 pub struct ShaderSymbols {
     pub(super) preprocessor: ShaderPreprocessor,
-    pub(super) symbol_list: ShaderSymbolList,
+    pub(super) symbol_tree: ShaderSymbolTree,
 }
 impl ShaderSymbols {
     pub fn new(file_path: &Path, symbol_params: ShaderSymbolParams) -> Self {
@@ -36,26 +36,12 @@ impl ShaderSymbols {
                 file_path,
                 symbol_params,
             )),
-            symbol_list: ShaderSymbolList::default(),
+            symbol_tree: ShaderSymbolTree::default(),
         }
     }
-    pub fn get_all_symbols(&self) -> ShaderSymbolList {
-        let mut symbols = self.get_local_symbols();
-        for include in &self.preprocessor.includes {
-            assert!(
-                include.cache.is_some(),
-                "Include {} do not have cache, but is being queried.\n{}",
-                include.relative_path,
-                self.dump_dependency_tree(&PathBuf::from("oui"))
-            );
-            symbols.append(include.get_cache().get_all_symbols());
-        }
-        symbols
-    }
-    pub fn get_local_symbols(&self) -> ShaderSymbolList {
-        let mut symbols = self.symbol_list.clone();
-        self.preprocessor.preprocess_symbols(&mut symbols);
-        symbols
+    pub fn get_symbol_tree(&self) -> ShaderSymbolTree {
+        // TODO:TREE: preprocess regions (or filter them at runtime in iterator ?)
+        self.symbol_tree.clone()
     }
     pub fn get_context(&self) -> &ShaderPreprocessorContext {
         &self.preprocessor.context

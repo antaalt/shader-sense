@@ -2,7 +2,7 @@ use std::{borrow::Borrow, collections::HashMap};
 
 use regex::Regex;
 use shader_sense::symbols::symbols::{
-    ShaderParameter, ShaderSignature, ShaderSymbol, ShaderSymbolData, ShaderSymbolList,
+    ShaderBuiltinSymbol, ShaderParameter, ShaderSignature, ShaderSymbol, ShaderSymbolData,
 };
 use xmltree::Element;
 
@@ -11,7 +11,7 @@ use crate::glsl::{get_childs, merge_text};
 use super::GlslIntrinsicParser;
 
 impl GlslIntrinsicParser {
-    pub fn add_methods(&self, symbols: &mut ShaderSymbolList, cache_path: &str) {
+    pub fn add_methods(&self, symbols: &mut ShaderBuiltinSymbol, cache_path: &str) {
         let paths = std::fs::read_dir(cache_path).expect("Failed to read dir");
         for path_dir in paths {
             let path = path_dir.expect("Failed to parse path").path();
@@ -35,6 +35,7 @@ impl GlslIntrinsicParser {
                 .unwrap()
                 .get_child("funcsynopsis")
                 .is_some();
+            #[allow(unused_assignments)]
             let mut is_variable = false;
             if is_function {
                 let refsynopsis = elements.get_child("refsynopsisdiv").unwrap();
@@ -98,7 +99,7 @@ impl GlslIntrinsicParser {
                             signatures: signature.1,
                         },
                         range: None,
-                        scope_stack: None,
+                        content: None,
                     });
                 }
             } else {
@@ -174,7 +175,7 @@ impl GlslIntrinsicParser {
                         count: None,
                     },
                     range: None,
-                    scope_stack: None,
+                    content: None,
                 });
             }
             let refsect = get_childs(&elements, "refsect1");
@@ -300,13 +301,7 @@ impl GlslIntrinsicParser {
 
             // TODO: retrieve stage aswell. might need to do this manually, with a list of all func for all stages.
             for symbol in link_symbol {
-                if is_function {
-                    symbols.functions.push(symbol);
-                } else if is_variable {
-                    symbols.variables.push(symbol);
-                } else {
-                    symbols.constants.push(symbol);
-                }
+                symbols.push(symbol);
             }
         }
     }

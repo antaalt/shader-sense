@@ -548,7 +548,7 @@ impl ServerLanguage {
                         match self.recolt_document_symbol(&uri) {
                             Ok(symbols) => self.connection.send_response::<DocumentSymbolRequest>(
                                 req.id.clone(),
-                                Some(DocumentSymbolResponse::Flat(symbols)),
+                                Some(DocumentSymbolResponse::Nested(symbols)),
                             ),
                             Err(err) => self.connection.send_notification_error(format!(
                                 "Failed to compute symbols for file {} : {}",

@@ -26,13 +26,13 @@ mod tests {
         symbols::{
             shader_language::ShaderLanguage,
             symbol_provider::ShaderSymbolParams,
-            symbols::{ShaderPosition, ShaderSymbolData},
+            symbols::{ShaderPosition, ShaderSymbolData, ShaderSymbolType},
         },
     };
 
     use super::{
         symbol_provider::{default_include_callback, SymbolProvider},
-        symbols::ShaderSymbolList,
+        symbols::ShaderSymbolTree,
     };
 
     pub fn find_file_dependencies(
@@ -74,10 +74,10 @@ mod tests {
         symbol_provider: &SymbolProvider,
         file_path: &Path,
         shader_content: &String,
-    ) -> Result<ShaderSymbolList, ShaderError> {
+    ) -> Result<ShaderSymbolTree, ShaderError> {
         let mut include_handler = IncludeHandler::main_without_config(&file_path);
         let deps = find_dependencies(&mut include_handler, &shader_content);
-        let mut all_symbols = language.get_intrinsics_symbol().clone();
+        let mut all_symbols = ShaderSymbolTree::default();
         let symbol_tree = language.create_module(file_path, shader_content).unwrap();
         let symbols = symbol_provider
             .query_symbols(
@@ -87,7 +87,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let symbols = symbols.get_all_symbols();
+        let symbols = symbols.get_symbol_tree();
         all_symbols.append(symbols);
         for dep in deps {
             let symbol_tree = language.create_module(&dep.1, &dep.0).unwrap();
@@ -99,30 +99,31 @@ mod tests {
                     None,
                 )
                 .unwrap();
-            let symbols = symbols.get_all_symbols();
+            let symbols = symbols.get_symbol_tree();
             all_symbols.append(symbols);
         }
+        all_symbols.append_builtins(language.get_intrinsics_symbol().clone());
         Ok(all_symbols)
     }
 
     #[test]
     fn intrinsics_glsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolList::parse_from_json(String::from(include_str!(
+        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
             "glsl/glsl-intrinsics.json"
         )));
     }
     #[test]
     fn intrinsics_hlsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolList::parse_from_json(String::from(include_str!(
+        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
             "hlsl/hlsl-intrinsics.json"
         )));
     }
     #[test]
     fn intrinsics_wgsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolList::parse_from_json(String::from(include_str!(
+        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
             "wgsl/wgsl-intrinsics.json"
         )));
     }
@@ -142,8 +143,11 @@ mod tests {
                 None,
             )
             .unwrap();
-        let symbols = symbols.get_all_symbols();
-        assert!(!symbols.functions.is_empty());
+        let symbols = symbols.get_symbol_tree();
+        assert!(symbols
+            .iter_all()
+            .find(|s| s.is_type(ShaderSymbolType::Functions))
+            .is_some());
     }
     #[test]
     fn symbols_hlsl_ok() {
@@ -161,8 +165,11 @@ mod tests {
                 None,
             )
             .unwrap();
-        let symbols = symbols.get_all_symbols();
-        assert!(!symbols.functions.is_empty());
+        let symbols = symbols.get_symbol_tree();
+        assert!(symbols
+            .iter_all()
+            .find(|s| s.is_type(ShaderSymbolType::Functions))
+            .is_some());
     }
     #[test]
     fn symbols_wgsl_ok() {
@@ -180,8 +187,11 @@ mod tests {
                 None,
             )
             .unwrap();
-        let symbols = symbols.get_all_symbols();
-        assert!(symbols.functions.is_empty());
+        let symbols = symbols.get_symbol_tree();
+        assert!(symbols
+            .iter_all()
+            .find(|s| s.is_type(ShaderSymbolType::Functions))
+            .is_none());
     }
     #[test]
     fn symbol_scope_glsl_ok() {
@@ -195,8 +205,8 @@ mod tests {
             file_path,
             &shader_content,
         )
-        .unwrap()
-        .filter_scoped_symbol(&ShaderPosition {
+        .unwrap();
+        let symbols = symbols.find_symbols_defined_at(&ShaderPosition {
             file_path: PathBuf::from(file_path),
             line: 16,
             pos: 0,
@@ -211,20 +221,19 @@ mod tests {
         for variable_visible in variables_visibles {
             assert!(
                 symbols
-                    .variables
                     .iter()
-                    .any(|e| e.label == variable_visible),
+                    .any(|e| e.label == variable_visible && e.is_type(ShaderSymbolType::Variables)),
                 "Failed to find variable {} {:#?}",
                 variable_visible,
-                symbols.variables
+                symbols
             );
         }
         for variable_not_visible in variables_not_visibles {
             assert!(
                 !symbols
-                    .variables
                     .iter()
-                    .any(|e| e.label == variable_not_visible),
+                    .any(|e| e.label == variable_not_visible
+                        && e.is_type(ShaderSymbolType::Variables)),
                 "Found variable {}",
                 variable_not_visible
             );
@@ -246,15 +255,13 @@ mod tests {
                 None,
             )
             .unwrap();
-        let symbols = symbols.get_all_symbols();
+        let symbols = symbols.get_symbol_tree();
         assert!(symbols
-            .types
-            .iter()
-            .find(|e| e.label == "MatrixHidden")
+            .iter_all()
+            .find(|e| e.label == "MatrixHidden" && e.is_type(ShaderSymbolType::Variables))
             .is_some());
         assert!(symbols
-            .variables
-            .iter()
+            .iter_all()
             .find(|e| e.label == "u_accessor"
                 && match &e.data {
                     ShaderSymbolData::Variables { ty, count: _ } => ty == "MatrixHidden",
@@ -262,14 +269,12 @@ mod tests {
                 })
             .is_some());
         assert!(symbols
-            .variables
-            .iter()
-            .find(|e| e.label == "u_modelviewGlobal")
+            .iter_all()
+            .find(|e| e.label == "u_modelviewGlobal" && e.is_type(ShaderSymbolType::Variables))
             .is_some());
         assert!(symbols
-            .variables
-            .iter()
-            .find(|e| e.label == "u_modelviewHidden")
+            .iter_all()
+            .find(|e| e.label == "u_modelviewHidden" && e.is_type(ShaderSymbolType::Variables))
             .is_none());
     }
 }

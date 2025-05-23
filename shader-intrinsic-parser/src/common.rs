@@ -1,4 +1,4 @@
-use shader_sense::{shader::ShadingLanguage, symbols::symbols::ShaderSymbolList};
+use shader_sense::{shader::ShadingLanguage, symbols::symbols::ShaderBuiltinSymbol};
 
 use crate::{glsl::GlslIntrinsicParser, hlsl::HlslIntrinsicParser, wgsl::WgslIntrinsicParser};
 
@@ -13,7 +13,7 @@ pub fn download_file(url: &str) -> String {
 
 pub trait IntrinsicParser {
     fn cache(&self, cache_path: &str);
-    fn parse(&self, cache_path: &str) -> ShaderSymbolList;
+    fn parse(&self, cache_path: &str) -> ShaderBuiltinSymbol;
 }
 
 pub fn get_intrinsic_parser(shading_language: ShadingLanguage) -> Box<dyn IntrinsicParser> {

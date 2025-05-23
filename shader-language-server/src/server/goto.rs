@@ -34,43 +34,48 @@ impl ServerLanguage {
             &shader_position,
         ) {
             Ok((word, word_range)) => {
-                let symbol_list = all_symbol_list.filter_scoped_symbol(&shader_position);
-                let matching_symbols = symbol_list.find_symbols_at(&word, &shader_position);
+                let symbol_list = all_symbol_list.find_symbols_defined_at(&shader_position);
                 Ok(Some(GotoDefinitionResponse::Link(
-                    matching_symbols
+                    symbol_list
                         .iter()
                         .filter_map(|symbol| {
-                            if let ShaderSymbolData::Link { target } = &symbol.data {
-                                match &symbol.range {
-                                    // _range here should be equal to selected_range.
-                                    Some(_range) => Some(lsp_types::LocationLink {
-                                        origin_selection_range: Some(shader_range_to_lsp_range(
-                                            &word_range,
-                                        )),
-                                        target_uri: Url::from_file_path(&target.file_path).unwrap(),
-                                        target_range: shader_range_to_lsp_range(&ShaderRange::new(
-                                            target.clone(),
-                                            target.clone(),
-                                        )),
-                                        target_selection_range: shader_range_to_lsp_range(
-                                            &ShaderRange::new(target.clone(), target.clone()),
-                                        ),
-                                    }),
-                                    None => None,
+                            if symbol.label == word {
+                                if let ShaderSymbolData::Link { target } = &symbol.data {
+                                    match &symbol.range {
+                                        // _range here should be equal to selected_range.
+                                        Some(_range) => Some(lsp_types::LocationLink {
+                                            origin_selection_range: Some(
+                                                shader_range_to_lsp_range(&word_range),
+                                            ),
+                                            target_uri: Url::from_file_path(&target.file_path)
+                                                .unwrap(),
+                                            target_range: shader_range_to_lsp_range(
+                                                &ShaderRange::new(target.clone(), target.clone()),
+                                            ),
+                                            target_selection_range: shader_range_to_lsp_range(
+                                                &ShaderRange::new(target.clone(), target.clone()),
+                                            ),
+                                        }),
+                                        None => None,
+                                    }
+                                } else {
+                                    match &symbol.range {
+                                        Some(range) => Some(lsp_types::LocationLink {
+                                            origin_selection_range: Some(
+                                                shader_range_to_lsp_range(&word_range),
+                                            ),
+                                            target_uri: Url::from_file_path(&range.start.file_path)
+                                                .unwrap(),
+                                            target_range: shader_range_to_lsp_range(range),
+                                            target_selection_range: shader_range_to_lsp_range(
+                                                range,
+                                            ),
+                                        }),
+                                        None => None,
+                                    }
                                 }
                             } else {
-                                match &symbol.range {
-                                    Some(range) => Some(lsp_types::LocationLink {
-                                        origin_selection_range: Some(shader_range_to_lsp_range(
-                                            &word_range,
-                                        )),
-                                        target_uri: Url::from_file_path(&range.start.file_path)
-                                            .unwrap(),
-                                        target_range: shader_range_to_lsp_range(range),
-                                        target_selection_range: shader_range_to_lsp_range(range),
-                                    }),
-                                    None => None,
-                                }
+                                None
                             }
                         })
                         .collect(),

@@ -38,14 +38,20 @@ impl ServerLanguage {
         );
 
         let file_path = uri.to_file_path().unwrap();
-        let completion = all_symbol_list.filter_scoped_symbol(&ShaderPosition {
+        let completion = all_symbol_list.find_symbols_defined_at(&ShaderPosition {
             file_path: file_path.clone(),
             line: position.line as u32,
             pos: position.character as u32,
         });
         let (shader_symbols, parameter_index): (Vec<&ShaderSymbol>, u32) =
             if let (Some(item_label), Some(parameter_index)) = item_parameter {
-                (completion.find_symbols(&item_label), parameter_index)
+                (
+                    completion
+                        .into_iter()
+                        .filter(|s| s.label == item_label)
+                        .collect(),
+                    parameter_index,
+                )
             } else {
                 (Vec::new(), 0)
             };

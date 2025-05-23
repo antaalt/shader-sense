@@ -33,55 +33,54 @@ impl ServerLanguage {
                     let all_symbol_list = self
                         .watched_files
                         .get_all_symbols(uri, &language_data.language);
-                    let symbol_list = all_symbol_list.filter_scoped_symbol(&shader_position);
-                    let matching_symbols = symbol_list.find_symbols_at(&word, &shader_position);
-                    if matching_symbols.len() == 0 {
-                        Ok(None)
-                    } else {
-                        let symbol = &matching_symbols[0];
-                        let label = symbol.format();
-                        let description = symbol.description.clone();
-                        let link = match &symbol.link {
-                            Some(link) => format!("[Online documentation]({})", link),
-                            None => "".into(),
-                        };
-                        let location = match &symbol.range {
-                            Some(range) => format!(
-                                "Defined in {}, line {}",
-                                if range.start.file_path == file_path {
-                                    "this file".into()
-                                } else {
-                                    range.start.file_path.file_name().unwrap().to_string_lossy()
-                                },
-                                range.start.line + 1
-                            ),
-                            None => "".into(),
-                        };
-
-                        Ok(Some(Hover {
-                            contents: HoverContents::Markup(MarkupContent {
-                                kind: lsp_types::MarkupKind::Markdown,
-                                value: format!(
-                                    "```{}\n{}\n```\n{}{}\n{}\n\n{}",
-                                    target_cached_file.shading_language.to_string(),
-                                    label,
-                                    if matching_symbols.len() > 1 {
-                                        format!("(+{} symbol)\n\n", matching_symbols.len() - 1)
+                    let symbol_list = all_symbol_list.find_symbols_defined_at(&shader_position);
+                    match symbol_list.iter().find(|s| s.label == word) {
+                        Some(symbol) => {
+                            let label = symbol.format();
+                            let description = symbol.description.clone();
+                            let link = match &symbol.link {
+                                Some(link) => format!("[Online documentation]({})", link),
+                                None => "".into(),
+                            };
+                            let location = match &symbol.range {
+                                Some(range) => format!(
+                                    "Defined in {}, line {}",
+                                    if range.start.file_path == file_path {
+                                        "this file".into()
                                     } else {
-                                        "".into()
+                                        range.start.file_path.file_name().unwrap().to_string_lossy()
                                     },
-                                    description,
-                                    location,
-                                    link
+                                    range.start.line + 1
                                 ),
-                            }),
-                            // Range of hovered element.
-                            range: if word_range.start.file_path == *file_path {
-                                Some(shader_range_to_lsp_range(&word_range))
-                            } else {
-                                None
-                            },
-                        }))
+                                None => "".into(),
+                            };
+
+                            Ok(Some(Hover {
+                                contents: HoverContents::Markup(MarkupContent {
+                                    kind: lsp_types::MarkupKind::Markdown,
+                                    value: format!(
+                                        "```{}\n{}\n```\n{}{}\n{}\n\n{}",
+                                        target_cached_file.shading_language.to_string(),
+                                        label,
+                                        if symbol_list.len() > 1 {
+                                            format!("(+{} symbol)\n\n", symbol_list.len() - 1)
+                                        } else {
+                                            "".into()
+                                        },
+                                        description,
+                                        location,
+                                        link
+                                    ),
+                                }),
+                                // Range of hovered element.
+                                range: if word_range.start.file_path == *file_path {
+                                    Some(shader_range_to_lsp_range(&word_range))
+                                } else {
+                                    None
+                                },
+                            }))
+                        }
+                        None => Ok(None),
                     }
                 }
                 None => Ok(None),

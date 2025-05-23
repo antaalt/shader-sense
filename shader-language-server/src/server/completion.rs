@@ -57,7 +57,7 @@ impl ServerLanguage {
                 position.character - 1
             },
         };
-        let symbol_list = symbol_list.filter_scoped_symbol(&shader_position);
+        let symbol_list = symbol_list.find_symbols_defined_at(&shader_position);
         match trigger_character {
             Some(_) => {
                 match language_data
@@ -69,49 +69,60 @@ impl ServerLanguage {
                     Ok(chain) => {
                         let mut chain_list = chain.iter().rev();
                         let mut current_symbol = match chain_list.next() {
-                            Some(next_item) => match symbol_list.find_symbol(&next_item.0) {
-                                Some(symbol) => {
-                                    if let ShaderSymbolData::Variables { ty, count: _ } =
-                                        &symbol.data
-                                    {
-                                        match symbol_list.find_type_symbol(ty) {
-                                            Some(ty_symbol) => ty_symbol,
-                                            None => {
-                                                warn!("Symbol type {} is not found.", ty);
-                                                return Ok(vec![]);
+                            Some((next_item, _next_item_range)) => {
+                                match symbol_list.iter().find(|s| s.label == *next_item) {
+                                    Some(symbol) => {
+                                        if let ShaderSymbolData::Variables { ty, count: _ } =
+                                            &symbol.data
+                                        {
+                                            match symbol_list
+                                                .iter()
+                                                .find(|s| s.is_type(ShaderSymbolType::Types))
+                                            {
+                                                Some(ty_symbol) => ty_symbol,
+                                                None => {
+                                                    warn!("Symbol type {} is not found.", ty);
+                                                    return Ok(vec![]);
+                                                }
                                             }
+                                        } else {
+                                            error!("Not variable {:?}", symbol);
+                                            return Ok(vec![]); // Nothing valid under cursor
                                         }
-                                    } else {
-                                        error!("Not variable {:?}", symbol);
-                                        return Ok(vec![]); // Nothing valid under cursor
                                     }
+                                    None => {
+                                        error!("No symbol found for {}", next_item);
+                                        return Ok(vec![]);
+                                    } // Nothing valid under cursor
                                 }
-                                None => {
-                                    error!("No symbol found for {}", next_item.0);
-                                    return Ok(vec![]);
-                                } // Nothing valid under cursor
-                            },
+                            }
                             None => {
                                 error!("No symbol in list for {:?}", chain_list);
                                 return Ok(vec![]);
                             } // Nothing under cursor
                         };
-                        while let Some(next_item) = chain_list.next() {
+                        while let Some((next_item, _next_item_range)) = chain_list.next() {
                             let members_and_methods =
                                 self.list_members_and_methods(&current_symbol);
                             let symbol =
-                                match members_and_methods.iter().find(|e| e.label == next_item.0) {
+                                match members_and_methods.iter().find(|s| s.label == *next_item) {
                                     Some(next_symbol) => next_symbol.clone(),
                                     None => {
                                         return Err(ShaderError::InternalErr(format!(
                                             "Failed to find symbol {} for struct {}",
-                                            next_item.0, current_symbol.label
+                                            next_item, current_symbol.label
                                         )))
                                     }
                                 };
                             // find next element
                             if let ShaderSymbolData::Variables { ty, count: _ } = &symbol.data {
-                                match symbol_list.find_type_symbol(ty) {
+                                match symbol_list.iter().find(|s| {
+                                    if let ShaderSymbolData::Types { constructors: _ } = &s.data {
+                                        s.label == *ty
+                                    } else {
+                                        false
+                                    }
+                                }) {
                                     Some(ty_symbol) => current_symbol = ty_symbol,
                                     None => {
                                         return Ok(vec![]);
@@ -136,7 +147,7 @@ impl ServerLanguage {
                                 };
                                 convert_completion_item(
                                     cached_file.shading_language,
-                                    s,
+                                    &s,
                                     completion_kind,
                                 )
                             })
@@ -153,39 +164,36 @@ impl ServerLanguage {
             }
             None => Ok(symbol_list
                 .into_iter()
-                .filter(|(_, ty)| *ty != ShaderSymbolType::CallExpression)
-                .map(|(symbol_list, ty)| {
-                    symbol_list
-                        .into_iter()
-                        .map(|s| {
-                            convert_completion_item(
-                                cached_file.shading_language,
-                                s,
-                                match ty {
-                                    ShaderSymbolType::Types => CompletionItemKind::TYPE_PARAMETER,
-                                    ShaderSymbolType::Constants => CompletionItemKind::CONSTANT,
-                                    ShaderSymbolType::Variables => CompletionItemKind::VARIABLE,
-                                    ShaderSymbolType::Functions => CompletionItemKind::FUNCTION,
-                                    ShaderSymbolType::Keyword => CompletionItemKind::KEYWORD,
-                                    ShaderSymbolType::Macros => CompletionItemKind::CONSTANT,
-                                    ShaderSymbolType::Include => CompletionItemKind::FILE,
-                                    ShaderSymbolType::CallExpression => {
-                                        unreachable!("Field should be filtered out.")
-                                    }
-                                },
-                            )
-                        })
-                        .collect()
+                .filter(|symbol| {
+                    !symbol.is_type(ShaderSymbolType::CallExpression) && symbol.get_type().is_some()
                 })
-                .collect::<Vec<Vec<CompletionItem>>>()
-                .concat()),
+                .map(|symbol| {
+                    convert_completion_item(
+                        cached_file.shading_language,
+                        symbol,
+                        // Safe unwrap as we filter out none
+                        match symbol.get_type().unwrap() {
+                            ShaderSymbolType::Types => CompletionItemKind::TYPE_PARAMETER,
+                            ShaderSymbolType::Constants => CompletionItemKind::CONSTANT,
+                            ShaderSymbolType::Variables => CompletionItemKind::VARIABLE,
+                            ShaderSymbolType::Functions => CompletionItemKind::FUNCTION,
+                            ShaderSymbolType::Keyword => CompletionItemKind::KEYWORD,
+                            ShaderSymbolType::Macros => CompletionItemKind::CONSTANT,
+                            ShaderSymbolType::Include => CompletionItemKind::FILE,
+                            ShaderSymbolType::CallExpression => {
+                                unreachable!("Field should be filtered out.")
+                            }
+                        },
+                    )
+                })
+                .collect::<Vec<CompletionItem>>()),
         }
     }
 }
 
 fn convert_completion_item(
     shading_language: ShadingLanguage,
-    shader_symbol: ShaderSymbol,
+    shader_symbol: &ShaderSymbol,
     completion_kind: CompletionItemKind,
 ) -> CompletionItem {
     let doc_link = if let Some(link) = &shader_symbol.link {

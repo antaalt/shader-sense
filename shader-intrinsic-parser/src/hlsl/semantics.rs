@@ -1,10 +1,10 @@
 use scraper::{Html, Selector};
-use shader_sense::symbols::symbols::{ShaderSymbol, ShaderSymbolData, ShaderSymbolList};
+use shader_sense::symbols::symbols::{ShaderBuiltinSymbol, ShaderSymbol, ShaderSymbolData};
 
 use super::{HlslIntrinsicParser, SEMANTIC_FILE};
 
 impl HlslIntrinsicParser {
-    pub fn add_semantic(&self, symbols: &mut ShaderSymbolList, cache_path: &str) {
+    pub fn add_semantic(&self, symbols: &mut ShaderBuiltinSymbol, cache_path: &str) {
         let semantics_file = std::fs::read_to_string(format!("{}{}", cache_path, SEMANTIC_FILE))
             .expect("Failed to read file");
         {
@@ -40,15 +40,15 @@ impl HlslIntrinsicParser {
 
                     println!("Reading semantic {}", label);
 
-                    symbols.constants.push(ShaderSymbol {
+                    symbols.push(ShaderSymbol {
                         label: label.into(),
                         description: description.into(),
                         version: "".into(),
                         stages: vec![],
                         link: Some("https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics".into()),
-                        data: ShaderSymbolData::Variables { ty, count: None },
+                        data: ShaderSymbolData::Constants { ty, qualifier: "".into(), value: "".into() },
                         range: None,
-                        scope_stack:None,
+                        content:None,
                     });
                 }
             }

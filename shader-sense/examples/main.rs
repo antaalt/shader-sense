@@ -42,8 +42,8 @@ fn query_all_symbol<T: ShadingLanguageTag>(shader_path: &Path) {
                     None,
                 )
                 .unwrap();
-            let symbol_list = symbols.get_all_symbols();
-            println!("Found symbols: {:#?}", symbol_list);
+            let symbol_tree = symbols.get_symbol_tree();
+            println!("Found symbols: {:#?}", symbol_tree);
         }
         Err(err) => println!("Failed to create ast: {:#?}", err),
     }

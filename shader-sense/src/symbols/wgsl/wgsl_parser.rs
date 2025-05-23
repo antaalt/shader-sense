@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use crate::symbols::{
-    symbol_parser::{get_name, ShaderSymbolListBuilder, SymbolTreeParser},
-    symbols::{ShaderParameter, ShaderRange, ShaderScope, ShaderSymbol, ShaderSymbolData},
+    symbol_parser::{get_name, ShaderSymbolTreeBuilder, SymbolTreeParser},
+    symbols::{ShaderParameter, ShaderRange, ShaderSymbol, ShaderSymbolData},
 };
 
 pub fn get_wgsl_parsers() -> Vec<Box<dyn SymbolTreeParser>> {
@@ -30,33 +30,34 @@ impl SymbolTreeParser for WgslStructTreeParser {
         matches: tree_sitter::QueryMatch,
         file_path: &Path,
         shader_content: &str,
-        scopes: &Vec<ShaderScope>,
-        symbols: &mut ShaderSymbolListBuilder,
+        symbols: &mut ShaderSymbolTreeBuilder,
     ) {
         let label_node = matches.captures[0].node;
         let range = ShaderRange::from_range(label_node.range(), file_path.into());
-        let scope_stack = self.compute_scope_stack(&scopes, &range);
-        symbols.add_type(ShaderSymbol {
-            label: get_name(shader_content, matches.captures[0].node).into(),
-            description: "".into(),
-            version: "".into(),
-            stages: vec![],
-            link: None,
-            data: ShaderSymbolData::Struct {
-                constructors: vec![], // Constructor in wgsl ?
-                members: matches.captures[1..]
-                    .chunks(2)
-                    .map(|w| ShaderParameter {
-                        ty: get_name(shader_content, w[1].node).into(),
-                        label: get_name(shader_content, w[0].node).into(),
-                        count: None,
-                        description: "".into(),
-                    })
-                    .collect::<Vec<ShaderParameter>>(),
-                methods: vec![],
+        symbols.add_children(
+            ShaderSymbol {
+                label: get_name(shader_content, matches.captures[0].node).into(),
+                description: "".into(),
+                version: "".into(),
+                stages: vec![],
+                link: None,
+                data: ShaderSymbolData::Struct {
+                    constructors: vec![], // Constructor in wgsl ?
+                    members: matches.captures[1..]
+                        .chunks(2)
+                        .map(|w| ShaderParameter {
+                            ty: get_name(shader_content, w[1].node).into(),
+                            label: get_name(shader_content, w[0].node).into(),
+                            count: None,
+                            description: "".into(),
+                        })
+                        .collect::<Vec<ShaderParameter>>(),
+                    methods: vec![],
+                },
+                range: Some(range),
+                content: None, // TODO: content
             },
-            range: Some(range),
-            scope_stack: Some(scope_stack),
-        });
+            true,
+        );
     }
 }

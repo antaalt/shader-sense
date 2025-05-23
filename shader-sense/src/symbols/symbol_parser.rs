@@ -4,7 +4,7 @@ use tree_sitter::{Node, QueryMatch};
 
 use crate::{
     shader_error::ShaderError,
-    symbols::symbols::{ShaderPosition, ShaderRange, ShaderSymbolList},
+    symbols::symbols::{ShaderPosition, ShaderRange, ShaderSymbolTree},
 };
 
 use super::{
@@ -47,39 +47,48 @@ impl ShaderPosition {
     }
 }
 
-pub struct ShaderSymbolListBuilder<'a> {
-    shader_symbol_list: ShaderSymbolList,
+pub struct ShaderSymbolTreeBuilder<'a> {
+    shader_symbol_tree: ShaderSymbolTree,
     filter_callback: Box<&'a dyn Fn(&ShaderSymbol) -> bool>,
 }
-impl<'a> ShaderSymbolListBuilder<'a> {
+impl<'a> ShaderSymbolTreeBuilder<'a> {
     pub fn new(filter_callback: &'a dyn Fn(&ShaderSymbol) -> bool) -> Self {
         Self {
-            shader_symbol_list: ShaderSymbolList::default(),
+            shader_symbol_tree: ShaderSymbolTree::default(),
             filter_callback: Box::new(filter_callback),
         }
     }
-    pub fn add_call_expression(&mut self, shader_symbol: ShaderSymbol) {
+    pub fn add_children(&mut self, shader_symbol: ShaderSymbol, global_scope: bool) {
         if (self.filter_callback)(&shader_symbol) {
-            self.shader_symbol_list.call_expression.push(shader_symbol);
-        }
+            if !global_scope {
+                match self.shader_symbol_tree.iter_all().find(|symbol| {
+                    match &symbol.content {
+                        Some(content) => match &content.range {
+                            Some(content_range) => match &shader_symbol.range {
+                                Some(symbol_range) => content_range.contain_bounds(&symbol_range),
+                                None => false, // Not in range
+                            },
+                            None => false,
+                        },
+                        None => false, // No content
+                    }
+                }) {
+                    Some(_symbol) => {
+                        todo!("Need a mutable iterator to run this.")
+                        //symbol.content.as_mut().unwrap().childrens.push(shader_symbol);
+                    }
+                    None => {
+                        // No content found, adding to global scope.
+                        self.shader_symbol_tree.add_global_symbol(shader_symbol)
+                    }
+                }
+            } else {
+                self.shader_symbol_tree.add_global_symbol(shader_symbol);
+            }
+        } // else filtered out.
     }
-    pub fn add_variable(&mut self, shader_symbol: ShaderSymbol) {
-        if (self.filter_callback)(&shader_symbol) {
-            self.shader_symbol_list.variables.push(shader_symbol);
-        }
-    }
-    pub fn add_type(&mut self, shader_symbol: ShaderSymbol) {
-        if (self.filter_callback)(&shader_symbol) {
-            self.shader_symbol_list.types.push(shader_symbol);
-        }
-    }
-    pub fn add_function(&mut self, shader_symbol: ShaderSymbol) {
-        if (self.filter_callback)(&shader_symbol) {
-            self.shader_symbol_list.functions.push(shader_symbol);
-        }
-    }
-    pub fn get_shader_symbol_list(&mut self) -> ShaderSymbolList {
-        std::mem::take(&mut self.shader_symbol_list)
+    pub fn get_shader_symbol_tree(&mut self) -> ShaderSymbolTree {
+        std::mem::take(&mut self.shader_symbol_tree)
     }
 }
 
@@ -92,8 +101,7 @@ pub trait SymbolTreeParser {
         matches: QueryMatch,
         file_path: &Path,
         shader_content: &str,
-        scopes: &Vec<ShaderScope>,
-        symbols: &mut ShaderSymbolListBuilder,
+        symbols: &mut ShaderSymbolTreeBuilder,
     );
     fn compute_scope_stack(
         &self,

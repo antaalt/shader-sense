@@ -16,7 +16,7 @@ use shader_sense::{
         shader_language::ShaderLanguage,
         symbol_provider::SymbolProvider,
         symbol_tree::{ShaderModuleHandle, ShaderSymbols},
-        symbols::{ShaderPreprocessorContext, ShaderSymbol, ShaderSymbolData, ShaderSymbolList},
+        symbols::{ShaderPreprocessorContext, ShaderSymbol, ShaderSymbolData, ShaderSymbolTree},
     },
     validator::validator::Validator,
 };
@@ -620,15 +620,15 @@ impl ServerLanguageFileCache {
             },
         }
     }
-    pub fn get_all_symbols(&self, uri: &Url, shader_language: &ShaderLanguage) -> ShaderSymbolList {
+    pub fn get_all_symbols(&self, uri: &Url, shader_language: &ShaderLanguage) -> ShaderSymbolTree {
         let cached_file = self.files.get(uri).unwrap();
         assert!(cached_file.data.is_some(), "File {} do not have cache", uri);
         let data = &cached_file.get_data();
         // Add main file symbols
-        let mut symbol_cache = data.symbol_cache.get_all_symbols();
+        let mut symbol_cache = data.symbol_cache.get_symbol_tree();
         // Add config symbols
         for (key, value) in data.symbol_cache.get_context().get_defines() {
-            symbol_cache.macros.push(ShaderSymbol {
+            symbol_cache.add_global_symbol(ShaderSymbol {
                 label: key.clone(),
                 description: format!(
                     "Config preprocessor macro. Expanding to \n```\n{}\n```",
@@ -641,11 +641,11 @@ impl ServerLanguageFileCache {
                     value: value.clone(),
                 },
                 range: None,
-                scope_stack: None,
+                content: None,
             });
         }
         // Add intrinsics symbols
-        symbol_cache.append(shader_language.get_intrinsics_symbol().clone());
+        symbol_cache.append_builtins(shader_language.get_intrinsics_symbol().clone());
         symbol_cache
     }
 }

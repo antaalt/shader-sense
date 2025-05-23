@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 
 use lsp_types::{SemanticToken, SemanticTokens, SemanticTokensResult, Url};
-use shader_sense::{shader_error::ShaderError, symbols::symbols::ShaderPosition};
+use shader_sense::{
+    shader_error::ShaderError,
+    symbols::symbols::{ShaderPosition, ShaderSymbolType},
+};
 
 use super::ServerLanguage;
 
@@ -21,8 +24,8 @@ impl ServerLanguage {
         let content = &RefCell::borrow(&cached_file.shader_module).content;
         // Find occurences of macros to paint them.
         let mut tokens = symbols
-            .macros
-            .iter()
+            .iter_all()
+            .filter(|symbol| symbol.is_type(ShaderSymbolType::Macros))
             .map(|symbol| {
                 let byte_offset_start = match &symbol.range {
                     Some(range) => {

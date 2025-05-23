@@ -46,7 +46,7 @@ impl ShaderSignature {
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderPosition {
-    pub file_path: PathBuf,
+    pub file_path: PathBuf, // TODO:TREE: move filepath out of there for clarity. One tree = one file.
     pub line: u32,
     pub pos: u32,
 }
@@ -362,7 +362,7 @@ impl ShaderPreprocessor {
             mode: ShaderPreprocessorMode::default(),
         }
     }
-    pub fn preprocess_symbols(&self, shader_symbols: &mut ShaderSymbolList) {
+    /*pub fn preprocess_symbols(&self, shader_symbols: &mut ShaderSymbolTree) {
         // Filter inactive regions symbols
         shader_symbols.retain(|symbol| {
             let is_in_inactive_region = match &symbol.range {
@@ -401,7 +401,7 @@ impl ShaderPreprocessor {
                         },
                     },
                     range: define.range.clone(),
-                    scope_stack: None, // No scope for define
+                    content: None, // No content for define
                 }
             })
             .collect();
@@ -420,13 +420,13 @@ impl ShaderPreprocessor {
                         target: ShaderPosition::new(include.absolute_path.clone(), 0, 0),
                     },
                     range: Some(include.range.clone()),
-                    scope_stack: None, // No scope for include
+                    content: None, // No content for include
                 }
             })
             .collect();
         shader_symbols.macros.append(&mut define_symbols);
         shader_symbols.includes.append(&mut include_symbols);
-    }
+    }*/
 }
 
 pub type ShaderMember = ShaderParameter;
@@ -449,8 +449,8 @@ impl ShaderMember {
                 ty: self.ty.clone(),
                 count: self.count,
             },
-            range: None, // Should have a position ?
-            scope_stack: None,
+            range: None,   // Should have a position ?
+            content: None, // No content for member
         }
     }
 }
@@ -466,8 +466,8 @@ impl ShaderMethod {
             data: ShaderSymbolData::Functions {
                 signatures: vec![self.signature.clone()],
             },
-            range: None, // Should have a position ?
-            scope_stack: None,
+            range: None,   // Should have a position ?
+            content: None, // TODO:TREE: content for method
         }
     }
 }
@@ -478,12 +478,14 @@ pub enum ShaderSymbolData {
     None,
     // A bit of duplicate from variables ? Should be struct (Which should be renamed something else)
     Types {
+        // Constructor in child ? How to handle it ? If same name as parent, assume constructor ?
         constructors: Vec<ShaderSignature>,
     },
     Struct {
         constructors: Vec<ShaderSignature>, // Need a range aswell for hover.
-        members: Vec<ShaderMember>,         // Need a range aswell for hover.
-        methods: Vec<ShaderMethod>,         // Need a range aswell for hover.
+        // TODO: Can be moved to child.
+        members: Vec<ShaderMember>, // Need a range aswell for hover.
+        methods: Vec<ShaderMethod>, // Need a range aswell for hover.
     },
     Constants {
         ty: String,
@@ -507,28 +509,35 @@ pub enum ShaderSymbolData {
     },
     #[serde(skip)] // This is runtime only. No serialization.
     Link {
+        // TODO:TREE: Rename include
         target: ShaderPosition,
     },
     #[serde(skip)] // This is runtime only. No serialization.
     Macro {
+        // TODO:TREE: harmonise define & macro
         value: String,
     },
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct ShaderSymbolContent {
+    #[serde(skip)] // Runtime info. No serialization.
+    pub range: Option<ShaderRange>, // Range of symbol scope. TODO:TREE: Remove option.
+    pub childrens: Vec<ShaderSymbol>, // Symbols found in symbol scope
 }
 
 #[allow(non_snake_case)] // for JSON
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderSymbol {
-    pub label: String,            // Label for the item
-    pub description: String,      // Description of the item
-    pub version: String,          // Minimum version required for the item.
-    pub stages: Vec<ShaderStage>, // Shader stages of the item
-    pub link: Option<String>,     // Link to some external documentation
-    pub data: ShaderSymbolData,   // Data for the variable
-    // Runtime info. No serialization.
-    #[serde(skip)]
+    pub label: String,                        // Label for the item
+    pub description: String,                  // Description of the item
+    pub version: String,                      // Minimum version required for the item.
+    pub stages: Vec<ShaderStage>,             // Shader stages of the item
+    pub link: Option<String>,                 // Link to some external documentation
+    pub data: ShaderSymbolData,               // Data for the variable
+    pub content: Option<ShaderSymbolContent>, // Content of shader (function & structure)
+    #[serde(skip)] // Runtime info. No serialization.
     pub range: Option<ShaderRange>, // Range of symbol in shader
-    #[serde(skip)]
-    pub scope_stack: Option<Vec<ShaderScope>>, // Stack of declaration
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -545,367 +554,170 @@ pub enum ShaderSymbolType {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ShaderSymbolList {
-    // Could use maps for faster search access (hover provider)
-    // Should use a tree to store symbols with scopes.
-    // And will need a symbol kind aswell.
-    pub types: Vec<ShaderSymbol>,
-    pub constants: Vec<ShaderSymbol>,
-    pub variables: Vec<ShaderSymbol>,
-    #[serde(skip)] // Only used at runtime.
-    pub call_expression: Vec<ShaderSymbol>,
-    pub functions: Vec<ShaderSymbol>,
-    pub keywords: Vec<ShaderSymbol>,
-    pub macros: Vec<ShaderSymbol>,
-    pub includes: Vec<ShaderSymbol>,
+pub struct ShaderSymbolTree {
+    root: ShaderSymbolContent, // TODO:TREE: Could have a vec of shader symbol directly here as range is useless
+    contain_builtins: bool,
 }
 
-impl ShaderSymbolList {
-    pub fn parse_from_json(file_content: String) -> ShaderSymbolList {
-        serde_json::from_str::<ShaderSymbolList>(&file_content)
-            .expect("Failed to parse ShaderSymbolList")
+// TODO:TREE: could be a dedicated shadersymboltree instead, for handling struct as a scope with childrens.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct ShaderBuiltinSymbol {
+    symbols: Vec<ShaderSymbol>,
+}
+
+impl ShaderBuiltinSymbol {
+    pub fn push(&mut self, symbol: ShaderSymbol) {
+        self.symbols.push(symbol);
     }
-    pub fn find_symbols_at(&self, label: &String, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
-        self.iter()
-            .map(|(sl, ty)| {
-                if !ty.is_transient() {
-                    sl.iter()
-                        .filter(|e| {
-                            if e.label == *label {
-                                match &e.range {
-                                    Some(range) => {
-                                        // TODO: should filter from other file with include range, but no access to it from there...
-                                        // TODO: handle scopes aswell... (& remove duplicate filter_scoped_symbol) + splat function.
-                                        *position > range.start
-                                            || range.start.file_path != position.file_path
-                                    }
-                                    None => true,
-                                }
-                            } else {
-                                false
-                            }
-                        })
-                        .collect::<Vec<&ShaderSymbol>>()
-                } else {
-                    vec![]
-                }
+    pub fn append(&mut self, symbols: &mut Vec<ShaderSymbol>) {
+        self.symbols.append(symbols);
+    }
+}
+
+impl ShaderSymbolTree {
+    pub fn parse_from_json(file_content: String) -> ShaderBuiltinSymbol {
+        serde_json::from_str::<ShaderBuiltinSymbol>(&file_content)
+            .expect("Failed to parse ShaderBuiltinSymbol")
+    }
+    // Find all symbols which are defined at a given position, ignoring those who are not.
+    pub fn find_symbols_defined_at(&self, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
+        self.iter_all()
+            .filter(|symbol| {
+                // Skip transient symbols
+                let is_transient = match symbol.get_type() {
+                    Some(ty) => ty.is_transient(),
+                    None => false,
+                };
+                let is_in_range = match &symbol.range {
+                    Some(range) => *position > range.start,
+                    None => true, // Keep global symbols
+                };
+                is_in_range && !is_transient
             })
-            .collect::<Vec<Vec<&ShaderSymbol>>>()
-            .concat()
+            .collect()
     }
-    pub fn find_symbols(&self, label: &String) -> Vec<&ShaderSymbol> {
-        self.iter()
-            .map(|(sl, ty)| {
-                if !ty.is_transient() {
-                    sl.iter()
-                        .filter_map(|e| if e.label == *label { Some(e) } else { None })
-                        .collect::<Vec<&ShaderSymbol>>()
-                } else {
-                    vec![]
+    // Find symbol at given position and return its stack in the tree
+    pub fn find_symbol_at(&self, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
+        fn find_symbol_at_level<'a>(
+            content: &'a ShaderSymbolContent,
+            position: &ShaderPosition,
+        ) -> Vec<&'a ShaderSymbol> {
+            match content.childrens.iter().find(|symbol| match &symbol.range {
+                Some(range) => range.contain(position), // TODO:TREE: should match content range and not symbol ?
+                None => false,
+            }) {
+                Some(children) => match &children.content {
+                    Some(content) => {
+                        let mut stack = vec![children];
+                        stack.extend(find_symbol_at_level(content, position));
+                        stack
+                    }
+                    None => vec![children],
+                },
+                None => Vec::new(),
+            }
+        }
+        find_symbol_at_level(&self.root, position)
+    }
+    pub fn add_global_symbol(&mut self, symbol: ShaderSymbol) {
+        self.root.childrens.push(symbol);
+    }
+    pub fn append(&mut self, tree: ShaderSymbolTree) {
+        for children in tree.root.childrens {
+            self.root.childrens.push(children);
+        }
+    }
+    pub fn append_builtins(&mut self, builtins: ShaderBuiltinSymbol) {
+        assert!(!self.contain_builtins);
+        self.contain_builtins = true;
+        for children in builtins.symbols {
+            self.root.childrens.push(children);
+        }
+    }
+    // Get content from symbols.
+    pub fn get_content(&self) -> &ShaderSymbolContent {
+        &self.root
+    }
+    // Only iterate on variables accessible at root scope.
+    pub fn iter_root(&self) -> ShaderSymbolTreeIterator {
+        ShaderSymbolTreeIterator::new(self, false)
+    }
+    // Iterate on all variables by recursing children
+    pub fn iter_all(&self) -> ShaderSymbolTreeIterator {
+        ShaderSymbolTreeIterator::new(self, true)
+    }
+}
+
+pub struct ShaderSymbolTreeIterator<'a> {
+    stack: Vec<std::slice::Iter<'a, ShaderSymbol>>,
+    global: bool,
+}
+impl<'a> ShaderSymbolTreeIterator<'a> {
+    fn new(tree: &'a ShaderSymbolTree, global: bool) -> Self {
+        Self {
+            stack: vec![tree.root.childrens.iter()],
+            global,
+        }
+    }
+}
+impl<'a> Iterator for ShaderSymbolTreeIterator<'a> {
+    type Item = &'a ShaderSymbol;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(top) = self.stack.last_mut() {
+            if let Some(symbol) = top.next() {
+                // If this symbol has children, and we want to recurse them, push their iterator to the stack for depth first search
+                if self.global {
+                    if let Some(content) = &symbol.content {
+                        self.stack.push(content.childrens.iter());
+                    }
                 }
-            })
-            .collect::<Vec<Vec<&ShaderSymbol>>>()
-            .concat()
-    }
-    pub fn find_symbol(&self, label: &String) -> Option<&ShaderSymbol> {
-        for symbol_list in self.iter() {
-            match symbol_list.0.iter().find(|e| e.label == *label) {
-                Some(symbol) => return Some(symbol),
-                None => {}
+                return Some(symbol);
+            } else {
+                self.stack.pop();
             }
         }
         None
     }
-    pub fn find_type_symbol(&self, label: &String) -> Option<ShaderSymbol> {
-        self.types
-            .iter()
-            .find(|s| s.label == *label)
-            .map(|s| s.clone())
-    }
-    pub fn append(&mut self, shader_symbol_list: ShaderSymbolList) {
-        let mut shader_symbol_list_mut = shader_symbol_list;
-        self.functions.append(&mut shader_symbol_list_mut.functions);
-        self.variables.append(&mut shader_symbol_list_mut.variables);
-        self.call_expression
-            .append(&mut shader_symbol_list_mut.variables);
-        self.constants.append(&mut shader_symbol_list_mut.constants);
-        self.types.append(&mut shader_symbol_list_mut.types);
-        self.keywords.append(&mut shader_symbol_list_mut.keywords);
-        self.macros.append(&mut shader_symbol_list_mut.macros);
-        self.includes.append(&mut shader_symbol_list_mut.includes);
-    }
-    pub fn iter(&self) -> ShaderSymbolListIterator {
-        ShaderSymbolListIterator {
-            list: self,
-            next: Some(ShaderSymbolType::Types), // First one
+}
+
+/*pub struct ShaderSymbolTreeIteratorMut<'a> {
+    stack: Vec<std::slice::IterMut<'a, ShaderSymbol>>,
+    global: bool
+}
+impl<'a> ShaderSymbolTreeIteratorMut<'a> {
+    fn new(tree: &'a mut ShaderSymbolTree, global: bool) -> Self {
+        // TODO:TREE: should store every symbol into the vec, and pop them off one by one.
+        // Will have a different order than non mut iterator though...
+        // Because we cannot store symbol children iterator if we return it as mut.
+        Self {
+            stack: vec![tree.root.childrens.iter_mut().peekable()],
+            global,
         }
     }
-    pub fn filter<P: Fn(&ShaderSymbol) -> bool>(&self, predicate: P) -> ShaderSymbolList {
-        ShaderSymbolList {
-            types: self
-                .types
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            constants: self
-                .constants
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            variables: self
-                .variables
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            call_expression: self
-                .call_expression
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            functions: self
-                .functions
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            keywords: self
-                .keywords
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            macros: self
-                .macros
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-            includes: self
-                .includes
-                .iter()
-                .filter(|e| predicate(*e))
-                .cloned()
-                .collect(),
-        }
-    }
-    pub fn retain<P: Fn(&ShaderSymbol) -> bool>(&mut self, predicate: P) {
-        self.types.retain(&predicate);
-        self.constants.retain(&predicate);
-        self.functions.retain(&predicate);
-        self.variables.retain(&predicate);
-        self.call_expression.retain(&predicate);
-        self.keywords.retain(&predicate);
-        self.macros.retain(&predicate);
-        self.includes.retain(&predicate);
-    }
-    pub fn filter_scoped_symbol(&self, cursor_position: &ShaderPosition) -> ShaderSymbolList {
-        // Ensure symbols are already defined at pos
-        let filter_position = |shader_symbol: &ShaderSymbol| -> bool {
-            match &shader_symbol.scope_stack {
-                Some(scope) => {
-                    if scope.is_empty() {
-                        true // Global space
-                    } else {
-                        match &shader_symbol.range {
-                            Some(range) => {
-                                if range.start.line == cursor_position.line {
-                                    cursor_position.pos > range.start.pos
-                                } else {
-                                    cursor_position.line > range.start.line
-                                }
-                            }
-                            None => true, // intrinsics
-                        }
+}
+impl<'a> Iterator for ShaderSymbolTreeIteratorMut<'a> {
+    type Item = &'a mut ShaderSymbol;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(top) = self.stack.last_mut() {
+            if let Some(symbol) = top.next() {
+                // If this symbol has children, and we want to recurse them, push their iterator to the stack for depth first search
+                if self.global {
+                    if let Some(content) = symbol.content.as_mut() {
+                        self.stack.push(content.childrens.iter_mut());
                     }
                 }
-                None => true, // Global space
-            }
-        };
-        // Ensure symbols are in scope
-        let filter_scope = |shader_symbol: &ShaderSymbol| -> bool {
-            match &shader_symbol.range {
-                Some(symbol_range) => {
-                    if symbol_range.start.file_path == cursor_position.file_path {
-                        // If we are in main file, check if scope in range.
-                        match &shader_symbol.scope_stack {
-                            Some(symbol_scope_stack) => {
-                                for symbol_scope in symbol_scope_stack {
-                                    if !symbol_scope.contain(&cursor_position) {
-                                        return false;
-                                    }
-                                }
-                                true
-                            }
-                            None => true,
-                        }
-                    } else {
-                        // If we are not in main file, only show whats in global scope.
-                        match &shader_symbol.scope_stack {
-                            Some(symbol_scope_stack) => symbol_scope_stack.is_empty(), // Global scope or inaccessible
-                            None => true,
-                        }
-                    }
-                }
-                None => true,
-            }
-        };
-        // TODO: should add a filter for when multiple same definition: pick latest (shadowing)
-        let filter_all = |shader_symbols: &ShaderSymbol| -> Option<ShaderSymbol> {
-            if filter_position(shader_symbols) && filter_scope(shader_symbols) {
-                Some(shader_symbols.clone())
+                return Some(symbol);
             } else {
-                None
+                self.stack.pop();
             }
-        };
-        ShaderSymbolList {
-            functions: self.functions.iter().filter_map(filter_all).collect(),
-            types: self.types.iter().filter_map(filter_all).collect(),
-            constants: self.constants.iter().filter_map(filter_all).collect(),
-            variables: self.variables.iter().filter_map(filter_all).collect(),
-            call_expression: self.call_expression.iter().filter_map(filter_all).collect(),
-            keywords: self.keywords.iter().filter_map(filter_all).collect(),
-            macros: self.macros.iter().filter_map(filter_all).collect(),
-            includes: self.includes.iter().filter_map(filter_all).collect(),
         }
+        None
     }
-}
+}*/
 
-pub struct ShaderSymbolListIterator<'a> {
-    list: &'a ShaderSymbolList,
-    next: Option<ShaderSymbolType>,
-}
-
-impl<'a> Iterator for ShaderSymbolListIterator<'a> {
-    type Item = (&'a Vec<ShaderSymbol>, ShaderSymbolType);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match &self.next {
-            Some(ty) => match ty {
-                ShaderSymbolType::Types => {
-                    self.next = Some(ShaderSymbolType::Constants);
-                    Some((&self.list.types, ShaderSymbolType::Types))
-                }
-                ShaderSymbolType::Constants => {
-                    self.next = Some(ShaderSymbolType::Variables);
-                    Some((&self.list.constants, ShaderSymbolType::Constants))
-                }
-                ShaderSymbolType::Variables => {
-                    self.next = Some(ShaderSymbolType::CallExpression);
-                    Some((&self.list.variables, ShaderSymbolType::Variables))
-                }
-                ShaderSymbolType::CallExpression => {
-                    self.next = Some(ShaderSymbolType::Functions);
-                    Some((&self.list.call_expression, ShaderSymbolType::CallExpression))
-                }
-                ShaderSymbolType::Functions => {
-                    self.next = Some(ShaderSymbolType::Keyword);
-                    Some((&self.list.functions, ShaderSymbolType::Functions))
-                }
-                ShaderSymbolType::Keyword => {
-                    self.next = Some(ShaderSymbolType::Macros);
-                    Some((&self.list.keywords, ShaderSymbolType::Keyword))
-                }
-                ShaderSymbolType::Macros => {
-                    self.next = Some(ShaderSymbolType::Include);
-                    Some((&self.list.macros, ShaderSymbolType::Macros))
-                }
-                ShaderSymbolType::Include => {
-                    self.next = None;
-                    Some((&self.list.includes, ShaderSymbolType::Include))
-                }
-            },
-            None => None,
-        }
-    }
-}
-
-pub struct ShaderSymbolListIntoIterator {
-    list: ShaderSymbolList,
-    next: Option<ShaderSymbolType>,
-}
-impl Iterator for ShaderSymbolListIntoIterator {
-    type Item = (Vec<ShaderSymbol>, ShaderSymbolType);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.next.clone() {
-            Some(next) => match next {
-                ShaderSymbolType::Types => {
-                    self.next = Some(ShaderSymbolType::Constants);
-                    Some((
-                        std::mem::take(&mut self.list.types),
-                        ShaderSymbolType::Types,
-                    ))
-                }
-                ShaderSymbolType::Constants => {
-                    self.next = Some(ShaderSymbolType::Variables);
-                    Some((
-                        std::mem::take(&mut self.list.constants),
-                        ShaderSymbolType::Constants,
-                    ))
-                }
-                ShaderSymbolType::Variables => {
-                    self.next = Some(ShaderSymbolType::CallExpression);
-                    Some((
-                        std::mem::take(&mut self.list.variables),
-                        ShaderSymbolType::Variables,
-                    ))
-                }
-                ShaderSymbolType::CallExpression => {
-                    self.next = Some(ShaderSymbolType::Functions);
-                    Some((
-                        std::mem::take(&mut self.list.call_expression),
-                        ShaderSymbolType::CallExpression,
-                    ))
-                }
-                ShaderSymbolType::Functions => {
-                    self.next = Some(ShaderSymbolType::Keyword);
-                    Some((
-                        std::mem::take(&mut self.list.functions),
-                        ShaderSymbolType::Functions,
-                    ))
-                }
-                ShaderSymbolType::Keyword => {
-                    self.next = Some(ShaderSymbolType::Macros);
-                    Some((
-                        std::mem::take(&mut self.list.keywords),
-                        ShaderSymbolType::Keyword,
-                    ))
-                }
-                ShaderSymbolType::Macros => {
-                    self.next = Some(ShaderSymbolType::Include);
-                    Some((
-                        std::mem::take(&mut self.list.macros),
-                        ShaderSymbolType::Macros,
-                    ))
-                }
-                ShaderSymbolType::Include => {
-                    self.next = None;
-                    Some((
-                        std::mem::take(&mut self.list.includes),
-                        ShaderSymbolType::Include,
-                    ))
-                }
-            },
-            None => None,
-        }
-    }
-}
-
-impl IntoIterator for ShaderSymbolList {
-    type Item = (Vec<ShaderSymbol>, ShaderSymbolType);
-    type IntoIter = ShaderSymbolListIntoIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        ShaderSymbolListIntoIterator {
-            list: self,
-            next: Some(ShaderSymbolType::Types), // First one
-        }
-    }
-}
+// TODO:TREE: into iter convert to flat.
 
 impl ShaderSymbolType {
     // Transient symbol are not serialized nor used for hover & completion.
@@ -942,6 +754,12 @@ impl ShaderSymbol {
             ShaderSymbolData::Keyword {} => Some(ShaderSymbolType::Keyword),
             ShaderSymbolData::Link { target: _ } => Some(ShaderSymbolType::Include),
             ShaderSymbolData::Macro { value: _ } => Some(ShaderSymbolType::Macros),
+        }
+    }
+    pub fn is_type(&self, ty: ShaderSymbolType) -> bool {
+        match self.get_type() {
+            Some(internal_ty) => internal_ty == ty,
+            None => false,
         }
     }
     pub fn format(&self) -> String {

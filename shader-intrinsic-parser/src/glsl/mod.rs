@@ -1,4 +1,4 @@
-use shader_sense::symbols::symbols::ShaderSymbolList;
+use shader_sense::symbols::symbols::ShaderBuiltinSymbol;
 
 use crate::common::{download_file, IntrinsicParser};
 use std::collections::HashSet;
@@ -117,18 +117,8 @@ impl IntrinsicParser for GlslIntrinsicParser {
                 .expect("Failed to write file");
         }
     }
-    fn parse(&self, cache_path: &str) -> ShaderSymbolList {
-        let mut symbols = ShaderSymbolList {
-            types: Vec::new(),
-            constants: Vec::new(),
-            variables: Vec::new(),
-            call_expression: Vec::new(),
-            functions: Vec::new(),
-            keywords: Vec::new(),
-            includes: Vec::new(),
-            macros: Vec::new(),
-            //extensions: HashMap::new(),
-        };
+    fn parse(&self, cache_path: &str) -> ShaderBuiltinSymbol {
+        let mut symbols = ShaderBuiltinSymbol::default();
 
         self.add_methods(&mut symbols, cache_path);
         self.add_types(&mut symbols);

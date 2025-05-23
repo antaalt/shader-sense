@@ -10,13 +10,13 @@ use crate::{
 use super::{
     shader_language::ShaderLanguage,
     symbol_parser::{
-        ShaderSymbolListBuilder, SymbolLabelChainProvider, SymbolLabelProvider, SymbolRegionFinder,
+        ShaderSymbolTreeBuilder, SymbolLabelChainProvider, SymbolLabelProvider, SymbolRegionFinder,
         SymbolTreeFilter, SymbolTreeParser, SymbolTreePreprocessorParser,
     },
     symbol_tree::{ShaderModule, ShaderModuleHandle, ShaderSymbols, SymbolTree},
     symbols::{
         ShaderPosition, ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude,
-        ShaderPreprocessorMode, ShaderRange, ShaderScope, ShaderSymbol, ShaderSymbolList,
+        ShaderPreprocessorMode, ShaderRange, ShaderScope, ShaderSymbol, ShaderSymbolTree,
     },
 };
 
@@ -96,7 +96,7 @@ impl SymbolProvider {
         }
     }
     pub fn query_file_scopes(&self, symbol_tree: &SymbolTree) -> Vec<ShaderScope> {
-        // TODO: look for namespace aswell.
+        // TODO:TREE: look for namespace aswell.
         // Should be per lang instead.
         fn join_scope(mut lhs: ShaderRange, rhs: ShaderRange) -> ShaderScope {
             lhs.start = std::cmp::min(lhs.start, rhs.start);
@@ -155,14 +155,14 @@ impl SymbolProvider {
         // Either we create it from context, or we store it in context (no need to store 2 ref to it).
         let preprocessor =
             self.query_preprocessor(shader_module, context, include_callback, old_symbols)?;
-        let symbol_list = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
-            ShaderSymbolList::default() // if once, no symbols.
+        let symbol_tree = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
+            ShaderSymbolTree::default() // if once, no symbols.
         } else {
             self.query_file_symbols(shader_module)?
         };
         Ok(ShaderSymbols {
             preprocessor,
-            symbol_list,
+            symbol_tree,
         })
     }
     pub fn query_symbols<'a>(
@@ -175,14 +175,14 @@ impl SymbolProvider {
         let mut context = ShaderPreprocessorContext::main(&shader_module.file_path, symbol_params);
         let preprocessor =
             self.query_preprocessor(shader_module, &mut context, include_callback, old_symbols)?;
-        let symbol_list = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
-            ShaderSymbolList::default() // if once, no symbols.
+        let symbol_tree = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
+            ShaderSymbolTree::default() // if once, no symbols.
         } else {
             self.query_file_symbols(shader_module)?
         };
         Ok(ShaderSymbols {
             preprocessor,
-            symbol_list,
+            symbol_tree,
         })
     }
     fn query_preprocessor<'a>(
@@ -256,7 +256,7 @@ impl SymbolProvider {
     fn query_file_symbols(
         &self,
         symbol_tree: &SymbolTree,
-    ) -> Result<ShaderSymbolList, ShaderError> {
+    ) -> Result<ShaderSymbolTree, ShaderError> {
         // TODO: Should use something else than name...
         // Required for shader stage filtering...
         let file_name = symbol_tree
@@ -273,8 +273,7 @@ impl SymbolProvider {
             }
             is_retained
         };
-        let mut symbol_list_builder = ShaderSymbolListBuilder::new(&filter_symbol);
-        let scopes = self.query_file_scopes(symbol_tree);
+        let mut symbol_list_builder = ShaderSymbolTreeBuilder::new(&filter_symbol);
         for parser in &self.symbol_parsers {
             let mut query_cursor = QueryCursor::new();
             for matches in query_cursor.matches(
@@ -286,12 +285,11 @@ impl SymbolProvider {
                     matches,
                     &symbol_tree.file_path,
                     &symbol_tree.content,
-                    &scopes,
                     &mut symbol_list_builder,
                 );
             }
         }
-        let symbols = symbol_list_builder.get_shader_symbol_list();
+        let symbols = symbol_list_builder.get_shader_symbol_tree();
         Ok(symbols)
     }
     pub fn get_word_chain_range_at_position(
