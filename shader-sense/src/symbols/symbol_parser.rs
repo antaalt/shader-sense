@@ -61,31 +61,23 @@ impl<'a> ShaderSymbolTreeBuilder<'a> {
     pub fn add_children(&mut self, shader_symbol: ShaderSymbol, global_scope: bool) {
         if (self.filter_callback)(&shader_symbol) {
             if !global_scope {
-                match self.shader_symbol_tree.iter_all_mut().find(|symbol| {
-                    match &symbol.content {
-                        Some(content) => match &content.range {
-                            Some(content_range) => match &shader_symbol.range {
-                                Some(symbol_range) => content_range.contain_bounds(&symbol_range),
-                                None => false, // Not in range
-                            },
-                            None => false,
-                        },
-                        None => false, // No content
-                    }
-                }) {
-                    Some(symbol) => {
-                        // We validated that their is content in find, so unwrap is safe.
-                        symbol
-                            .content
-                            .as_mut()
-                            .unwrap()
-                            .childrens
-                            .push(shader_symbol);
-                    }
-                    None => {
-                        // No content found, adding to global scope.
-                        self.shader_symbol_tree.add_global_symbol(shader_symbol)
-                    }
+                let scope_stack = match &shader_symbol.range {
+                    Some(symbol_range) => self
+                        .shader_symbol_tree
+                        .find_parent_symbol(&symbol_range.start),
+                    None => None,
+                };
+                if let Some(symbol) = scope_stack {
+                    // We validated that their is content in find, so unwrap is safe.
+                    symbol
+                        .content
+                        .as_mut()
+                        .unwrap()
+                        .childrens
+                        .push(shader_symbol);
+                } else {
+                    // No content found, adding to global scope.
+                    self.shader_symbol_tree.add_global_symbol(shader_symbol)
                 }
             } else {
                 self.shader_symbol_tree.add_global_symbol(shader_symbol);

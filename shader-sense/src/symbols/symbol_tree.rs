@@ -39,9 +39,9 @@ impl ShaderSymbols {
             symbol_tree: ShaderSymbolTree::default(),
         }
     }
-    pub fn get_symbol_tree(&self) -> ShaderSymbolTree {
+    pub fn get_symbol_tree(&self) -> &ShaderSymbolTree {
         // TODO:TREE: preprocess regions (or filter them at runtime in iterator ?)
-        self.symbol_tree.clone()
+        &self.symbol_tree
     }
     pub fn get_context(&self) -> &ShaderPreprocessorContext {
         &self.preprocessor.context

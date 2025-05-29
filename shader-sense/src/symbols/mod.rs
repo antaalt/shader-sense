@@ -26,13 +26,17 @@ mod tests {
         symbols::{
             shader_language::ShaderLanguage,
             symbol_provider::ShaderSymbolParams,
-            symbols::{ShaderPosition, ShaderSymbolData, ShaderSymbolType},
+            symbols::{
+                ShaderPosition, ShaderRange, ShaderSymbolContent, ShaderSymbolData,
+                ShaderSymbolType,
+            },
         },
     };
 
     use super::{
+        symbol_parser::ShaderSymbolTreeBuilder,
         symbol_provider::{default_include_callback, SymbolProvider},
-        symbols::ShaderSymbolTree,
+        symbols::{ShaderSignature, ShaderSymbol, ShaderSymbolTree},
     };
 
     pub fn find_file_dependencies(
@@ -88,7 +92,7 @@ mod tests {
             )
             .unwrap();
         let symbols = symbols.get_symbol_tree();
-        all_symbols.append(symbols);
+        all_symbols.append(symbols.clone());
         for dep in deps {
             let symbol_tree = language.create_module(&dep.1, &dep.0).unwrap();
             let symbols = symbol_provider
@@ -100,7 +104,7 @@ mod tests {
                 )
                 .unwrap();
             let symbols = symbols.get_symbol_tree();
-            all_symbols.append(symbols);
+            all_symbols.append(symbols.clone());
         }
         all_symbols.append_builtins(language.get_intrinsics_symbol().clone());
         Ok(all_symbols)
@@ -194,6 +198,108 @@ mod tests {
             .is_none());
     }
     #[test]
+    fn symbol_tree_builder() {
+        fn make_symbol(
+            label: &str,
+            label_range: ShaderRange,
+            data: ShaderSymbolData,
+            content: Option<ShaderSymbolContent>,
+        ) -> ShaderSymbol {
+            ShaderSymbol {
+                label: label.into(),
+                description: "dummy".into(),
+                version: "version".into(),
+                stages: vec![],
+                link: None,
+                data: data,
+                content: content,
+                range: Some(label_range),
+            }
+        }
+        let mut builder = ShaderSymbolTreeBuilder::new(&|_| -> bool {
+            true // no filtering
+        });
+        let file_path = Path::new("./test/virtual.hlsl");
+        builder.add_children(
+            make_symbol(
+                "test",
+                ShaderRange::new(
+                    ShaderPosition::new(file_path.into(), 0, 0),
+                    ShaderPosition::new(file_path.into(), 0, 10),
+                ),
+                ShaderSymbolData::Functions {
+                    signatures: vec![ShaderSignature {
+                        returnType: "void".into(),
+                        description: "void".into(),
+                        parameters: vec![],
+                    }],
+                },
+                Some(ShaderSymbolContent {
+                    range: Some(ShaderRange::new(
+                        ShaderPosition::new(file_path.into(), 0, 10),
+                        ShaderPosition::new(file_path.into(), 10, 0),
+                    )),
+                    childrens: vec![], // Child auto set.
+                }),
+            ),
+            true,
+        );
+        builder.add_children(
+            make_symbol(
+                "content",
+                ShaderRange::new(
+                    ShaderPosition::new(file_path.into(), 3, 0),
+                    ShaderPosition::new(file_path.into(), 3, 10),
+                ),
+                ShaderSymbolData::Functions {
+                    signatures: vec![ShaderSignature {
+                        returnType: "void".into(),
+                        description: "void".into(),
+                        parameters: vec![],
+                    }],
+                },
+                None,
+            ),
+            false,
+        );
+        let tree = builder.get_shader_symbol_tree();
+        println!("Tree: {:#?}", tree);
+        // Test global count
+        let iter_count = tree.iter_root();
+        let root_count = iter_count.count();
+        assert!(
+            root_count == 1,
+            "Expected 1 root element, found {}",
+            root_count
+        );
+        // Test all count
+        let iter_count = tree.iter_all();
+        let global_count = iter_count.count();
+        assert!(
+            global_count == 2,
+            "Expected 2 global element, found {}",
+            root_count
+        );
+        // Test hierarchy
+        let mut iter = tree.iter_all();
+        let root = iter.next().unwrap();
+        assert!(
+            root.label == "test",
+            "Test label is invalid: {}",
+            root.label
+        );
+        assert!(
+            root.content.as_ref().unwrap().childrens.len() > 0,
+            "Root do not have child."
+        );
+        let child = iter.next().unwrap();
+        assert!(
+            child.label == "content",
+            "content label is invalid: {}",
+            child.label
+        );
+    }
+    #[test]
     fn symbol_scope_glsl_ok() {
         let file_path = Path::new("./test/glsl/scopes.frag.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
@@ -258,7 +364,7 @@ mod tests {
         let symbols = symbols.get_symbol_tree();
         assert!(symbols
             .iter_all()
-            .find(|e| e.label == "MatrixHidden" && e.is_type(ShaderSymbolType::Variables))
+            .find(|e| e.label == "MatrixHidden" && e.is_type(ShaderSymbolType::Types))
             .is_some());
         assert!(symbols
             .iter_all()

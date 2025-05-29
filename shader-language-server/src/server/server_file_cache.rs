@@ -625,7 +625,7 @@ impl ServerLanguageFileCache {
         assert!(cached_file.data.is_some(), "File {} do not have cache", uri);
         let data = &cached_file.get_data();
         // Add main file symbols
-        let mut symbol_cache = data.symbol_cache.get_symbol_tree();
+        let mut symbol_cache = data.symbol_cache.get_symbol_tree().clone();
         // Add config symbols
         for (key, value) in data.symbol_cache.get_context().get_defines() {
             symbol_cache.add_global_symbol(ShaderSymbol {

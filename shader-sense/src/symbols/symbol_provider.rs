@@ -16,7 +16,7 @@ use super::{
     symbol_tree::{ShaderModule, ShaderModuleHandle, ShaderSymbols, SymbolTree},
     symbols::{
         ShaderPosition, ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude,
-        ShaderPreprocessorMode, ShaderRange, ShaderScope, ShaderSymbol, ShaderSymbolTree,
+        ShaderPreprocessorMode, ShaderRange, ShaderSymbol, ShaderSymbolTree,
     },
 };
 
@@ -30,7 +30,6 @@ pub struct ShaderSymbolParams {
 pub struct SymbolProvider {
     symbol_parsers: Vec<(Box<dyn SymbolTreeParser>, tree_sitter::Query)>,
     symbol_filters: Vec<Box<dyn SymbolTreeFilter>>,
-    scope_query: Query,
     error_query: Query,
 
     preprocessor_parsers: Vec<(Box<dyn SymbolTreePreprocessorParser>, tree_sitter::Query)>,
@@ -65,10 +64,6 @@ impl SymbolProvider {
         word_chain_provider: Box<dyn SymbolLabelChainProvider>,
         word_provider: Box<dyn SymbolLabelProvider>,
     ) -> Self {
-        let scope_query = r#"(compound_statement
-            "{"? @scope.start
-            "}"? @scope.end
-        ) @scope"#;
         let error_query = r#"(ERROR) @error"#;
         Self {
             symbol_parsers: parsers
@@ -80,7 +75,6 @@ impl SymbolProvider {
                 })
                 .collect(),
             symbol_filters: filters,
-            scope_query: tree_sitter::Query::new(language.clone(), scope_query).unwrap(),
             error_query: tree_sitter::Query::new(language.clone(), error_query).unwrap(),
             preprocessor_parsers: preprocessor_parsers
                 .into_iter()
@@ -94,56 +88,6 @@ impl SymbolProvider {
             word_chain_provider,
             word_provider,
         }
-    }
-    pub fn query_file_scopes(&self, symbol_tree: &SymbolTree) -> Vec<ShaderScope> {
-        // TODO:TREE: look for namespace aswell.
-        // Should be per lang instead.
-        fn join_scope(mut lhs: ShaderRange, rhs: ShaderRange) -> ShaderScope {
-            lhs.start = std::cmp::min(lhs.start, rhs.start);
-            lhs.end = std::cmp::min(lhs.end, rhs.end);
-            lhs
-        }
-        let mut query_cursor = QueryCursor::new();
-        let mut scopes = Vec::new();
-        for matche in query_cursor.matches(
-            &self.scope_query,
-            symbol_tree.tree.root_node(),
-            symbol_tree.content.as_bytes(),
-        ) {
-            scopes.push(match matche.captures.len() {
-                // one body
-                1 => {
-                    ShaderScope::from_range(matche.captures[0].node.range(), &symbol_tree.file_path)
-                }
-                // a bit weird, a body and single curly brace ? mergin them to be safe.
-                2 => join_scope(
-                    ShaderScope::from_range(
-                        matche.captures[0].node.range(),
-                        &symbol_tree.file_path,
-                    ),
-                    ShaderScope::from_range(
-                        matche.captures[1].node.range(),
-                        &symbol_tree.file_path,
-                    ),
-                ),
-                // Remove curly braces from scope.
-                3 => {
-                    let curly_start = matche.captures[1].node.range();
-                    let curly_end = matche.captures[2].node.range();
-                    ShaderScope::from_range(
-                        tree_sitter::Range {
-                            start_byte: curly_start.end_byte,
-                            end_byte: curly_end.start_byte,
-                            start_point: curly_start.end_point,
-                            end_point: curly_end.start_point,
-                        },
-                        &symbol_tree.file_path,
-                    )
-                }
-                _ => unreachable!("Query should not return more than 3 match."),
-            });
-        }
-        scopes
     }
     pub fn query_symbols_with_context<'a>(
         &self,

@@ -1,7 +1,7 @@
 use lsp_types::{DocumentSymbol, SymbolKind, Url};
 use shader_sense::{
     shader_error::ShaderError,
-    symbols::symbols::{ShaderSymbolContent, ShaderSymbolType},
+    symbols::symbols::{ShaderRange, ShaderSymbolContent, ShaderSymbolType},
 };
 
 use super::{common::shader_range_to_location, ServerLanguage};
@@ -11,8 +11,32 @@ impl ServerLanguage {
         content
             .childrens
             .iter()
-            .filter(|s| s.get_type().is_some())
+            .filter(|s| {
+                // Dont publish keywords & transient.
+                !s.is_type(ShaderSymbolType::Keyword)
+                    && !s.get_type().map_or(false, |t| t.is_transient())
+                    && s.range.is_some()
+            })
             .map(|symbol| {
+                let full_range = match &symbol.content {
+                    Some(content) => ShaderRange::join(
+                        symbol
+                            .range
+                            .as_ref()
+                            .expect("Should be filtered out")
+                            .clone(),
+                        content
+                            .range
+                            .as_ref()
+                            .expect("Should be filtered out")
+                            .clone(),
+                    ),
+                    None => symbol
+                        .range
+                        .as_ref()
+                        .expect("Should be filtered out")
+                        .clone(),
+                };
                 #[allow(deprecated)]
                 // https://github.com/rust-lang/rust/issues/102777
                 DocumentSymbol {
@@ -25,6 +49,7 @@ impl ServerLanguage {
                         ShaderSymbolType::Functions => SymbolKind::FUNCTION,
                         ShaderSymbolType::Macros => SymbolKind::CONSTANT,
                         ShaderSymbolType::Include => SymbolKind::FILE,
+                        ShaderSymbolType::Scope => SymbolKind::NAMESPACE, // TODO:TREE: handle scope differently. Should flatten them
                         ShaderSymbolType::Keyword | ShaderSymbolType::CallExpression => {
                             unreachable!("Field should be filtered out")
                         }
@@ -32,11 +57,7 @@ impl ServerLanguage {
                     tags: None,
                     deprecated: None,
                     // Container range
-                    range: shader_range_to_location(match &symbol.content {
-                        Some(content) => content.range.as_ref().expect("Should be filtered out"),
-                        None => symbol.range.as_ref().expect("Should be filtered out"),
-                    })
-                    .range,
+                    range: shader_range_to_location(&full_range).range,
                     // label range
                     selection_range: shader_range_to_location(
                         symbol.range.as_ref().expect("Should be filtered out"),

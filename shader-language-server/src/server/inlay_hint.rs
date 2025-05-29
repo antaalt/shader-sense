@@ -55,12 +55,9 @@ impl ServerLanguage {
                     // Should filter them but cannot access include in SymbolsList. Need SymbolTree
                     let symbols = symbols.find_symbols_defined_at(&range.start);
                     for symbol in symbols {
-                        assert!(
-                            *label == symbol.label,
-                            "call expression label {:?} does not match symbol label {:?}",
-                            label,
-                            symbol.label
-                        );
+                        if symbol.label != *label {
+                            continue;
+                        }
                         // NOTE: inlay hints have a limit of 43 char per line in vscode, after which, they are truncated.
                         // https://github.com/microsoft/vscode/pull/201190
                         let functions = match &symbol.data {

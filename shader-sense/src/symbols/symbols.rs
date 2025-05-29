@@ -213,6 +213,11 @@ impl ShaderRange {
             false
         }
     }
+    pub fn join(mut lhs: ShaderRange, rhs: ShaderRange) -> ShaderRange {
+        lhs.start = std::cmp::min(lhs.start, rhs.start);
+        lhs.end = std::cmp::min(lhs.end, rhs.end);
+        lhs
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -502,6 +507,8 @@ pub enum ShaderSymbolData {
         count: Option<u32>,
     },
     #[serde(skip)] // This is runtime only. No serialization.
+    Scope {},
+    #[serde(skip)] // This is runtime only. No serialization.
     CallExpression {
         label: String,
         range: ShaderRange, // label range.
@@ -537,7 +544,7 @@ pub struct ShaderSymbol {
     pub data: ShaderSymbolData,               // Data for the variable
     pub content: Option<ShaderSymbolContent>, // Content of shader (function & structure)
     #[serde(skip)] // Runtime info. No serialization.
-    pub range: Option<ShaderRange>, // Range of symbol in shader
+    pub range: Option<ShaderRange>, // Range of symbol label in shader
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -551,6 +558,7 @@ pub enum ShaderSymbolType {
     Keyword,
     Macros,
     Include,
+    Scope,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -575,6 +583,7 @@ impl ShaderBuiltinSymbol {
 }
 
 impl ShaderSymbolTree {
+    // TODO:TREE: move
     pub fn parse_from_json(file_content: String) -> ShaderBuiltinSymbol {
         serde_json::from_str::<ShaderBuiltinSymbol>(&file_content)
             .expect("Failed to parse ShaderBuiltinSymbol")
@@ -602,10 +611,16 @@ impl ShaderSymbolTree {
             content: &'a ShaderSymbolContent,
             position: &ShaderPosition,
         ) -> Vec<&'a ShaderSymbol> {
-            match content.childrens.iter().find(|symbol| match &symbol.range {
-                Some(range) => range.contain(position), // TODO:TREE: should match content range and not symbol ?
-                None => false,
-            }) {
+            match content
+                .childrens
+                .iter()
+                .find(|symbol| match &symbol.content {
+                    Some(content) => match &content.range {
+                        Some(range) => range.contain(position),
+                        None => false,
+                    },
+                    None => false,
+                }) {
                 Some(children) => match &children.content {
                     Some(content) => {
                         let mut stack = vec![children];
@@ -618,6 +633,35 @@ impl ShaderSymbolTree {
             }
         }
         find_symbol_at_level(&self.root, position)
+    }
+    // Find symbol at given position and return its stack in the tree
+    pub fn find_parent_symbol(&mut self, position: &ShaderPosition) -> Option<&mut ShaderSymbol> {
+        fn find_symbol_at_level<'a>(
+            content: &'a mut ShaderSymbolContent,
+            position: &ShaderPosition,
+        ) -> Option<*mut ShaderSymbol> {
+            match content
+                .childrens
+                .iter_mut()
+                .find(|symbol| match &symbol.content {
+                    Some(content) => match &content.range {
+                        Some(range) => range.contain(position),
+                        None => false,
+                    },
+                    None => false,
+                }) {
+                Some(children) => match &mut children.content {
+                    Some(content) => match find_symbol_at_level(content, position) {
+                        Some(symbol) => Some(symbol),
+                        None => Some(children),
+                    },
+                    None => None,
+                },
+                None => None,
+            }
+        }
+        // SAFETY: we just iterate on it and never edit it.
+        find_symbol_at_level(&mut self.root, position).map(|s| unsafe { s.as_mut().unwrap() })
     }
     pub fn add_global_symbol(&mut self, symbol: ShaderSymbol) {
         self.root.childrens.push(symbol);
@@ -766,6 +810,7 @@ impl ShaderSymbol {
             ShaderSymbolData::Keyword {} => Some(ShaderSymbolType::Keyword),
             ShaderSymbolData::Link { target: _ } => Some(ShaderSymbolType::Include),
             ShaderSymbolData::Macro { value: _ } => Some(ShaderSymbolType::Macros),
+            ShaderSymbolData::Scope {} => Some(ShaderSymbolType::Scope),
         }
     }
     pub fn is_type(&self, ty: ShaderSymbolType) -> bool {
@@ -813,6 +858,7 @@ impl ShaderSymbol {
             ShaderSymbolData::Macro { value } => {
                 format!("#define {} {}", self.label, value)
             }
+            ShaderSymbolData::Scope {} => "{}".into(),
         }
     }
 }

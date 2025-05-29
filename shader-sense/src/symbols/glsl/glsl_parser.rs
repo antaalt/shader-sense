@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::symbols::symbol_parser::ShaderSymbolTreeBuilder;
 
+use crate::symbols::symbols::ShaderSymbolContent;
 use crate::symbols::{
     symbol_parser::{get_name, SymbolTreeParser},
     symbols::{ShaderParameter, ShaderRange, ShaderSignature, ShaderSymbol, ShaderSymbolData},
@@ -10,6 +11,7 @@ use crate::symbols::{
 pub fn get_glsl_parsers() -> Vec<Box<dyn SymbolTreeParser>> {
     vec![
         Box::new(GlslFunctionTreeParser {}),
+        Box::new(GlslScopeTreeParser {}),
         Box::new(GlslStructTreeParser {}),
         Box::new(GlslVariableTreeParser {}),
         Box::new(GlslUniformBlock {}),
@@ -45,10 +47,9 @@ impl SymbolTreeParser for GlslFunctionTreeParser {
         symbols: &mut ShaderSymbolTreeBuilder,
     ) {
         let label_node = matches.captures[1].node;
-        let range = ShaderRange::from_range(label_node.range(), file_path.into());
         // Query internal scopes variables
-        /*let scope_node = matche.captures[matche.captures.len() - 1].node;
-        let content_scope_stack = {
+        let scope_node = matches.captures[matches.captures.len() - 1].node;
+        /*let content_scope_stack = {
             let mut s = scope_stack.clone();
             s.push(range.clone());
             s
@@ -60,7 +61,7 @@ impl SymbolTreeParser for GlslFunctionTreeParser {
         });*/
         symbols.add_children(
             ShaderSymbol {
-                label: get_name(shader_content, matches.captures[1].node).into(),
+                label: get_name(shader_content, label_node).into(),
                 description: "".into(),
                 version: "".into(),
                 stages: vec![],
@@ -80,10 +81,79 @@ impl SymbolTreeParser for GlslFunctionTreeParser {
                             .collect::<Vec<ShaderParameter>>(),
                     }],
                 },
-                range: Some(range),
-                content: None, // In GLSL, all function are global scope.
+                range: Some(ShaderRange::from_range(
+                    label_node.range(),
+                    file_path.into(),
+                )),
+                content: Some(ShaderSymbolContent {
+                    range: Some(ShaderRange::from_range(
+                        scope_node.range(),
+                        file_path.into(),
+                    )),
+                    childrens: vec![],
+                }),
             },
             true,
+        );
+    }
+}
+
+struct GlslScopeTreeParser {}
+
+impl SymbolTreeParser for GlslScopeTreeParser {
+    fn get_query(&self) -> String {
+        r#"(compound_statement
+            "{"? @scope.start
+            "}"? @scope.end
+        ) @scope"#
+            .into()
+    }
+    fn process_match(
+        &self,
+        matches: tree_sitter::QueryMatch,
+        file_path: &Path,
+        _shader_content: &str,
+        symbols: &mut ShaderSymbolTreeBuilder,
+    ) {
+        let range = match matches.captures.len() {
+            // one body
+            1 => ShaderRange::from_range(matches.captures[0].node.range(), file_path),
+            // a bit weird, a body and single curly brace ? mergin them to be safe.
+            2 => ShaderRange::join(
+                ShaderRange::from_range(matches.captures[0].node.range(), file_path),
+                ShaderRange::from_range(matches.captures[1].node.range(), file_path),
+            ),
+            // Remove curly braces from scope.
+            3 => {
+                let curly_start = matches.captures[1].node.range();
+                let curly_end = matches.captures[2].node.range();
+                ShaderRange::from_range(
+                    tree_sitter::Range {
+                        start_byte: curly_start.end_byte,
+                        end_byte: curly_end.start_byte,
+                        start_point: curly_start.end_point,
+                        end_point: curly_end.start_point,
+                    },
+                    file_path,
+                )
+            }
+            _ => unreachable!("Query should not return more than 3 match."),
+        };
+        symbols.add_children(
+            ShaderSymbol {
+                label: "{}".into(),
+                description: "".into(),
+                version: "".into(),
+                stages: vec![],
+                link: None,
+                data: ShaderSymbolData::Scope {},
+                range: Some(range.clone()),
+                content: Some(ShaderSymbolContent {
+                    range: Some(range),
+                    childrens: vec![],
+                }),
+            },
+            false,
         );
     }
 }

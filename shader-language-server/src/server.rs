@@ -57,6 +57,7 @@ use server_config::ServerConfig;
 use server_connection::ServerConnection;
 use server_file_cache::ServerLanguageFileCache;
 use server_language_data::ServerLanguageData;
+use shader_sense::symbols::symbols::{ShaderSymbol, ShaderSymbolType};
 use shader_variant::{DidChangeShaderVariant, DidChangeShaderVariantParams};
 
 use crate::profile_scope;
@@ -476,22 +477,27 @@ impl ServerLanguage {
                             })
                             .collect();
                         // Adding scopes from file
-                        let symbol_provider = &self
-                            .language_data
-                            .get(&cached_file.shading_language)
+                        let scopes = cached_file
+                            .data
+                            .as_ref()
                             .unwrap()
-                            .symbol_provider;
-                        let scopes = symbol_provider
-                            .query_file_scopes(&RefCell::borrow(&cached_file.shader_module));
+                            .symbol_cache
+                            .get_symbol_tree()
+                            .iter_all()
+                            .filter(|s| s.is_type(ShaderSymbolType::Scope))
+                            .collect::<Vec<&ShaderSymbol>>();
                         let mut folded_scopes: Vec<FoldingRange> = scopes
                             .iter()
-                            .map(|s| FoldingRange {
-                                start_line: s.start.line,
-                                start_character: Some(s.start.pos),
-                                end_line: s.end.line,
-                                end_character: Some(s.end.pos),
-                                kind: Some(FoldingRangeKind::Region),
-                                collapsed_text: None,
+                            .map(|s| {
+                                let range = s.range.as_ref().unwrap();
+                                FoldingRange {
+                                    start_line: range.start.line,
+                                    start_character: Some(range.start.pos),
+                                    end_line: range.end.line,
+                                    end_character: Some(range.end.pos),
+                                    kind: Some(FoldingRangeKind::Region),
+                                    collapsed_text: None,
+                                }
                             })
                             .collect();
                         // Adding struct to scopes.

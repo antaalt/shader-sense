@@ -165,7 +165,9 @@ impl ServerLanguage {
             None => Ok(symbol_list
                 .into_iter()
                 .filter(|symbol| {
-                    !symbol.is_type(ShaderSymbolType::CallExpression) && symbol.get_type().is_some()
+                    !symbol.is_type(ShaderSymbolType::Scope)
+                        && !symbol.is_type(ShaderSymbolType::CallExpression)
+                        && symbol.get_type().is_some()
                 })
                 .map(|symbol| {
                     convert_completion_item(
@@ -180,7 +182,7 @@ impl ServerLanguage {
                             ShaderSymbolType::Keyword => CompletionItemKind::KEYWORD,
                             ShaderSymbolType::Macros => CompletionItemKind::CONSTANT,
                             ShaderSymbolType::Include => CompletionItemKind::FILE,
-                            ShaderSymbolType::CallExpression => {
+                            ShaderSymbolType::Scope | ShaderSymbolType::CallExpression => {
                                 unreachable!("Field should be filtered out.")
                             }
                         },

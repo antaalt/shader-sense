@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::symbols::symbol_parser::ShaderSymbolTreeBuilder;
-use crate::symbols::symbols::{ShaderMember, ShaderSymbolType};
+use crate::symbols::symbols::{ShaderMember, ShaderSymbolContent, ShaderSymbolType};
 
 use crate::symbols::{
     symbol_parser::{get_name, SymbolTreeParser},
@@ -13,6 +13,7 @@ use crate::symbols::{
 pub fn get_hlsl_parsers() -> Vec<Box<dyn SymbolTreeParser>> {
     vec![
         Box::new(HlslFunctionTreeParser { is_field: false }),
+        Box::new(HlslScopeTreeParser {}),
         Box::new(HlslStructTreeParser::new()),
         Box::new(HlslVariableTreeParser { is_field: false }),
         Box::new(HlslCallExpressionTreeParser {}),
@@ -60,7 +61,18 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
         symbols: &mut ShaderSymbolTreeBuilder,
     ) {
         let label_node = matches.captures[1].node;
-        let range = ShaderRange::from_range(label_node.range(), file_path.into());
+        // Query internal scopes variables
+        let scope_node = matches.captures[matches.captures.len() - 1].node;
+        /*let content_scope_stack = {
+            let mut s = scope_stack.clone();
+            s.push(range.clone());
+            s
+        };
+        query_variables(file_path, &shader_content[scope_node.range().start_byte.. scope_node.range().end_byte], scope_node, {
+            let mut s = scope_stack.clone();
+            s.push(range.clone());
+            s
+        });*/
         // Get parameters & add them as function scope variable.
         let parameters = matches.captures[2..matches.captures.len() - 1]
             .chunks(2)
@@ -105,14 +117,84 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
                         parameters: parameters,
                     }],
                 },
-                range: Some(range),
-                content: None, // In GLSL, all function are global scope.
+                range: Some(ShaderRange::from_range(
+                    label_node.range(),
+                    file_path.into(),
+                )),
+                content: Some(ShaderSymbolContent {
+                    range: Some(ShaderRange::from_range(
+                        scope_node.range(),
+                        file_path.into(),
+                    )),
+                    childrens: vec![],
+                }),
             },
             true,
         );
     }
 }
 
+// TODO:TREE: look for namespace aswell.
+struct HlslScopeTreeParser {}
+
+impl SymbolTreeParser for HlslScopeTreeParser {
+    fn get_query(&self) -> String {
+        r#"(compound_statement
+            "{"? @scope.start
+            "}"? @scope.end
+        ) @scope"#
+            .into()
+    }
+    fn process_match(
+        &self,
+        matches: tree_sitter::QueryMatch,
+        file_path: &Path,
+        shader_content: &str,
+        symbols: &mut ShaderSymbolTreeBuilder,
+    ) {
+        // TODO:TREE: filter scope with parent function, struct...
+        let range = match matches.captures.len() {
+            // one body
+            1 => ShaderRange::from_range(matches.captures[0].node.range(), file_path),
+            // a bit weird, a body and single curly brace ? mergin them to be safe.
+            2 => ShaderRange::join(
+                ShaderRange::from_range(matches.captures[0].node.range(), file_path),
+                ShaderRange::from_range(matches.captures[1].node.range(), file_path),
+            ),
+            // Remove curly braces from scope.
+            3 => {
+                let curly_start = matches.captures[1].node.range();
+                let curly_end = matches.captures[2].node.range();
+                ShaderRange::from_range(
+                    tree_sitter::Range {
+                        start_byte: curly_start.end_byte,
+                        end_byte: curly_end.start_byte,
+                        start_point: curly_start.end_point,
+                        end_point: curly_end.start_point,
+                    },
+                    file_path,
+                )
+            }
+            _ => unreachable!("Query should not return more than 3 match."),
+        };
+        symbols.add_children(
+            ShaderSymbol {
+                label: get_name(shader_content, matches.captures[1].node).into(),
+                description: "".into(),
+                version: "".into(),
+                stages: vec![],
+                link: None,
+                data: ShaderSymbolData::Scope {},
+                range: Some(range.clone()),
+                content: Some(ShaderSymbolContent {
+                    range: Some(range),
+                    childrens: vec![],
+                }),
+            },
+            false,
+        );
+    }
+}
 struct HlslStructTreeParser {
     var_parser: HlslVariableTreeParser,
     var_query: tree_sitter::Query,
