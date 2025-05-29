@@ -646,6 +646,14 @@ impl ShaderSymbolTree {
     pub fn iter_all(&self) -> ShaderSymbolTreeIterator {
         ShaderSymbolTreeIterator::new(self, true)
     }
+    // Only iterate mutably on variables accessible at root scope.
+    pub fn iter_root_mut(&mut self) -> ShaderSymbolTreeIteratorMut {
+        ShaderSymbolTreeIteratorMut::new(self, false)
+    }
+    // Iterate mutably on all variables by recursing children
+    pub fn iter_all_mut(&mut self) -> ShaderSymbolTreeIteratorMut {
+        ShaderSymbolTreeIteratorMut::new(self, true)
+    }
 }
 
 pub struct ShaderSymbolTreeIterator<'a> {
@@ -681,17 +689,16 @@ impl<'a> Iterator for ShaderSymbolTreeIterator<'a> {
     }
 }
 
-/*pub struct ShaderSymbolTreeIteratorMut<'a> {
+pub struct ShaderSymbolTreeIteratorMut<'a> {
     stack: Vec<std::slice::IterMut<'a, ShaderSymbol>>,
-    global: bool
+    current: *mut ShaderSymbol,
+    global: bool,
 }
 impl<'a> ShaderSymbolTreeIteratorMut<'a> {
     fn new(tree: &'a mut ShaderSymbolTree, global: bool) -> Self {
-        // TODO:TREE: should store every symbol into the vec, and pop them off one by one.
-        // Will have a different order than non mut iterator though...
-        // Because we cannot store symbol children iterator if we return it as mut.
         Self {
-            stack: vec![tree.root.childrens.iter_mut().peekable()],
+            stack: vec![tree.root.childrens.iter_mut()],
+            current: std::ptr::null_mut(), // unsafe pointer to avoid storing a mutable ref that prevent returning it.
             global,
         }
     }
@@ -700,22 +707,27 @@ impl<'a> Iterator for ShaderSymbolTreeIteratorMut<'a> {
     type Item = &'a mut ShaderSymbol;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Add child stack if current has child.
+        if self.global {
+            if let Some(current) = unsafe { self.current.as_mut() } {
+                if let Some(content) = &mut current.content {
+                    self.stack.push(content.childrens.iter_mut());
+                }
+            }
+        }
+        // Reset pointer for safety.
+        self.current = std::ptr::null_mut();
         while let Some(top) = self.stack.last_mut() {
             if let Some(symbol) = top.next() {
-                // If this symbol has children, and we want to recurse them, push their iterator to the stack for depth first search
-                if self.global {
-                    if let Some(content) = symbol.content.as_mut() {
-                        self.stack.push(content.childrens.iter_mut());
-                    }
-                }
-                return Some(symbol);
+                self.current = symbol;
+                break;
             } else {
                 self.stack.pop();
             }
         }
-        None
+        unsafe { self.current.as_mut() }
     }
-}*/
+}
 
 // TODO:TREE: into iter convert to flat.
 

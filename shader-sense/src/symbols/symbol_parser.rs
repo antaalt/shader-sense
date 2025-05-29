@@ -61,7 +61,7 @@ impl<'a> ShaderSymbolTreeBuilder<'a> {
     pub fn add_children(&mut self, shader_symbol: ShaderSymbol, global_scope: bool) {
         if (self.filter_callback)(&shader_symbol) {
             if !global_scope {
-                match self.shader_symbol_tree.iter_all().find(|symbol| {
+                match self.shader_symbol_tree.iter_all_mut().find(|symbol| {
                     match &symbol.content {
                         Some(content) => match &content.range {
                             Some(content_range) => match &shader_symbol.range {
@@ -73,9 +73,14 @@ impl<'a> ShaderSymbolTreeBuilder<'a> {
                         None => false, // No content
                     }
                 }) {
-                    Some(_symbol) => {
-                        todo!("Need a mutable iterator to run this.")
-                        //symbol.content.as_mut().unwrap().childrens.push(shader_symbol);
+                    Some(symbol) => {
+                        // We validated that their is content in find, so unwrap is safe.
+                        symbol
+                            .content
+                            .as_mut()
+                            .unwrap()
+                            .childrens
+                            .push(shader_symbol);
                     }
                     None => {
                         // No content found, adding to global scope.
