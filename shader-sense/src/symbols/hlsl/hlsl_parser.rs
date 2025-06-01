@@ -149,10 +149,16 @@ impl SymbolTreeParser for HlslScopeTreeParser {
         &self,
         matches: tree_sitter::QueryMatch,
         file_path: &Path,
-        shader_content: &str,
+        _shader_content: &str,
         symbols: &mut ShaderSymbolTreeBuilder,
     ) {
-        // TODO:TREE: filter scope with parent function, struct...
+        if let Some(parent) = matches.captures[0].node.parent() {
+            match parent.kind() {
+                // TODO:TREE: filter struct
+                "function_definition" => return, // Function already handled by function parser.
+                _ => {}
+            }
+        }
         let range = match matches.captures.len() {
             // one body
             1 => ShaderRange::from_range(matches.captures[0].node.range(), file_path),
@@ -179,7 +185,7 @@ impl SymbolTreeParser for HlslScopeTreeParser {
         };
         symbols.add_children(
             ShaderSymbol {
-                label: get_name(shader_content, matches.captures[1].node).into(),
+                label: "scope".into(),
                 description: "".into(),
                 version: "".into(),
                 stages: vec![],

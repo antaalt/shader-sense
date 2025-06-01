@@ -115,6 +115,14 @@ impl SymbolTreeParser for GlslScopeTreeParser {
         _shader_content: &str,
         symbols: &mut ShaderSymbolTreeBuilder,
     ) {
+        // These matches are handled from bottom leaf to top leaf. So we cannot push them.
+        if let Some(parent) = matches.captures[0].node.parent() {
+            match parent.kind() {
+                // TODO:TREE: filter struct
+                "function_definition" => return, // Function already handled by function parser.
+                _ => {}
+            }
+        }
         let range = match matches.captures.len() {
             // one body
             1 => ShaderRange::from_range(matches.captures[0].node.range(), file_path),
@@ -141,7 +149,7 @@ impl SymbolTreeParser for GlslScopeTreeParser {
         };
         symbols.add_children(
             ShaderSymbol {
-                label: "{}".into(),
+                label: "scope".into(),
                 description: "".into(),
                 version: "".into(),
                 stages: vec![],
