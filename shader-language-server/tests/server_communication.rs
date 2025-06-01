@@ -28,11 +28,22 @@ mod test_server;
 
 fn has_symbol(response: Option<DocumentSymbolResponse>, symbol: &str) -> bool {
     let symbols = response.unwrap();
-    match symbols {
-        DocumentSymbolResponse::Flat(symbol_informations) => symbol_informations
+    fn has_document_symbol(document_symbol: &Vec<lsp_types::DocumentSymbol>, symbol: &str) -> bool {
+        document_symbol
             .iter()
-            .find(|e| e.name == symbol)
-            .is_some(),
+            .find(|e| {
+                e.name == symbol
+                    || match &e.children {
+                        Some(children) => has_document_symbol(children, symbol),
+                        None => false,
+                    }
+            })
+            .is_some()
+    }
+    match symbols {
+        DocumentSymbolResponse::Nested(document_symbol) => {
+            has_document_symbol(&document_symbol, symbol)
+        }
         _ => panic!("Should not be reached."),
     }
 }
