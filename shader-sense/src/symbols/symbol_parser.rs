@@ -58,7 +58,7 @@ impl<'a> ShaderSymbolTreeBuilder<'a> {
             filter_callback: Box::new(filter_callback),
         }
     }
-    pub fn add_children(&mut self, shader_symbol: ShaderSymbol, global_scope: bool) {
+    pub fn add_children(&mut self, mut shader_symbol: ShaderSymbol, global_scope: bool) {
         if (self.filter_callback)(&shader_symbol) {
             if !global_scope {
                 let scope_stack = match &shader_symbol.range {
@@ -69,12 +69,35 @@ impl<'a> ShaderSymbolTreeBuilder<'a> {
                 };
                 if let Some(symbol) = scope_stack {
                     // We validated that their is content in find, so unwrap is safe.
-                    symbol
-                        .content
-                        .as_mut()
-                        .unwrap()
+                    let content = symbol.content.as_mut().unwrap();
+                    // Find children that need to be moved in new children
+                    let children_to_move: Vec<usize> = content
                         .childrens
-                        .push(shader_symbol);
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, s)| match &s.range {
+                            Some(children_range) => match &shader_symbol.range {
+                                Some(new_symbol_range) => {
+                                    new_symbol_range.contain_bounds(children_range)
+                                }
+                                None => false,
+                            },
+                            None => false,
+                        })
+                        .map(|(i, _)| i)
+                        .collect();
+                    let mut offset = 0;
+                    for child_to_move in children_to_move {
+                        match shader_symbol.content.as_mut() {
+                            Some(new_content) => new_content
+                                .childrens
+                                .push(content.childrens.remove(child_to_move - offset)),
+                            None => {} // Ignore
+                        }
+                        offset += 1;
+                    }
+
+                    content.childrens.push(shader_symbol);
                 } else {
                     // No content found, adding to global scope.
                     self.shader_symbol_tree.add_global_symbol(shader_symbol)
