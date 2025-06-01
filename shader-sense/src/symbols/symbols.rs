@@ -590,20 +590,78 @@ impl ShaderSymbolTree {
     }
     // Find all symbols which are defined at a given position, ignoring those who are not.
     pub fn find_symbols_defined_at(&self, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
-        self.iter_all()
-            .filter(|symbol| {
-                // Skip transient symbols
-                let is_transient = match symbol.get_type() {
-                    Some(ty) => ty.is_transient(),
-                    None => false,
+        fn find_symbol_defined_at_level<'a>(
+            content: &'a ShaderSymbolContent,
+            position: &ShaderPosition,
+        ) -> Vec<&'a ShaderSymbol> {
+            // Find symbol defined in this scope.
+            let mut symbols_defined =
+                match content
+                    .childrens
+                    .iter()
+                    .find(|symbol| match &symbol.content {
+                        Some(content) => match &content.range {
+                            Some(range) => range.contain(position),
+                            None => false,
+                        },
+                        None => false,
+                    }) {
+                    Some(children) => match &children.content {
+                        Some(content) => {
+                            let mut symbols_defined = vec![children];
+                            symbols_defined.extend(find_symbol_defined_at_level(content, position));
+                            symbols_defined
+                        }
+                        None => vec![children],
+                    },
+                    None => Vec::new(),
                 };
-                let is_in_range = match &symbol.range {
-                    Some(range) => *position > range.start,
-                    None => true, // Keep global symbols
-                };
-                is_in_range && !is_transient
-            })
-            .collect()
+            // Look for children in scopes
+            let childrens = content
+                .childrens
+                .iter()
+                .filter_map(|symbol| {
+                    // Skip transient symbols ?
+                    let is_transient = match symbol.get_type() {
+                        Some(ty) => ty.is_transient(),
+                        None => false,
+                    };
+                    let is_in_range = match &symbol.range {
+                        Some(range) => *position > range.start,
+                        None => true, // Keep global symbols
+                    };
+                    let children_in_scope = match &symbol.content {
+                        Some(content) => match &content.range {
+                            Some(range) => range.contain(position),
+                            None => false,
+                        },
+                        None => false,
+                    };
+                    if is_in_range && !is_transient {
+                        if children_in_scope {
+                            Some(
+                                vec![
+                                    vec![symbol],
+                                    find_symbol_defined_at_level(
+                                        symbol.content.as_ref().unwrap(),
+                                        position,
+                                    ),
+                                ]
+                                .concat(),
+                            )
+                        } else {
+                            Some(vec![symbol])
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<Vec<&ShaderSymbol>>>()
+                .concat();
+            symbols_defined.extend(childrens);
+            symbols_defined
+        }
+        find_symbol_defined_at_level(&self.root, position)
     }
     // Find symbol at given position and return its stack in the tree
     pub fn find_symbol_at(&self, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
