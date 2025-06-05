@@ -320,6 +320,7 @@ pub enum ShaderPreprocessorMode {
     OnceVisited,
 }
 
+// TODO:TREE: Should move this directly into symbol tree.
 #[derive(Debug, Default, Clone)]
 pub struct ShaderPreprocessor {
     pub context: ShaderPreprocessorContext, // Defines from includer files when included, or config.

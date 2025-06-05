@@ -33,7 +33,8 @@ impl ServerLanguage {
                     let all_symbol_list = self
                         .watched_files
                         .get_all_symbols(uri, &language_data.language);
-                    let symbol_list = all_symbol_list.find_symbols_defined_at(&shader_position);
+                    let mut symbol_list = all_symbol_list.find_symbols_defined_at(&shader_position);
+                    symbol_list.retain(|s| s.label == word);
                     match symbol_list.iter().find(|s| s.label == word) {
                         Some(symbol) => {
                             let label = symbol.format();
