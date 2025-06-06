@@ -4,7 +4,7 @@ description = "Language server for HLSL / GLSL / WGSL shaders using LSP protocol
 repository = "https://github.com/antaalt/shader-sense/tree/main/shader-language-server"
 keywords = ["shader", "lsp", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
-version = "0.6.0"
+version = "0.6.2"
 edition = "2021"
 license-file = "../LICENSE"
 
@@ -16,7 +16,7 @@ name = "shader-language-server"
 path = "src/main.rs"
 
 [dependencies]
-shader-sense = { version = "0.3.0", path = "../shader-sense" }
+shader-sense = { version = "0.3.1", path = "../shader-sense" }
 regex = "1.10.4"
 serde = { version = "1.0.199", features = ["derive"] }
 serde_json = "1.0.116"

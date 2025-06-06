@@ -213,9 +213,11 @@ impl ShaderRange {
             false
         }
     }
-    pub fn join(mut lhs: ShaderRange, rhs: ShaderRange) -> ShaderRange {
-        lhs.start = std::cmp::min(lhs.start, rhs.start);
-        lhs.end = std::cmp::min(lhs.end, rhs.end);
+    pub fn join(mut lhs: ShaderRange, rhs: ShaderRange) -> ShaderScope {
+        lhs.start.line = std::cmp::min(lhs.start.line, rhs.start.line);
+        lhs.start.pos = std::cmp::min(lhs.start.pos, rhs.start.pos);
+        lhs.end.line = std::cmp::max(lhs.end.line, rhs.end.line);
+        lhs.end.pos = std::cmp::max(lhs.end.pos, rhs.end.pos);
         lhs
     }
 }

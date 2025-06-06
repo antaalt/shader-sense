@@ -129,7 +129,7 @@ impl ServerLanguage {
             )),
             folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Right(DocumentSymbolOptions {
-                label: None,
+                label: Some("shader-validator".into()),
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: None,
                 },
