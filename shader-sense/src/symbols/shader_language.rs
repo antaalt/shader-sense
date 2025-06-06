@@ -55,7 +55,7 @@ impl ShaderLanguage {
             shading_language,
             tree_sitter_language,
             tree_sitter_parser,
-            shader_intrinsics: ShaderSymbolTree::parse_from_json(
+            shader_intrinsics: ShaderBuiltinSymbol::parse_from_json(
                 Self::get_symbol_intrinsic_path(shading_language).into(),
             ),
         }

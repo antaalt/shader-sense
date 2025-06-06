@@ -583,14 +583,13 @@ impl ShaderBuiltinSymbol {
     pub fn append(&mut self, symbols: &mut Vec<ShaderSymbol>) {
         self.symbols.append(symbols);
     }
-}
-
-impl ShaderSymbolTree {
-    // TODO:TREE: move
     pub fn parse_from_json(file_content: String) -> ShaderBuiltinSymbol {
         serde_json::from_str::<ShaderBuiltinSymbol>(&file_content)
             .expect("Failed to parse ShaderBuiltinSymbol")
     }
+}
+
+impl ShaderSymbolTree {
     // Find all symbols which are defined at a given position, ignoring those who are not.
     pub fn find_symbols_defined_at(&self, position: &ShaderPosition) -> Vec<&ShaderSymbol> {
         fn find_symbol_defined_at_level<'a>(

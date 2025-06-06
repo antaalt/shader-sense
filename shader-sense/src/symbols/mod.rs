@@ -27,8 +27,8 @@ mod tests {
             shader_language::ShaderLanguage,
             symbol_provider::ShaderSymbolParams,
             symbols::{
-                ShaderPosition, ShaderRange, ShaderSymbolContent, ShaderSymbolData,
-                ShaderSymbolType,
+                ShaderBuiltinSymbol, ShaderPosition, ShaderRange, ShaderSymbolContent,
+                ShaderSymbolData, ShaderSymbolType,
             },
         },
     };
@@ -113,21 +113,21 @@ mod tests {
     #[test]
     fn intrinsics_glsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
+        let _ = ShaderBuiltinSymbol::parse_from_json(String::from(include_str!(
             "glsl/glsl-intrinsics.json"
         )));
     }
     #[test]
     fn intrinsics_hlsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
+        let _ = ShaderBuiltinSymbol::parse_from_json(String::from(include_str!(
             "hlsl/hlsl-intrinsics.json"
         )));
     }
     #[test]
     fn intrinsics_wgsl_ok() {
         // Ensure parsing of intrinsics is OK
-        let _ = ShaderSymbolTree::parse_from_json(String::from(include_str!(
+        let _ = ShaderBuiltinSymbol::parse_from_json(String::from(include_str!(
             "wgsl/wgsl-intrinsics.json"
         )));
     }
