@@ -38,6 +38,8 @@ jobs:
         run: mkdir -p ./target/debug
       - name: Copy dxc dll to target folder for tests.
         run: cp ./dxc/bin/x64/dxcompiler.dll ./target/debug/dxcompiler.dll && cp ./dxc/bin/x64/dxil.dll ./target/debug/dxil.dll
+      - name: Link dependencies.
+        run: $env:RUSTFLAGS="$env:RUSTFLAGS -C link-args=Ole32.lib Advapi32.lib"
       - name: Run tests
         run: cargo test --verbose # Test all package on windows.
 
