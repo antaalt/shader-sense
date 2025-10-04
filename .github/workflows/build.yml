@@ -13,10 +13,8 @@ env:
 jobs:
   
   test:
-    # windows-latest uses Windows server 2025 which seems to be missing some library 
-    # maybe because hassle-rs uses com crate which is deprecated in favor of windows-rs
+    # windows-latest uses Windows server 2025 since sept 25, keep old version for compat.
     # Check https://github.com/actions/runner-images/issues/12677
-    # So uses 2022 instead
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +36,27 @@ jobs:
         run: mkdir -p ./target/debug
       - name: Copy dxc dll to target folder for tests.
         run: cp ./dxc/bin/x64/dxcompiler.dll ./target/debug/dxcompiler.dll && cp ./dxc/bin/x64/dxil.dll ./target/debug/dxil.dll
-      - name: Link dependencies.
-        run: $env:RUSTFLAGS="$env:RUSTFLAGS -C link-args=Ole32.lib Advapi32.lib"
+      # Weird issue: Getting linker error for:
+      # - RegCreateKeyExA
+      # - RegSetValueExA
+      # - RegCloseKey
+      # - RegDeleteKeyA
+      # These functions should be in AdvApi32.dll, but com rs crate which is used by hassle link them into ole32.dll
+      # Seems to have suddenly appeared. And wasi test build fine (they dont ref com crate so normal)
+      #
+      # Issue only appear with given conditions:
+      # - On github action (not on my own machine)
+      # - On cargo test (cargo build work just fine)
+      # 
+      # Tested:
+      # - change image
+      # - stable Rust version
+      - name: Print LIB
+        run: echo $env:LIB
+      - name: Check for Ole32.lib
+        run: dir "C:\Windowss\System32" -Recurse | findstr Ole32.lib
+      - name: Check for Advapi32.lib
+        run: dir "C:\Windowss\System32" -Recurse | findstr Advapi32.lib
       - name: Run tests
         run: cargo test --verbose # Test all package on windows.
 
