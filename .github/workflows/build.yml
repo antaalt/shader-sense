@@ -13,9 +13,7 @@ env:
 jobs:
   
   test:
-    # windows-latest uses Windows server 2025 since sept 25, keep old version for compat.
-    # Check https://github.com/actions/runner-images/issues/12677
-    runs-on: windows-2022
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.89
@@ -36,37 +34,8 @@ jobs:
         run: mkdir -p ./target/debug
       - name: Copy dxc dll to target folder for tests.
         run: cp ./dxc/bin/x64/dxcompiler.dll ./target/debug/dxcompiler.dll && cp ./dxc/bin/x64/dxil.dll ./target/debug/dxil.dll
-      # Weird issue: Getting linker error for:
-      # - RegCreateKeyExA
-      # - RegSetValueExA
-      # - RegCloseKey
-      # - RegDeleteKeyA
-      # These functions should be in AdvApi32.dll, but com rs crate which is used by hassle link them into ole32.dll
-      # Seems to have suddenly appeared. And wasi test build fine (they dont ref com crate so normal)
-      #
-      # Issue only appear with given conditions:
-      # - On github action (not on my own machine)
-      # - On cargo test (cargo build work just fine)
-      # - On example mainly
-
-      # Weird, it seems windows-rs is link automatically somehow...
-      # -L native=C:\Users\altor\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows_x86_64_msvc-0.53.0\lib
-      # But this is not present on failing github actions... Specifically on the example. windows_x86_64_msvc used by libloading + scraper...
-      # Could be libloading mismatch version ? https://github.com/nagisa/rust_libloading/compare/0.8.8...0.8.9
-      # 
-      # Tested:
-      # - change image
-      # - stable Rust version
-      - name: Print LIB
-        run: echo $env:LIB
-      - name: Print cargo version
-        run: cargo --version
-      - name: Print deps tree
+      - name: Print dependency tree
         run: cargo tree
-      - name: Check for Ole32.lib
-        run: dir "C:\Windows\System32" -Recurse | findstr Ole32.lib
-      - name: Check for Advapi32.lib
-        run: dir "C:\Windows\System32" -Recurse | findstr Advapi32.lib
       - name: Run tests
         run: cargo test --verbose # Test all package on windows.
 
