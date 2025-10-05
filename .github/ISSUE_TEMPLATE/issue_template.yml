@@ -1,0 +1,10 @@
+name: "Ask a question, report a bug, request a feature, etc."
+description: "Ask any question, discuss best practices, report a bug, request a feature."
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: "Issue:"
+      placeholder: "Type your issue here. Please specify OS, version of the extension and how it can be reproduced."
+    validations:
+      required: true
