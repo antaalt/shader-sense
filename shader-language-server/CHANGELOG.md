@@ -7,20 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.2.0] - 2025-10-05
+
+### Added
+
+- Added documentations for crates on docs.rs with test doc.
+- Added support for cancel request.
+- Added the possibility to override the server configuration with custom JSON for engine specific configuration.
+- Added the possibility to set server cwd in command line.
+- Added setting for defining macro per shader stage.
+
+### Fixed
+
+- Fixed some invalid macro description on hover
+- Fixed som template failing to access members.
+- Reduced memory footprint of symbol requirement.
+
+### Changed
+
+- Lru cache is now created with small size and resized if needed to reduce memory footprint.
+- Added a dedicated error enum for language server to not have server logic into shader sense.
+- Server now add workspace folders for includes. This should help finding file in workspace with relative path.
+- BREAKING: shader stage should now be passed in camelCase.
+- Improved the way we look for DXC DLL to avoid picking mismatching DLL between dxcompiler and dxil.
+
+
 ## [1.1.0] - 2025-08-31
 
-## Added
+### Added
 
 - Hlsl raytracing functions added to database
 - Hlsl enum support (syntax highlighting + hover + completion)
 - Glsl mesh shader extension added to database. Feel free to contribute to this database by adding other extensions !
 - LRU cache for semantic tokens regex which are created on the fly and were impacting performances.
 
-## Changed
+### Changed
 
 - Upgraded tree-sitter dependencies to use tree-sitter-language which allow using different languages easily such as slang. Wgsl does not support it yet, so waiting for [this PR](https://github.com/tree-sitter-grammars/tree-sitter-wgsl-bevy/pull/19) to upgrade.
 
-## Fixed
+### Fixed
 - Validation was not retriggered when changing settings.
 - Stripped template from variable type to help finding in symbol list.
 
@@ -361,8 +386,9 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.1.0...HEAD
-[1.0.0]: https://github.com/antaalt/shader-sense/compare/v1.0.0...v1.1.0
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/antaalt/shader-sense/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/antaalt/shader-sense/compare/v0.8.2...v1.0.0
 [0.8.2]: https://github.com/antaalt/shader-sense/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/antaalt/shader-sense/compare/v0.8.0...v0.8.1
