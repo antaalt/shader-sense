@@ -23,9 +23,11 @@ fn run_server(
     shading_language: HashSet<ShadingLanguage>,
 ) {
     info!(
-        "shader-language-server v{} ({})",
+        "shader-language-server v{} ({}-{}-{})",
         get_version(),
-        std::env::consts::OS
+        std::env::consts::ARCH,
+        std::env::consts::OS,
+        std::env::consts::FAMILY,
     );
     if let Ok(current_exe) = std::env::current_exe() {
         info!("Server running from {}", current_exe.display());
