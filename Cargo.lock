@@ -1246,6 +1246,7 @@ dependencies = [
  "tree-sitter-glsl",
  "tree-sitter-hlsl",
  "tree-sitter-language",
+ "tree-sitter-wgsl-bevy",
 ]
 
 [[package]]
@@ -1521,6 +1522,16 @@ name = "tree-sitter-language"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
+
+[[package]]
+name = "tree-sitter-wgsl-bevy"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c96503dc3a7f1d17d954d2569c65143a9af03d40c6ad83f7ba5241a3965c60d0"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
 
 [[package]]
 name = "unicode-ident"

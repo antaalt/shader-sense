@@ -20,12 +20,11 @@ tree-sitter = "0.25.8"
 tree-sitter-language = "0.1.0"
 tree-sitter-glsl = "0.2.0"
 tree-sitter-hlsl = "0.2.0"
+tree-sitter-wgsl-bevy = "0.1.4"
 # Slang support with tree-sitter-slang 0.3.1.
 # Metal does not have rust lib neither tree-sitter
 # Cg too old
 # PSSL proprietary
-# tree-sitter-wgsl-bevy has a PR for supporting tree-sitter-language https://github.com/tree-sitter-grammars/tree-sitter-wgsl-bevy/pull/19
-#tree-sitter-wgsl-bevy = "0.2.0"
 
 [target.'cfg(not(target_arch="wasm32"))'.dependencies]
 # cannot load DXC dll in wasi

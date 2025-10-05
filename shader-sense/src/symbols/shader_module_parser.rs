@@ -44,9 +44,7 @@ impl ShaderModuleParser {
         let mut tree_sitter_parser = tree_sitter::Parser::new();
         tree_sitter_parser
             .set_language(&match shading_language {
-                // TODO:WGSL: Wgsl is not yet compatible with tree-sitter-language.
-                // A PR is waiting to be merged here https://github.com/tree-sitter-grammars/tree-sitter-wgsl-bevy/pull/19
-                ShadingLanguage::Wgsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(), //tree_sitter_wgsl_bevy::language(),
+                ShadingLanguage::Wgsl => tree_sitter_wgsl_bevy::LANGUAGE.into(),
                 ShadingLanguage::Hlsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(),
                 ShadingLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
             })
