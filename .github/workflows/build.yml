@@ -47,16 +47,26 @@ jobs:
       # Issue only appear with given conditions:
       # - On github action (not on my own machine)
       # - On cargo test (cargo build work just fine)
+      # - On example mainly
+
+      # Weird, it seems windows-rs is link automatically somehow...
+      # -L native=C:\Users\altor\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows_x86_64_msvc-0.53.0\lib
+      # But this is not present on failing github actions... Specifically on the example. windows_x86_64_msvc used by libloading + scraper...
+      # Could be libloading mismatch version ? https://github.com/nagisa/rust_libloading/compare/0.8.8...0.8.9
       # 
       # Tested:
       # - change image
       # - stable Rust version
       - name: Print LIB
         run: echo $env:LIB
+      - name: Print cargo version
+        run: cargo --version
+      - name: Print deps tree
+        run: cargo tree
       - name: Check for Ole32.lib
-        run: dir "C:\Windowss\System32" -Recurse | findstr Ole32.lib
+        run: dir "C:\Windows\System32" -Recurse | findstr Ole32.lib
       - name: Check for Advapi32.lib
-        run: dir "C:\Windowss\System32" -Recurse | findstr Advapi32.lib
+        run: dir "C:\Windows\System32" -Recurse | findstr Advapi32.lib
       - name: Run tests
         run: cargo test --verbose # Test all package on windows.
 
