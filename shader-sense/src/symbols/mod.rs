@@ -1,4 +1,4 @@
-//! Handle symbol inspection with [`tree_sitter`] 
+//! Handle symbol inspection with [`tree_sitter`]
 
 mod glsl;
 mod hlsl;
