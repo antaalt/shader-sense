@@ -1,12 +1,12 @@
 //! Shader sense is a library for runtime validation and symbol inspection that can handle multiple shader languages, primarily intended for use in a language server. This works through the use of standard API for validation and tree-sitter for symbol inspection. It can be built to desktop or [WASI](https://wasi.dev/). WASI will let the extension run even in browser, but it suffer from limitations. See below for more informations.
 //!
-//! For symbol inspection, the API is relying on abstract syntax tree. As we want to support different language, and to ease this process, we are using the [`tree-sitter`] API (instead of standard API), which generate AST with query support, and is already available in a lot of languages.
+//! For symbol inspection, the API is relying on abstract syntax tree. As we want to support different language, and to ease this process, we are using the [`tree_sitter`] API (instead of standard API), which generate AST with query support, and is already available in a lot of languages.
 //!
 //! # Validating shader
 //!
 //! Validating shader is using standard API behind the hood :
 //! - **GLSL** uses [`glslang`] as backend. It provide complete linting for GLSL trough glslang API bindings from C.
-//! - **HLSL** uses [`hassle-rs`] as backend. It provides bindings to directx shader compiler in rust.
+//! - **HLSL** uses [`hassle_rs`] as backend. It provides bindings to directx shader compiler in rust.
 //! - **WGSL** uses [`naga`] as backend for linting.
 //!
 //! ```no_run
@@ -32,7 +32,7 @@
 //!
 //! # Inspecting shader
 //!
-//! You can inspect shaders aswell to find symbols inside it, their position and informations. It is using the [`tree-sitter`] API (instead of standard API) for performances reason and also because most standard API do not expose easily their AST.
+//! You can inspect shaders aswell to find symbols inside it, their position and informations. It is using the [`tree_sitter`] API (instead of standard API) for performances reason and also because most standard API do not expose easily their AST.
 //!
 //! ```no_run
 //! use shader_sense::shader::{ShaderParams, HlslShadingLanguageTag};

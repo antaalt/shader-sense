@@ -1,4 +1,4 @@
-//! Validation for hlsl with DXC
+//! Validation for hlsl with DXC via [`hassle_rs`]
 
 use hassle_rs::*;
 use std::{

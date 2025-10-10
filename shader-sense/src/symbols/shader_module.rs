@@ -1,4 +1,4 @@
-//! Shader module storing the [`tree-sitter`] AST
+//! Shader module storing the [`tree_sitter`] AST
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
@@ -16,7 +16,7 @@ use super::prepocessor::{
     ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude,
 };
 
-/// Shader module holding the tree-sitter AST.
+/// Shader module holding the [`tree_sitter`]  AST.
 /// Need to be created with [`ShaderModuleParser`]
 #[derive(Debug, Clone)]
 pub struct ShaderModule {

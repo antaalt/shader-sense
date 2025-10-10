@@ -1,4 +1,4 @@
-//! Validation for glsl with glslang
+//! Validation for glsl with [`glslang`]
 
 use super::validator::ValidatorImpl;
 use crate::{

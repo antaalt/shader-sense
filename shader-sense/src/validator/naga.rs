@@ -1,4 +1,4 @@
-//! Validation for wgsl with Naga
+//! Validation for wgsl with [`naga`]
 
 use naga::{
     front::wgsl::{self, ParseError},
