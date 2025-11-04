@@ -221,7 +221,7 @@ impl ServerLanguage {
                 }
                 diagnostics.extend(inactive_diagnostics);
             }
-            None => {}, // If we disable diag, this might be reached.
+            None => {} // If we disable diag, this might be reached.
         }
         Ok(diagnostics)
     }
