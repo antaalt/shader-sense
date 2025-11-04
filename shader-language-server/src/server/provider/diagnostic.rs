@@ -221,7 +221,7 @@ impl ServerLanguage {
                 }
                 diagnostics.extend(inactive_diagnostics);
             }
-            None => unreachable!(), // Because we should have added empty diag if none.
+            None => {}, // If we disable diag, this might be reached.
         }
         Ok(diagnostics)
     }
