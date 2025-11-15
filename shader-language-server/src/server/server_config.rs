@@ -137,7 +137,7 @@ impl ServerSerializedConfig {
                 .path_remapping
                 .map(|i| {
                     i.into_iter()
-                        .map(|(v, i)| (verify_user_path(&v), verify_user_path(&i)))
+                        .map(|(v, i)| (PathBuf::from(v), verify_user_path(&i)))
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -215,7 +215,7 @@ impl ServerSerializedConfig {
                     .path_remapping
                     .map(|i| {
                         i.into_iter()
-                            .map(|(v, i)| (verify_user_path(&v), verify_user_path(&i)))
+                            .map(|(v, i)| (PathBuf::from(v), verify_user_path(&i)))
                             .collect::<HashMap<PathBuf, PathBuf>>()
                     })
                     .unwrap_or_default(),
