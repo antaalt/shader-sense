@@ -402,7 +402,7 @@ Initial release of this extension
 
 <!-- Below are link for above changelog titles-->
 [unreleased]: https://github.com/antaalt/shader-sense/compare/v1.2.1...HEAD
-[1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.2.0...v1.2.1
+[1.2.1]: https://github.com/antaalt/shader-sense/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/antaalt/shader-sense/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/antaalt/shader-sense/compare/v0.8.2...v1.0.0
