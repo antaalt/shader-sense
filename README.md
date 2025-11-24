@@ -28,7 +28,7 @@ This library is using an intrinsic json database that is parsed with [shader-int
 
 ## Documentation
 
-There is not much documentation available at this time, but you can find example of the library being used [here](https://github.com/antaalt/shader-sense/tree/main/shader-sense/examples).
+Documentation can be found on [doc.rs](https://docs.rs/shader-sense/latest/shader_sense/)
 
 ## Build for WASI
 
