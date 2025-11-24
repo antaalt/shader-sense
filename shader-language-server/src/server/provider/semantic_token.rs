@@ -204,8 +204,10 @@ impl ServerLanguage {
                                         }
                                         // Push occurences in scope
                                         // TODO: NOT dot at beginning of capture (as its a field.)
-                                        let reg =
-                                            Self::get_regex(&symbol.label, &mut self.regex_cache);
+                                        let reg = Self::get_regex(
+                                            &parameter.label,
+                                            &mut self.regex_cache,
+                                        );
                                         let word_byte_offsets: Vec<usize> = reg
                                             .captures_iter(&content[content_start..content_end])
                                             .map(|e| {
@@ -216,21 +218,28 @@ impl ServerLanguage {
                                             word_byte_offsets
                                                 .iter()
                                                 .filter_map(|byte_offset| {
-                                                    match ShaderPosition::from_byte_offset(
-                                                        &content,
-                                                        *byte_offset,
-                                                    ) {
-                                                        Ok(position) => {
-                                                            Some(SemanticToken {
-                                                                delta_line: position.line,
-                                                                delta_start: position.pos,
-                                                                length: parameter.label.len()
-                                                                    as u32,
-                                                                token_type: 1, // SemanticTokenType::PARAMETER, view registration
-                                                                token_modifiers_bitset: 0,
-                                                            })
+                                                    if *byte_offset > 0
+                                                        && &content[byte_offset - 1..*byte_offset]
+                                                            == "."
+                                                    {
+                                                        None // Skip struct param with same name.
+                                                    } else {
+                                                        match ShaderPosition::from_byte_offset(
+                                                            &content,
+                                                            *byte_offset,
+                                                        ) {
+                                                            Ok(position) => {
+                                                                Some(SemanticToken {
+                                                                    delta_line: position.line,
+                                                                    delta_start: position.pos,
+                                                                    length: parameter.label.len()
+                                                                        as u32,
+                                                                    token_type: 1, // SemanticTokenType::PARAMETER, view registration
+                                                                    token_modifiers_bitset: 0,
+                                                                })
+                                                            }
+                                                            Err(_) => None,
                                                         }
-                                                        Err(_) => None,
                                                     }
                                                 })
                                                 .collect::<Vec<SemanticToken>>(),
