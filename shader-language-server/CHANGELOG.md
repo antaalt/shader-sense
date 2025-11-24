@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.2.2] - 2025-11-24
+
+### Fixed
+
+- Fixed semantic token which was searching for the function name instead of the parameter name inside function body.
 
 ## [1.2.1] - 2025-11-23
 
@@ -401,7 +406,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.2.1...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/antaalt/shader-sense/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/antaalt/shader-sense/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/antaalt/shader-sense/compare/v1.0.0...v1.1.0
