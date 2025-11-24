@@ -203,7 +203,6 @@ impl ServerLanguage {
                                             None => continue, // Should not happen for local symbol, but skip it to be sure...
                                         }
                                         // Push occurences in scope
-                                        // TODO: NOT dot at beginning of capture (as its a field.)
                                         let reg = Self::get_regex(
                                             &parameter.label,
                                             &mut self.regex_cache,
