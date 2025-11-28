@@ -170,12 +170,13 @@ impl TestServer {
         println!("stderr:\n{}", self.get_server_stderr().unwrap());
     }
     fn kill(&mut self) {
+        // Kill before reading stderr to correctly output EOF for read_to_string.
+        self.child.kill().unwrap();
         // Avoid crashing here as we might be panicking
         match self.get_server_stderr() {
             Ok(logs) => println!("Panic stderr:\n{}", logs),
             Err(err) => println!("Failed to get server log while unwinding panic: {}", err),
         }
-        self.child.kill().unwrap();
     }
     pub fn send_request<T: lsp_types::request::Request>(
         &mut self,
