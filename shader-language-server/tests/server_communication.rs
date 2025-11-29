@@ -4,9 +4,12 @@
 
 use core::panic;
 use std::collections::HashMap;
+use std::iter::zip;
 use std::path::Path;
 
-use lsp_types::request::{DocumentDiagnosticRequest, HoverRequest, WorkspaceSymbolRequest};
+use lsp_types::request::{
+    DocumentDiagnosticRequest, HoverRequest, SemanticTokensFullRequest, WorkspaceSymbolRequest,
+};
 use lsp_types::{
     notification::{DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument},
     request::DocumentSymbolRequest,
@@ -17,7 +20,7 @@ use lsp_types::{
 use lsp_types::{
     DiagnosticSeverity, DocumentDiagnosticParams, DocumentDiagnosticReport,
     DocumentDiagnosticReportResult, Hover, HoverParams, RelatedFullDocumentDiagnosticReport,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    SemanticTokensParams, SemanticTokensResult, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
@@ -420,6 +423,79 @@ fn test_hover() {
         },
         |response| {
             assert_hover_value(response.unwrap(), "test2");
+        },
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_semantic_tokens() {
+    let mut server = TestServer::desktop().unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/hlsl/semantic-token.hlsl"),
+        ShadingLanguage::Hlsl,
+    );
+
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<SemanticTokensFullRequest>(
+        &SemanticTokensParams {
+            text_document: file.identifier(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+        |response| {
+            let expected = [
+                (lsp_types::Position::new(0, 8), "MY_MACRO"),
+                (lsp_types::Position::new(2, 5), "MyEnum"),
+                (lsp_types::Position::new(7, 26), "param0"),
+                (lsp_types::Position::new(7, 39), "param1"),
+                (lsp_types::Position::new(8, 23), "param0"),
+                (lsp_types::Position::new(9, 17), "param1"),
+                (lsp_types::Position::new(9, 26), "MyEnum"),
+            ];
+            let semantic_tokens = response.unwrap().unwrap();
+            if let SemanticTokensResult::Tokens(tokens) = semantic_tokens {
+                assert!(
+                    tokens.data.len() == expected.len(),
+                    "Expected {} inlay hint, got {}",
+                    tokens.data.len(),
+                    expected.len()
+                );
+                let mut line = 0;
+                let mut pos = 0;
+                for (semantic_token, (expected_position, expected_label)) in
+                    zip(tokens.data.iter(), expected.iter())
+                {
+                    line = line + semantic_token.delta_line;
+                    pos = if semantic_token.delta_line > 0 {
+                        semantic_token.delta_start
+                    } else {
+                        pos + semantic_token.delta_start
+                    };
+                    assert!(
+                        line == expected_position.line,
+                        "Expected line {} for {}, got line {}",
+                        line,
+                        expected_label,
+                        expected_position.line,
+                    );
+                    assert!(
+                        pos == expected_position.character,
+                        "Expected pos {} for {}, got pos {}",
+                        pos,
+                        expected_label,
+                        expected_position.character,
+                    );
+                    assert!(semantic_token.length == expected_label.len() as u32);
+                }
+            } else {
+                assert!(false);
+            }
         },
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
