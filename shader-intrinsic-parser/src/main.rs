@@ -8,6 +8,7 @@ use shader_sense::shader::ShadingLanguage;
 mod common;
 mod glsl;
 mod hlsl;
+mod slang;
 mod wgsl;
 
 fn usage() {

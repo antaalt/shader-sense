@@ -4,6 +4,7 @@
 pub mod dxc;
 pub mod glslang;
 pub mod naga;
+pub mod slang;
 pub mod validator;
 
 #[cfg(test)]
@@ -34,6 +35,7 @@ mod tests {
             #[cfg(target_os = "wasi")]
             ShadingLanguage::Hlsl => Box::new(glslang::Glslang::hlsl()),
             ShadingLanguage::Glsl => Box::new(glslang::Glslang::glsl()),
+            ShadingLanguage::Slang => Box::new(slang::Slang::new()),
         }
     }
 

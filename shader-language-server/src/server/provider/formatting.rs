@@ -66,6 +66,10 @@ impl ServerLanguage {
                 // wgsl analyzer does its own parsing https://github.com/wgsl-analyzer/wgsl-analyzer/blob/main/crates/wgsl_formatter/src/lib.rs
                 Ok(vec![])
             }
+            ShadingLanguage::Slang => {
+                // TODO: Find a formatter for slang.
+                Ok(vec![])
+            }
             // HLSL & GLSL can rely on clang-format.
             ShadingLanguage::Hlsl | ShadingLanguage::Glsl => {
                 let shader_module = RefCell::borrow(&cached_file.shader_module);

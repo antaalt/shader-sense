@@ -9,7 +9,8 @@ use crate::{
     shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
         glsl::create_glsl_symbol_provider, hlsl::create_hlsl_symbol_provider,
-        symbol_parser::ShaderWordRange, wgsl::create_wgsl_symbol_provider,
+        slang::create_slang_symbol_provider, symbol_parser::ShaderWordRange,
+        wgsl::create_wgsl_symbol_provider,
     },
 };
 
@@ -64,14 +65,17 @@ impl SymbolProvider {
         create_hlsl_symbol_provider(&tree_sitter_hlsl::LANGUAGE_HLSL.into())
     }
     pub fn wgsl() -> Self {
-        // TODO:WGSL: need to wait for merge.
-        create_wgsl_symbol_provider(&tree_sitter_hlsl::LANGUAGE_HLSL.into()) //tree_sitter_wgsl_bevy::LANGUAGE_WGSL.into())
+        create_wgsl_symbol_provider(&tree_sitter_wgsl_bevy::LANGUAGE.into())
+    }
+    pub fn slang() -> Self {
+        create_slang_symbol_provider(&tree_sitter_slang::LANGUAGE_SLANG.into())
     }
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         match shading_language {
             ShadingLanguage::Wgsl => Self::wgsl(),
             ShadingLanguage::Hlsl => Self::hlsl(),
             ShadingLanguage::Glsl => Self::glsl(),
+            ShadingLanguage::Slang => Self::slang(),
         }
     }
     pub(crate) fn new(

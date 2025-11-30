@@ -1,7 +1,7 @@
 use shader_sense::{
     shader::ShadingLanguage,
     symbols::{shader_module_parser::ShaderModuleParser, symbol_provider::SymbolProvider},
-    validator::{glslang::Glslang, naga::Naga, validator::ValidatorImpl},
+    validator::{glslang::Glslang, naga::Naga, slang::Slang, validator::ValidatorImpl},
 };
 
 #[cfg(not(target_os = "wasi"))]
@@ -19,6 +19,7 @@ impl ServerLanguageData {
             ShadingLanguage::Hlsl => Self::hlsl(),
             ShadingLanguage::Glsl => Self::glsl(),
             ShadingLanguage::Wgsl => Self::wgsl(),
+            ShadingLanguage::Slang => Self::slang(),
         }
     }
     pub fn glsl() -> Self {
@@ -80,6 +81,17 @@ impl ServerLanguageData {
         log::info!("Using Naga for WGSL validation.");
         Self {
             validator: Box::new(Naga::new()),
+            shader_module_parser,
+            symbol_provider,
+        }
+    }
+    pub fn slang() -> Self {
+        let shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Slang);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Slang);
+        log::info!("Using Slang compiler for Slang validation.");
+        Self {
+            validator: Box::new(Slang::new()),
             shader_module_parser,
             symbol_provider,
         }

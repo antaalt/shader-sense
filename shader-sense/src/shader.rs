@@ -14,6 +14,7 @@ pub enum ShadingLanguage {
     Wgsl,
     Hlsl,
     Glsl,
+    Slang,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -251,6 +252,7 @@ impl FromStr for ShadingLanguage {
             "wgsl" => Ok(ShadingLanguage::Wgsl),
             "hlsl" => Ok(ShadingLanguage::Hlsl),
             "glsl" => Ok(ShadingLanguage::Glsl),
+            "slang" => Ok(ShadingLanguage::Slang),
             _ => Err(()),
         }
     }
@@ -261,6 +263,7 @@ impl ToString for ShadingLanguage {
             ShadingLanguage::Wgsl => "wgsl",
             ShadingLanguage::Hlsl => "hlsl",
             ShadingLanguage::Glsl => "glsl",
+            ShadingLanguage::Slang => "slang",
         })
     }
 }

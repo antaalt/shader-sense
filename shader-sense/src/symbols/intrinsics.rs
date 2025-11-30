@@ -21,6 +21,10 @@ static INTRINSICS: LazyLock<HashMap<ShadingLanguage, ShaderIntrinsics>> = LazyLo
             ShadingLanguage::Wgsl,
             ShaderIntrinsics::new(ShadingLanguage::Wgsl),
         ),
+        (
+            ShadingLanguage::Slang,
+            ShaderIntrinsics::new(ShadingLanguage::Slang),
+        ),
     ])
 });
 
@@ -34,6 +38,7 @@ impl ShaderIntrinsics {
             ShadingLanguage::Wgsl => include_str!("wgsl/wgsl-intrinsics.json"),
             ShadingLanguage::Hlsl => include_str!("hlsl/hlsl-intrinsics.json"),
             ShadingLanguage::Glsl => include_str!("glsl/glsl-intrinsics.json"),
+            ShadingLanguage::Slang => include_str!("slang/slang-intrinsics.json"),
         }
     }
     fn new(shading_language: ShadingLanguage) -> Self {

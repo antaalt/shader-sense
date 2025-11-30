@@ -6,6 +6,7 @@ pub mod intrinsics;
 pub mod prepocessor;
 pub mod shader_module;
 pub mod shader_module_parser;
+mod slang;
 pub mod symbol_list;
 mod symbol_parser;
 pub mod symbol_provider;

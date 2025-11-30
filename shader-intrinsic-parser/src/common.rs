@@ -1,6 +1,9 @@
 use shader_sense::{shader::ShadingLanguage, symbols::symbol_list::ShaderSymbolList};
 
-use crate::{glsl::GlslIntrinsicParser, hlsl::HlslIntrinsicParser, wgsl::WgslIntrinsicParser};
+use crate::{
+    glsl::GlslIntrinsicParser, hlsl::HlslIntrinsicParser, slang::SlangIntrinsicParser,
+    wgsl::WgslIntrinsicParser,
+};
 
 pub fn download_file(url: &str) -> String {
     let html = ureq::get(url)
@@ -21,5 +24,6 @@ pub fn get_intrinsic_parser(shading_language: ShadingLanguage) -> Box<dyn Intrin
         ShadingLanguage::Wgsl => Box::new(WgslIntrinsicParser {}),
         ShadingLanguage::Hlsl => Box::new(HlslIntrinsicParser {}),
         ShadingLanguage::Glsl => Box::new(GlslIntrinsicParser {}),
+        ShadingLanguage::Slang => Box::new(SlangIntrinsicParser {}),
     }
 }

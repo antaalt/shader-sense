@@ -57,6 +57,7 @@ fn usage() {
     println!("  --hlsl                    Add support for hlsl language id.");
     println!("  --glsl                    Add support for glsl language id.");
     println!("  --wgsl                    Add support for wgsl language id.");
+    println!("  --slang                   Add support for slang language id.");
     println!("Transport:");
     println!("  --stdio                   Use the stdio transport. Default transport.");
     println!("  --tcp                     Use tcp transport. Not implemented yet.");
@@ -126,6 +127,9 @@ pub fn main() {
             }
             "--glsl" => {
                 shading_language.insert(ShadingLanguage::Glsl);
+            }
+            "--slang" => {
+                shading_language.insert(ShadingLanguage::Slang);
             }
             "--stdio" => transport = Transport::Stdio,
             "--tcp" => transport = Transport::Tcp,

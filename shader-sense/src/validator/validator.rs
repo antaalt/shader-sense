@@ -6,7 +6,7 @@ use crate::validator::dxc::Dxc;
 use crate::{
     shader::{ShaderParams, ShaderStage, ShadingLanguage},
     shader_error::{ShaderDiagnosticList, ShaderError},
-    validator::{glslang::Glslang, naga::Naga},
+    validator::{glslang::Glslang, naga::Naga, slang::Slang},
 };
 
 /// Default include callback for [`Validator::validate_shader`]
@@ -82,12 +82,20 @@ impl Validator {
             imp: Box::new(Naga::new()),
         }
     }
+    /// Create a validator for Slang.
+    /// It will use slang compiler directly.
+    pub fn slang() -> Self {
+        Self {
+            imp: Box::new(Slang::new()),
+        }
+    }
     /// Create a validator from the given [`ShadingLanguage`]
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         match shading_language {
             ShadingLanguage::Wgsl => Self::wgsl(),
             ShadingLanguage::Hlsl => Self::hlsl(),
             ShadingLanguage::Glsl => Self::glsl(),
+            ShadingLanguage::Slang => Self::slang(),
         }
     }
     /// Validate a shader and return the diagnostic list, or an error if the process failed.

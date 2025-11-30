@@ -47,6 +47,7 @@ impl ShaderModuleParser {
                 ShadingLanguage::Wgsl => tree_sitter_wgsl_bevy::LANGUAGE.into(),
                 ShadingLanguage::Hlsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(),
                 ShadingLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
+                ShadingLanguage::Slang => tree_sitter_slang::LANGUAGE_SLANG.into(),
             })
             .expect("Error loading grammar");
         Self { tree_sitter_parser }
