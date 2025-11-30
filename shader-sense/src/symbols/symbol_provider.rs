@@ -64,8 +64,7 @@ impl SymbolProvider {
         create_hlsl_symbol_provider(&tree_sitter_hlsl::LANGUAGE_HLSL.into())
     }
     pub fn wgsl() -> Self {
-        // TODO:WGSL: need to wait for merge.
-        create_wgsl_symbol_provider(&tree_sitter_hlsl::LANGUAGE_HLSL.into()) //tree_sitter_wgsl_bevy::LANGUAGE_WGSL.into())
+        create_wgsl_symbol_provider(&tree_sitter_wgsl_bevy::LANGUAGE.into())
     }
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         match shading_language {
