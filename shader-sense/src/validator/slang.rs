@@ -1,16 +1,67 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
+    position::{ShaderFileRange, ShaderPosition},
     shader::{ShaderParams, ShaderStage},
-    shader_error::{ShaderDiagnosticList, ShaderError},
+    shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
     validator::validator::ValidatorImpl,
 };
 
-pub struct Slang {}
+pub struct Slang {
+    // Cache regex for parsing.
+    diagnostic_regex: regex::Regex,
+}
 
 impl Slang {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            diagnostic_regex: regex::Regex::new(
+                r"(?m)^(.+?)\((\d+)\)\: (warning|error|note|hint) (\d+)\:(.*?)",
+            )
+            .unwrap(),
+        }
+    }
+    fn parse_errors(
+        &self,
+        errors: &String,
+        file_path: &Path,
+        _params: &ShaderParams,
+    ) -> Result<ShaderDiagnosticList, ShaderError> {
+        let mut shader_error_list = ShaderDiagnosticList::empty();
+
+        for capture in self.diagnostic_regex.captures_iter(errors.as_str()) {
+            let _relative_path = capture.get(1).map_or("", |m| m.as_str());
+            let line = capture.get(2).map_or("", |m| m.as_str());
+            let level = capture.get(3).map_or("", |m| m.as_str());
+            let _code = capture.get(4).map_or("", |m| m.as_str());
+            let msg = capture.get(5).map_or("", |m| m.as_str());
+            let file_path: PathBuf = file_path.into(); // TODO: handle includes.
+            let line = line.parse::<u32>().unwrap_or(0);
+            //let pos = pos.parse::<u32>().unwrap_or(0);
+            shader_error_list.push(ShaderDiagnostic {
+                severity: match level {
+                    "error" => ShaderDiagnosticSeverity::Error,
+                    "warning" => ShaderDiagnosticSeverity::Warning,
+                    "note" => ShaderDiagnosticSeverity::Information,
+                    "hint" => ShaderDiagnosticSeverity::Hint,
+                    _ => ShaderDiagnosticSeverity::Error,
+                },
+                error: String::from(msg),
+                range: ShaderFileRange::new(
+                    file_path.clone(),
+                    ShaderPosition::new(line, 0),
+                    ShaderPosition::new(line, 0),
+                ),
+            });
+        }
+
+        if shader_error_list.is_empty() {
+            return Err(ShaderError::InternalErr(format!(
+                "Failed to parse errors: {}",
+                errors
+            )));
+        }
+        return Ok(shader_error_list);
     }
 }
 
@@ -19,7 +70,7 @@ impl ValidatorImpl for Slang {
         &self,
         _shader_content: &str,
         file_path: &Path,
-        _params: &ShaderParams,
+        params: &ShaderParams,
         _include_callback: &mut dyn FnMut(&Path) -> Option<String>, // TODO: cant be used now as slang-rs does not provide way for custom load.
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         // TODO: this should not be recreated.
@@ -58,10 +109,7 @@ impl ValidatorImpl for Slang {
         //session.load_module(name);
         match session.load_module("shader.slang") {
             Ok(_module) => Ok(ShaderDiagnosticList::empty()),
-            Err(err) => {
-                eprintln!("ERROR: {}", err);
-                Ok(ShaderDiagnosticList::empty())
-            }
+            Err(errors) => self.parse_errors(&errors.to_string(), file_path, params),
         }
     }
 
