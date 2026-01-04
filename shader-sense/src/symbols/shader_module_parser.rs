@@ -30,6 +30,14 @@ pub struct ShaderModuleParser {
     tree_sitter_parser: tree_sitter::Parser,
 }
 
+pub fn get_tree_sitter_language(shading_language: ShadingLanguage) -> tree_sitter::Language {
+    match shading_language {
+        ShadingLanguage::Wgsl => tree_sitter_wgsl_bevy::LANGUAGE.into(),
+        ShadingLanguage::Hlsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(),
+        ShadingLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
+    }
+}
+
 impl ShaderModuleParser {
     pub fn glsl() -> Self {
         Self::from_shading_language(ShadingLanguage::Glsl)
@@ -43,11 +51,7 @@ impl ShaderModuleParser {
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         let mut tree_sitter_parser = tree_sitter::Parser::new();
         tree_sitter_parser
-            .set_language(&match shading_language {
-                ShadingLanguage::Wgsl => tree_sitter_wgsl_bevy::LANGUAGE.into(),
-                ShadingLanguage::Hlsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(),
-                ShadingLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
-            })
+            .set_language(&get_tree_sitter_language(shading_language))
             .expect("Error loading grammar");
         Self { tree_sitter_parser }
     }

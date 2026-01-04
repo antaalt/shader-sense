@@ -9,7 +9,8 @@ use crate::{
     shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
         glsl::create_glsl_symbol_provider, hlsl::create_hlsl_symbol_provider,
-        symbol_parser::ShaderWordRange, wgsl::create_wgsl_symbol_provider,
+        shader_module_parser::get_tree_sitter_language, symbol_parser::ShaderWordRange,
+        wgsl::create_wgsl_symbol_provider,
     },
 };
 
@@ -58,13 +59,13 @@ pub fn default_include_callback<T: ShadingLanguageTag>(
 
 impl SymbolProvider {
     pub fn glsl() -> Self {
-        create_glsl_symbol_provider(&tree_sitter_glsl::LANGUAGE_GLSL.into())
+        create_glsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Glsl))
     }
     pub fn hlsl() -> Self {
-        create_hlsl_symbol_provider(&tree_sitter_hlsl::LANGUAGE_HLSL.into())
+        create_hlsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Hlsl))
     }
     pub fn wgsl() -> Self {
-        create_wgsl_symbol_provider(&tree_sitter_wgsl_bevy::LANGUAGE.into())
+        create_wgsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Wgsl))
     }
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         match shading_language {

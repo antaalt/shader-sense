@@ -11,6 +11,8 @@ use hlsl_preprocessor::get_hlsl_preprocessor_parser;
 pub use hlsl_regions::HlslSymbolRegionFinder;
 pub use hlsl_word::HlslSymbolWordProvider;
 
+use crate::shader::ShadingLanguage;
+
 use super::symbol_provider::SymbolProvider;
 
 pub(super) fn create_hlsl_symbol_provider(
@@ -20,7 +22,7 @@ pub(super) fn create_hlsl_symbol_provider(
         tree_sitter_language,
         get_hlsl_parsers(),
         get_hlsl_preprocessor_parser(),
-        Box::new(HlslSymbolRegionFinder::new(&tree_sitter_language)),
+        Box::new(HlslSymbolRegionFinder::new(ShadingLanguage::Hlsl)),
         Box::new(hlsl_word::HlslSymbolWordProvider {}),
     )
 }
