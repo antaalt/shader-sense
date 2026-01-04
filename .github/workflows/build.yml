@@ -106,7 +106,7 @@ jobs:
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
-        run: cargo install wasmtime-cli && cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
+        run: cargo install --version 39.0.1 wasmtime-cli && cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
         env: # Somehow this VM has clang14 by default, which is not supported...
           CC: clang-17
           CXX: clang++-17
