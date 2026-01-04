@@ -16,6 +16,7 @@ pub enum ShadingLanguage {
     Glsl,
 }
 
+/// Mask for all shaders stages supported.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ShaderStageMask(u32);
 
