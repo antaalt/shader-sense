@@ -42,6 +42,7 @@ pub struct ServerHlslConfig {
 pub struct ServerGlslConfig {
     pub target_client: Option<GlslTargetClient>,
     pub spirv_version: Option<GlslSpirvVersion>,
+    pub preamble: Option<String>, // Path to a preamble file per language.
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -166,6 +167,24 @@ impl ServerSerializedConfig {
                 .map(|glsl| GlslCompilationParams {
                     client: glsl.target_client.unwrap_or_default(),
                     spirv: glsl.spirv_version.unwrap_or_default(),
+                    preamble: match glsl.preamble {
+                        Some(preamble_file_path) => {
+                            match std::fs::read_to_string(&preamble_file_path) {
+                                Ok(preamble_file) => preamble_file,
+                                Err(err) => {
+                                    warn!(
+                                        "Preamble file not found for Glsl at {:?}: {}",
+                                        preamble_file_path, err
+                                    );
+                                    String::new()
+                                }
+                            }
+                        }
+                        None => {
+                            info!("No preamble set for Glsl");
+                            String::new()
+                        } // Default
+                    },
                 })
                 .unwrap_or_default(),
             wgsl: WgslCompilationParams {},

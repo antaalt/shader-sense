@@ -123,7 +123,7 @@ impl Glslang {
         errors: &String,
         file_path: &Path,
         params: &ShaderParams,
-        offset_first_line: bool,
+        preamble_line_offset: usize,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         let mut shader_error_list = ShaderDiagnosticList::empty();
 
@@ -171,18 +171,18 @@ impl Glslang {
                         }
                     }
                 };
-                let line = {
-                    // Line is indexed from 1 in glslang, so remove one line (and another one if we offset from first line).
-                    // But sometimes, it return a line of zero (probably some non initialized position) so check this aswell.
-                    let offset = 1 + offset_first_line as u32;
+                let (line, pos) = {
+                    // Line is indexed from 1 in glslang, so remove one line (and preamble lines aswell).
+                    // But sometimes, it return a line of zero (probably some non initialized position, or preamble issues) so check this aswell.
+                    let offset = 1 + preamble_line_offset as u32;
                     let line = line.parse::<u32>().unwrap_or(offset);
                     if line < offset {
-                        0
+                        (0, 0)
                     } else {
-                        line - offset
+                        let pos = pos.parse::<u32>().unwrap_or(0);
+                        (line - offset, pos)
                     }
                 };
-                let pos = pos.parse::<u32>().unwrap_or(0);
                 shader_error_list.push(ShaderDiagnostic {
                     severity: match level {
                         "ERROR" => ShaderDiagnosticSeverity::Error,
@@ -220,17 +220,17 @@ impl Glslang {
         err: GlslangError,
         file_path: &Path,
         params: &ShaderParams,
-        offset_first_line: bool,
+        preamble_line_offset: usize,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         match err {
             GlslangError::PreprocessError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::ParseError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::LinkError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::ShaderStageNotFound(stage) => Err(ShaderError::InternalErr(format!(
                 "Shader stage not found: {:#?}",
@@ -262,29 +262,43 @@ impl ValidatorImpl for Glslang {
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         let file_name = self.get_file_name(file_path);
 
-        let (shader_stage, shader_source, offset_first_line) =
+        // Ensure we have a newline character at the end to avoid issues with offset.
+        let preamble = if !params.compilation.glsl.preamble.ends_with('\n') {
+            let mut preamble = params.compilation.glsl.preamble.clone();
+            preamble.push('\n');
+            preamble
+        } else {
+            params.compilation.glsl.preamble.clone()
+        };
+        let preamble_line_count = preamble.lines().count();
+
+        let (shader_stage, shader_source, preamble_line_offset) =
             if let Some(variant_stage) = params.compilation.shader_stage {
-                (variant_stage, content.into(), false)
+                (variant_stage, preamble + content, preamble_line_count)
             } else if let Some(shader_stage) = ShaderStage::from_file_name(&file_name) {
-                (shader_stage, content.into(), false)
+                (shader_stage, preamble + content, preamble_line_count)
             } else {
                 // If we dont have a stage, might require some preprocess to avoid errors.
                 // glslang **REQUIRES** to have stage for linting.
                 let default_stage = ShaderStage::Fragment;
                 if self.hlsl {
                     // HLSL does not require version, simply assume stage.
-                    (default_stage, content.into(), false)
+                    (default_stage, preamble + content, preamble_line_count)
                 } else {
                     // glslang does not support linting header file, so to lint them,
                     // Assume Fragment & add default #version if missing
-                    if content.contains("#version ") {
+                    if content.contains("#version ") || preamble.contains("#version") {
                         // Main file with missing stage.
-                        (default_stage, content.into(), false)
+                        (default_stage, preamble + content, preamble_line_count)
                     } else {
                         // Header file with missing stage & missing version.
                         // WARN: Assumed this string is one line offset only.
-                        let version_header = String::from("#version 450\n");
-                        (default_stage, version_header + content, true)
+                        let preamble_with_header = format!("#version 450\n{}", preamble);
+                        (
+                            default_stage,
+                            preamble_with_header + content,
+                            preamble_line_count + 1, // +1 for added version line.
+                        )
                     }
                 }
             };
@@ -357,7 +371,7 @@ impl ValidatorImpl for Glslang {
             Some(&defines),
             Some(&mut include_handler),
         )
-        .map_err(|e| self.from_glslang_error(e, file_path, &params, offset_first_line))
+        .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
             Err(error) => match error {
@@ -366,7 +380,7 @@ impl ValidatorImpl for Glslang {
             },
         };
         let _shader = match glslang::Shader::new(&self.compiler, input)
-            .map_err(|e| self.from_glslang_error(e, file_path, &params, offset_first_line))
+            .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
             Err(error) => match error {

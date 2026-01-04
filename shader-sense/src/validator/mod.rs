@@ -11,7 +11,8 @@ mod tests {
     use std::{collections::HashMap, path::Path};
 
     use crate::shader::{
-        ShaderCompilationParams, ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
+        GlslCompilationParams, ShaderCompilationParams, ShaderContextParams, ShaderParams,
+        ShaderStage, ShadingLanguage,
     };
 
     use super::validator::*;
@@ -172,6 +173,36 @@ mod tests {
                 println!("Diagnostic should not be empty: {:#?}", diags);
                 assert!(diags[0].range.file_path.exists());
                 assert_eq!(diags[0].error, String::from(" '#include' : Could not process include directive for header name: ./level1.glsl\n"));
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_preamble() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/dependent-include.frag.glsl");
+        let preamble = Path::new("./test/glsl/helpers/preamble.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let preamble_content = std::fs::read_to_string(preamble).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    glsl: GlslCompilationParams {
+                        preamble: preamble_content,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should be empty: {:#?}", result);
+                assert!(result.is_empty())
             }
             Err(err) => panic!("{}", err),
         };

@@ -92,6 +92,7 @@ pub fn main() {
     let mut should_validate = false;
     let mut symbol_type_to_print: HashSet<ShaderSymbolType> = HashSet::new();
     let mut shading_language = ShadingLanguage::Hlsl;
+    let mut preamble: Option<String> = None;
     let mut defines = Vec::new();
     let mut includes = Vec::new();
     let mut entry_point = None;
@@ -145,6 +146,13 @@ pub fn main() {
                 },
                 None => {
                     println!("Missing stage value");
+                    usage();
+                }
+            },
+            "-P" | "--preamble" => match args.next() {
+                Some(arg) => preamble = Some(arg),
+                None => {
+                    println!("Missing preamble value");
                     usage();
                 }
             },
@@ -206,6 +214,7 @@ pub fn main() {
                     glsl: GlslCompilationParams {
                         client: GlslTargetClient::Vulkan1_3,
                         spirv: GlslSpirvVersion::SPIRV1_6,
+                        preamble: preamble.unwrap_or_default(),
                     },
                     wgsl: WgslCompilationParams {},
                 },
