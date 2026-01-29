@@ -19,6 +19,8 @@ runner = "wasmtime --wasi threads=y --dir ../shader-sense/test::/test"
 rustflags = ["-Z", "wasm-c-abi=spec"]
 
 # Set this to your wasi-sdk compiler to avoid picking a clang version that does not support WASI (such as vs bundled version)
+# You can download wasi-sdk here https://github.com/WebAssembly/wasi-sdk
 #[env]
 #CC = "your/path/to/wasi-sdk/bin/clang.exe"
 #CXX = "your/path/to/wasi-sdk/bin/clang++.exe"
+#WASI_SYSROOT= "your/path/to/wasi-sysroot"
