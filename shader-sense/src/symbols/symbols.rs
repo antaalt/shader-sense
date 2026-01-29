@@ -222,6 +222,7 @@ pub enum ShaderSymbolData {
     },
     Macro {
         value: String,
+        parameters: Vec<String>,
     },
 }
 
@@ -522,7 +523,10 @@ impl ShaderSymbol {
             ShaderSymbolData::Functions { signatures: _ } => Some(ShaderSymbolType::Functions),
             ShaderSymbolData::Keyword {} => Some(ShaderSymbolType::Keyword),
             ShaderSymbolData::Include { target: _ } => Some(ShaderSymbolType::Include),
-            ShaderSymbolData::Macro { value: _ } => Some(ShaderSymbolType::Macros),
+            ShaderSymbolData::Macro {
+                value: _,
+                parameters: _,
+            } => Some(ShaderSymbolType::Macros),
         }
     }
     pub fn format(&self) -> String {
@@ -586,8 +590,12 @@ impl ShaderSymbol {
             ShaderSymbolData::Include { target: _ } => {
                 format!("#include \"{}\"", self.label)
             }
-            ShaderSymbolData::Macro { value } => {
-                format!("#define {} {}", self.label, value)
+            ShaderSymbolData::Macro { value, parameters } => {
+                if parameters.len() == 0 {
+                    format!("#define {} {}", self.label, value)
+                } else {
+                    format!("#define {}({}) {}", self.label, parameters.join(","), value)
+                }
             }
         }
     }

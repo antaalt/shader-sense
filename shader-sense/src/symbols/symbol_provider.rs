@@ -1,5 +1,5 @@
 //! Main entry point to inspect symbols from a file
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
@@ -10,7 +10,7 @@ use crate::{
     symbols::{
         glsl::create_glsl_symbol_provider, hlsl::create_hlsl_symbol_provider,
         shader_module_parser::get_tree_sitter_language, symbol_parser::ShaderWordRange,
-        wgsl::create_wgsl_symbol_provider,
+        symbols::ShaderSymbolData, wgsl::create_wgsl_symbol_provider,
     },
 };
 
@@ -55,6 +55,49 @@ pub fn default_include_callback<T: ShadingLanguageTag>(
             .as_str(),
     )?;
     Ok(Some(Rc::new(RefCell::new(include_module))))
+}
+
+pub struct ProxyTree {
+    text: String,
+    parser: tree_sitter::Parser,
+    tree: tree_sitter::Tree,
+}
+
+/// Proxy tree to quickly parse small strings without recreating a whole tree.
+impl ProxyTree {
+    pub fn new(lang: &tree_sitter::Language) -> Self {
+        let mut tree_sitter_parser = tree_sitter::Parser::new();
+        tree_sitter_parser
+            .set_language(lang)
+            .expect("Error loading grammar");
+
+        Self {
+            text: "".into(),
+            tree: tree_sitter_parser.parse("", None).unwrap(),
+            parser: tree_sitter_parser,
+        }
+    }
+    pub fn parse(&mut self, text: &str) -> Option<&tree_sitter::Tree> {
+        let old_end_position = ShaderRange::whole(&self.text).end;
+        let new_end_position = ShaderRange::whole(&text).end;
+        self.tree.edit(&tree_sitter::InputEdit {
+            start_byte: 0,
+            old_end_byte: self.text.len(), // Should use byte_offset instead
+            new_end_byte: text.len(),
+            start_position: tree_sitter::Point::new(0, 0),
+            old_end_position: tree_sitter::Point::new(
+                old_end_position.line as usize,
+                old_end_position.pos as usize,
+            ),
+            new_end_position: tree_sitter::Point::new(
+                new_end_position.line as usize,
+                new_end_position.pos as usize,
+            ),
+        });
+        self.text = text.into();
+        self.tree = self.parser.parse(&self.text, Some(&self.tree))?;
+        Some(&self.tree)
+    }
 }
 
 impl SymbolProvider {

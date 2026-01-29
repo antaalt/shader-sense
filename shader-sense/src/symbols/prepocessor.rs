@@ -52,6 +52,7 @@ impl ShaderPreprocessorContext {
                     requirement: None,
                     data: ShaderSymbolData::Macro {
                         value: value.clone(),
+                        parameters: vec![],
                     },
                     mode: ShaderSymbolMode::RuntimeContext(ShaderSymbolRuntimeContext::new()),
                 })
@@ -107,9 +108,15 @@ impl ShaderPreprocessorContext {
                         lhs_symbol.label == rhs_symbol.label
                             && match (&lhs_symbol.data, &rhs_symbol.data) {
                                 (
-                                    ShaderSymbolData::Macro { value: l_value },
-                                    ShaderSymbolData::Macro { value: r_value },
-                                ) => l_value == r_value,
+                                    ShaderSymbolData::Macro {
+                                        value: l_value,
+                                        parameters: l_parameter,
+                                    },
+                                    ShaderSymbolData::Macro {
+                                        value: r_value,
+                                        parameters: r_parameter,
+                                    },
+                                ) => l_value == r_value || l_parameter == r_parameter,
                                 _ => false,
                             }
                     })
@@ -147,7 +154,10 @@ impl ShaderPreprocessorContext {
             .iter()
             .find(|symbol| *symbol.label == *name)
             .map(|symbol| match &symbol.data {
-                ShaderSymbolData::Macro { value } => value.clone(),
+                ShaderSymbolData::Macro {
+                    value,
+                    parameters: _,
+                } => value.clone(),
                 _ => panic!("Expected ShaderSymbolData::Macro"),
             })
     }
@@ -187,7 +197,12 @@ pub struct ShaderPreprocessor {
     pub mode: ShaderPreprocessorMode,
 }
 impl ShaderPreprocessorDefine {
-    pub fn new(name: String, range: ShaderFileRange, value: Option<String>) -> Self {
+    pub fn new(
+        name: String,
+        range: ShaderFileRange,
+        value: Option<String>,
+        arguments: Option<Vec<String>>,
+    ) -> Self {
         Self {
             symbol: ShaderSymbol {
                 label: name.clone(),
@@ -197,6 +212,7 @@ impl ShaderPreprocessorDefine {
                         Some(value) => value.clone(),
                         None => "".into(),
                     },
+                    parameters: arguments.unwrap_or_default(),
                 },
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::global(
                     range.file_path,
@@ -216,7 +232,10 @@ impl ShaderPreprocessorDefine {
     }
     pub fn get_value(&self) -> Option<&String> {
         match &self.symbol.data {
-            ShaderSymbolData::Macro { value } => Some(value),
+            ShaderSymbolData::Macro {
+                value,
+                parameters: _,
+            } => Some(value),
             _ => None,
         }
     }

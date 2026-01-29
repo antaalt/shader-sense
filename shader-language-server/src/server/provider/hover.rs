@@ -50,7 +50,10 @@ impl ServerLanguage {
                             (description, link)
                         }
                         ShaderSymbolMode::RuntimeContext(_) => match &symbol.data {
-                            ShaderSymbolData::Macro { value } => {
+                            ShaderSymbolData::Macro {
+                                value,
+                                parameters: _,
+                            } => {
                                 let description = if !value.is_empty() {
                                     format!("Config macro. Expanding to \n```\n{}\n```", value)
                                 } else {
@@ -65,7 +68,10 @@ impl ServerLanguage {
                                 let description = format!("Including file {}", target.display());
                                 (description, "".into())
                             }
-                            ShaderSymbolData::Macro { value } => {
+                            ShaderSymbolData::Macro {
+                                value,
+                                parameters: _,
+                            } => {
                                 let description = if !value.is_empty() {
                                     format!(
                                         "Preprocessor macro. Expanding to \n```\n{}\n```",

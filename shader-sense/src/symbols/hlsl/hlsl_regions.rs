@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use tree_sitter::{InputEdit, Point, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
 use crate::{
     position::{ShaderFilePosition, ShaderFileRange, ShaderPosition, ShaderRange},
@@ -14,7 +14,7 @@ use crate::{
         shader_module::{ShaderModule, ShaderSymbols},
         shader_module_parser::get_tree_sitter_language,
         symbol_parser::{get_name, SymbolRegionFinder},
-        symbol_provider::{SymbolIncludeCallback, SymbolProvider},
+        symbol_provider::{ProxyTree, SymbolIncludeCallback, SymbolProvider},
     },
 };
 
@@ -98,49 +98,6 @@ impl SymbolTreeCursor {
     // Each iterator
     pub fn iter() -> SymbolTreeCursorIter {}
 }*/
-
-struct ProxyTree {
-    text: String,
-    parser: tree_sitter::Parser,
-    tree: tree_sitter::Tree,
-}
-
-/// Proxy tree to quickly parse small strings without recreating a whole tree.
-impl ProxyTree {
-    pub fn new(lang: &tree_sitter::Language) -> Self {
-        let mut tree_sitter_parser = tree_sitter::Parser::new();
-        tree_sitter_parser
-            .set_language(lang)
-            .expect("Error loading grammar");
-
-        Self {
-            text: "".into(),
-            tree: tree_sitter_parser.parse("", None).unwrap(),
-            parser: tree_sitter_parser,
-        }
-    }
-    pub fn parse(&mut self, text: &str) -> Option<&tree_sitter::Tree> {
-        let old_end_position = ShaderRange::whole(&self.text).end;
-        let new_end_position = ShaderRange::whole(&text).end;
-        self.tree.edit(&InputEdit {
-            start_byte: 0,
-            old_end_byte: self.text.len(), // Should use byte_offset instead
-            new_end_byte: text.len(),
-            start_position: Point::new(0, 0),
-            old_end_position: Point::new(
-                old_end_position.line as usize,
-                old_end_position.pos as usize,
-            ),
-            new_end_position: Point::new(
-                new_end_position.line as usize,
-                new_end_position.pos as usize,
-            ),
-        });
-        self.text = text.into();
-        self.tree = self.parser.parse(&self.text, Some(&self.tree))?;
-        Some(&self.tree)
-    }
-}
 
 pub struct HlslSymbolRegionFinder {
     shading_language: ShadingLanguage,
