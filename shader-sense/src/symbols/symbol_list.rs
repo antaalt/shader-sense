@@ -34,7 +34,7 @@ impl ShaderSymbolList {
     // Parse intrinsic database
     pub fn parse_from_json(file_content: String) -> ShaderSymbolList {
         serde_json::from_str::<ShaderSymbolList>(&file_content)
-            .expect("Failed to parse ShaderSymbolList")
+            .expect("Failed to parse ShaderSymbolList. It probably needs to be regenerated using shader-intrinsic-parser to support new elements.")
     }
     // Append another symbol list to this one.
     pub fn append(&mut self, shader_symbol_list: ShaderSymbolList) {
