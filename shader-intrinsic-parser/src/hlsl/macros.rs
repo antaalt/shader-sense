@@ -1,3 +1,5 @@
+#[cfg(not(target_os = "wasi"))]
+use shader_sense::validator::dxc::Dxc;
 use shader_sense::{
     shader::{HlslShaderModel, HlslVersion, ShaderStage, ShaderStageMask},
     symbols::{
@@ -7,12 +9,15 @@ use shader_sense::{
             ShaderSymbolIntrinsic, ShaderSymbolMode,
         },
     },
-    validator::dxc::Dxc,
 };
 
 use crate::hlsl::HlslIntrinsicParser;
 
 impl HlslIntrinsicParser {
+    // Small hack for wasi compilation as this crate will never run in wasi, do not care.
+    #[cfg(target_os = "wasi")]
+    pub fn add_macros(&self, symbols: &mut ShaderSymbolList) {}
+    #[cfg(not(target_os = "wasi"))]
     pub fn add_macros(&self, symbols: &mut ShaderSymbolList) {
         // Get predefined macros
         // https://github.com/microsoft/DirectXShaderCompiler/wiki/Predefined-Version-Macros
@@ -53,6 +58,7 @@ impl HlslIntrinsicParser {
                 requirement: None,
                 data: ShaderSymbolData::Macro {
                     value: value.into(),
+                    parameters: vec![],
                 },
             });
         }
@@ -71,6 +77,7 @@ impl HlslIntrinsicParser {
                 requirement: Some(RequirementParameter::Hlsl(req)),
                 data: ShaderSymbolData::Macro {
                     value: value.into(),
+                    parameters: vec![],
                 },
             });
         }
