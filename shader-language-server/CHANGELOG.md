@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.3.0] - 2026-01-31
+
+### Fixed
+
+- Fixed an issue that caused test to hang on panic
+
+### Added
+
+- New test for semantic tokens.
+- New experimental feature for macro expansion to add to symbols the symbols defined inside a macro. Still a work in progress.
+- Possiblity to pass a preamble file for Glsl shaders.
+
+
 ## [1.2.2] - 2025-11-24
 
 ### Fixed
