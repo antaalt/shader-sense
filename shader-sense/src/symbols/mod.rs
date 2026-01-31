@@ -411,4 +411,39 @@ mod tests {
             "clip() should not be available from vertex shader."
         );
     }
+    #[test]
+    fn test_macro_expansion() {
+        let file_path = Path::new("./test/hlsl/macro-struct.hlsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let shader_module = shader_module_parser
+            .create_module(file_path, &shader_content)
+            .unwrap();
+        let symbols = symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams::default(),
+                &mut default_include_callback::<HlslShadingLanguageTag>,
+                None,
+            )
+            .unwrap();
+        let symbols = symbols.get_all_symbols();
+        assert!(symbols
+            .types
+            .iter()
+            .find(|t| t.label == "ProceduralTestValue0")
+            .is_some());
+        assert!(symbols
+            .types
+            .iter()
+            .find(|t| t.label == "ProceduralTestValue1")
+            .is_some());
+        assert!(symbols
+            .types
+            .iter()
+            .find(|t| t.label == "TestMacro")
+            .is_some());
+    }
 }

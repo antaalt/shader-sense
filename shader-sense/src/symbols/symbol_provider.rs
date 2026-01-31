@@ -203,16 +203,112 @@ impl SymbolProvider {
             include_callback,
             old_symbols,
         )?;
-        let symbol_list = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
+        let mut symbol_list = if let ShaderPreprocessorMode::OnceVisited = preprocessor.mode {
             ShaderSymbolList::default() // if once, no symbols.
         } else {
             // TODO: should not always need to recompute this.
             self.query_file_symbols(shader_module, &shader_params)?
         };
+        self.postprocess_symbols(
+            &shader_module.file_path,
+            &mut symbol_list,
+            &preprocessor,
+            shader_params,
+        );
         Ok(ShaderSymbols {
             preprocessor,
             symbol_list,
         })
+    }
+    pub fn postprocess_symbols(
+        &self,
+        file_path: &Path,
+        symbol_list: &mut ShaderSymbolList,
+        preprocessor: &ShaderPreprocessor,
+        shader_compilation_params: &ShaderCompilationParams,
+    ) {
+        // A preprocess step that filter out and develop content.
+        // TODO: correctly pick lang.
+        // TODO: this code is specific to hlsl & glsl, might need to be moved in correct folder for postprocessing step.
+        let mut tree = ProxyTree::new(&get_tree_sitter_language(ShadingLanguage::Hlsl));
+        let mut new_symbols = ShaderSymbolList::default();
+        for call_expression in &symbol_list.call_expression {
+            if let ShaderSymbolData::CallExpression {
+                label: _,
+                range: _,
+                parameters: call_parameters,
+            } = &call_expression.data
+            {
+                let expressions = preprocessor
+                    .defines
+                    .iter()
+                    .filter(|define| define.get_name() == &call_expression.label);
+                for expression in expressions {
+                    if let (Some(value), Some(macro_parameters)) =
+                        (expression.get_value(), expression.get_parameters())
+                    {
+                        // Really basic macro parser.
+                        fn parse_macro(value: &str, args: &Vec<(String, String)>) -> String {
+                            // Remove \ that allow new line break in macro.
+                            let mut formatted_value = value.replace("\\", "");
+                            // Replace arguments
+                            for arg in args {
+                                // TODO: handle spaces aswell.
+                                formatted_value =
+                                    formatted_value.replace(&format!("##{}", arg.0), &arg.1);
+                                formatted_value =
+                                    formatted_value.replace(&format!("{}##", arg.0), &arg.1);
+                            }
+                            // replace "## value" by the value of parameter
+                            // replace "# value" by the value of parameter
+                            // replace __VA_ARGS__ and other specific macros.
+                            // TODO: nested macros & everything else
+                            formatted_value
+                        }
+                        if macro_parameters.len() != call_parameters.len() {
+                            // Macro do not match.
+                            continue;
+                        }
+                        let parameters = call_parameters
+                            .iter()
+                            .zip(macro_parameters.iter())
+                            .map(|((call_parameter, _), macro_parameter)| {
+                                (macro_parameter.clone(), call_parameter.clone())
+                            })
+                            .collect();
+
+                        let value = parse_macro(value, &parameters);
+                        if let Some(tree) = tree.parse(&value) {
+                            let module = ShaderModule {
+                                file_path: file_path.into(),
+                                content: value.clone(),
+                                tree: tree.clone(), // TODO: ref somehow
+                            };
+                            if let Ok(macro_symbols) = self.query_file_symbols(
+                                &module,
+                                &ShaderCompilationParams {
+                                    entry_point: None, // Remove the entry point.
+                                    shader_stage: shader_compilation_params.shader_stage,
+                                    hlsl: shader_compilation_params.hlsl.clone(),
+                                    glsl: shader_compilation_params.glsl.clone(),
+                                    wgsl: shader_compilation_params.wgsl.clone(),
+                                },
+                            ) {
+                                new_symbols.append(macro_symbols);
+                            } else {
+                            }
+                        } else {
+                            // failed to parse macro value. Ignore.
+                        }
+                    } else {
+                        // no value for macro. Ignore.
+                    }
+                }
+            } else {
+                unreachable!("call expression is not a call expression")
+            }
+        }
+        symbol_list.append(new_symbols);
     }
     pub fn query_symbols<'a>(
         &self,

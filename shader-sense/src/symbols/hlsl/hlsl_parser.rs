@@ -447,7 +447,10 @@ impl SymbolTreeParser for HlslCallExpressionTreeParser {
                     .enumerate()
                     .map(|(i, e)| {
                         // These name are not variable. Should find definition in symbols.
-                        (format!("param{}:", i), ShaderRange::from(e.node.range()))
+                        (
+                            get_name(shader_content, e.node).into(),
+                            ShaderRange::from(e.node.range()),
+                        )
                     })
                     .collect(),
             },

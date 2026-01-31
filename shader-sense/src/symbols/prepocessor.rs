@@ -239,6 +239,15 @@ impl ShaderPreprocessorDefine {
             _ => None,
         }
     }
+    pub fn get_parameters(&self) -> Option<&Vec<String>> {
+        match &self.symbol.data {
+            ShaderSymbolData::Macro {
+                value: _,
+                parameters,
+            } => Some(parameters),
+            _ => None,
+        }
+    }
 }
 impl ShaderPreprocessorInclude {
     pub fn new(relative_path: String, absolute_path: PathBuf, range: ShaderFileRange) -> Self {
