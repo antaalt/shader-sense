@@ -445,7 +445,7 @@ impl SymbolTreeParser for HlslCallExpressionTreeParser {
                 parameters: symbol_match.captures[1..]
                     .iter()
                     .enumerate()
-                    .map(|(i, e)| {
+                    .map(|(_, e)| {
                         // These name are not variable. Should find definition in symbols.
                         (
                             get_name(shader_content, e.node).into(),

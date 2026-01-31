@@ -411,6 +411,7 @@ pub struct ShaderContextParams {
 pub struct ShaderCompilationParams {
     pub entry_point: Option<String>,
     pub shader_stage: Option<ShaderStage>,
+    pub experimental_macro_expansion: bool,
     pub hlsl: HlslCompilationParams,
     pub glsl: GlslCompilationParams,
     pub wgsl: WgslCompilationParams,

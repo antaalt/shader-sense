@@ -424,7 +424,13 @@ mod tests {
         let symbols = symbol_provider
             .query_symbols(
                 &shader_module,
-                ShaderParams::default(),
+                ShaderParams {
+                    compilation: ShaderCompilationParams {
+                        experimental_macro_expansion: true,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
                 &mut default_include_callback::<HlslShadingLanguageTag>,
                 None,
             )

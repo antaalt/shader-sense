@@ -92,6 +92,7 @@ pub struct ServerSerializedConfig {
     validate: Option<bool>,                   // Validation via standard API
     symbols: Option<bool>,                    // Query symbols
     symbol_diagnostics: Option<bool>,         // Debug option to visualise issues with tree-sitter
+    experimental_macro_expansion: Option<bool>, // Experimental test for the new feature.
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>, // Specific macro defined per shader stage
     trace: Option<ServerTrace>,      // Level of error to display
     severity: Option<String>,        // Severity of diagnostic to display
@@ -110,6 +111,7 @@ pub struct ServerConfig {
     validate: bool,
     symbols: bool,
     symbol_diagnostics: bool,
+    experimental_macro_expansion: bool,
     trace: ServerTrace,
     severity: ShaderDiagnosticSeverity,
     hlsl: HlslCompilationParams,
@@ -142,6 +144,7 @@ impl ServerSerializedConfig {
                         .collect()
                 })
                 .unwrap_or_default(),
+            experimental_macro_expansion: self.experimental_macro_expansion.unwrap_or(false),
             validate: self.validate.unwrap_or(ServerConfig::DEFAULT_VALIDATE),
             symbols: self.symbols.unwrap_or(ServerConfig::DEFAULT_SYMBOLS),
             symbol_diagnostics: self
@@ -319,6 +322,7 @@ impl ServerConfig {
             compilation: ShaderCompilationParams {
                 entry_point,
                 shader_stage,
+                experimental_macro_expansion: self.experimental_macro_expansion,
                 hlsl: hlsl,
                 glsl: glsl,
                 wgsl: wgsl,
@@ -353,6 +357,7 @@ impl Default for ServerConfig {
             path_remapping: HashMap::new(),
             validate: ServerConfig::DEFAULT_VALIDATE,
             symbols: ServerConfig::DEFAULT_SYMBOLS,
+            experimental_macro_expansion: false,
             stage_define: HashMap::new(),
             symbol_diagnostics: ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC,
             trace: ServerConfig::DEFAULT_TRACE,

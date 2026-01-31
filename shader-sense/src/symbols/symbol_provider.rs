@@ -209,12 +209,14 @@ impl SymbolProvider {
             // TODO: should not always need to recompute this.
             self.query_file_symbols(shader_module, &shader_params)?
         };
-        self.postprocess_symbols(
-            &shader_module.file_path,
-            &mut symbol_list,
-            &preprocessor,
-            shader_params,
-        );
+        if shader_params.experimental_macro_expansion {
+            self.postprocess_symbols(
+                &shader_module.file_path,
+                &mut symbol_list,
+                &preprocessor,
+                shader_params,
+            );
+        }
         Ok(ShaderSymbols {
             preprocessor,
             symbol_list,
@@ -227,6 +229,10 @@ impl SymbolProvider {
         preprocessor: &ShaderPreprocessor,
         shader_compilation_params: &ShaderCompilationParams,
     ) {
+        debug_assert!(
+            shader_compilation_params.experimental_macro_expansion,
+            "This should only be reached if feature is enabled."
+        );
         // A preprocess step that filter out and develop content.
         // TODO: correctly pick lang.
         // TODO: this code is specific to hlsl & glsl, might need to be moved in correct folder for postprocessing step.
@@ -289,6 +295,8 @@ impl SymbolProvider {
                                 &ShaderCompilationParams {
                                     entry_point: None, // Remove the entry point.
                                     shader_stage: shader_compilation_params.shader_stage,
+                                    experimental_macro_expansion: shader_compilation_params
+                                        .experimental_macro_expansion,
                                     hlsl: shader_compilation_params.hlsl.clone(),
                                     glsl: shader_compilation_params.glsl.clone(),
                                     wgsl: shader_compilation_params.wgsl.clone(),

@@ -97,6 +97,7 @@ pub fn main() {
     let mut includes = Vec::new();
     let mut entry_point = None;
     let mut shader_stage = None;
+    let mut experimental_macro_expansion = false;
     let _exe = args.next().unwrap();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -186,6 +187,9 @@ pub fn main() {
             "--help" | "-h" => {
                 usage();
             }
+            "--expand-macro" => {
+                experimental_macro_expansion = true;
+            }
             parsed_file_name => match &mut file_name {
                 Some(_) => usage(),
                 None => {
@@ -205,6 +209,7 @@ pub fn main() {
                 compilation: ShaderCompilationParams {
                     entry_point: entry_point,
                     shader_stage: shader_stage,
+                    experimental_macro_expansion: experimental_macro_expansion,
                     hlsl: HlslCompilationParams {
                         shader_model: HlslShaderModel::ShaderModel6_8,
                         version: HlslVersion::V2018,
