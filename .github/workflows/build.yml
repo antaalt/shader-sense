@@ -52,16 +52,12 @@ jobs:
             # WASI has its own build step below.
             - os: windows-latest
               target: x86_64-pc-windows-msvc
-              executable: shader-language-server.exe
-            - os: ubuntu-latest
+            - os: windows-11-arm
               target: aarch64-pc-windows-msvc
-              executable: shader-language-server.exe
             - os: ubuntu-latest
               target: x86_64-unknown-linux-gnu
-              executable: shader-language-server
-            - os: ubuntu-latest
+            - os: ubuntu-24.04-arm
               target: aarch64-unknown-linux-gnu
-              executable: shader-language-server
 
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +68,9 @@ jobs:
       - name: Build desktop executable  # Build all package on supported os.
         run: cargo build --release --verbose --target ${{ matrix.target }} # Specify target to build into target
       - name: Copy desktop executable
-        run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ matrix.executable }} ./bin/${{ matrix.executable }}
+        run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./bin/${{ env.executable }}
+        env:
+          executable: shader-language-servers${{ runner.os == 'Windows' && '.exe' || '' }}
       # TODO: Add debug symbols for supported target to bin folder.
       - name: Upload artifact
         uses: actions/upload-artifact@v4
