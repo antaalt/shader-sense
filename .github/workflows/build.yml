@@ -56,8 +56,8 @@ jobs:
               target: aarch64-pc-windows-msvc
             - os: ubuntu-latest
               target: x86_64-unknown-linux-gnu
-            - os: ubuntu-24.04-arm
-              target: aarch64-unknown-linux-gnu
+            #- os: ubuntu-24.04-arm # not supported by DXC
+            #  target: aarch64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
