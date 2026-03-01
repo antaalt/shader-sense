@@ -15,54 +15,56 @@ jobs:
     permissions: write-all
     needs: build
     runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+          include:
+            - rust-target: x86_64-pc-windows-msvc
+              dxc-zip: dxc_2024_05_24.zip
+              dxc-path: x64/
+              dxc-dxil: dxil.dll
+              dxc-dxcompiler: dxcompiler.dll
+            - rust-target: aarch64-pc-windows-msvc
+              dxc-zip: dxc_2024_05_24.zip
+              dxc-path: arm64/
+              dxc-dxil: dxil.dll
+              dxc-dxcompiler: dxcompiler.dll
+            - rust-target: x86_64-unknown-linux-gnu
+              dxc-zip: linux_dxc_2024_05_24.x86_64.tar.gz 
+              dxc-path:
+              dxc-dxil: dxil.so
+              dxc-dxcompiler: dxcompiler.so
+            - rust-target: wasm32-wasip1-threads
+              dxc-zip: # Empty means unused.
+              dxc-path:
+              dxc-dxil:
+              dxc-dxcompiler:
 
     steps:
       - uses: actions/checkout@v4 # Required for release upload
-      - name: Create release folder
-        run: mkdir -p ./bin-windows/ && mkdir -p ./bin-linux/ && mkdir -p ./bin-wasi/
-      - name: Download Windows x64 desktop binary
+      - name: Create bundle folder
+        run: mkdir -p ./bin
+      - name: Download server binary
         uses: actions/download-artifact@v4
         with:
-          name: shader-language-server-x86_64-pc-windows-msvc
-          path: ./bin-windows
-      - name: Download Linux x64 desktop binary
-        uses: actions/download-artifact@v4
-        with:
-          name: shader-language-server-x86_64-unknown-linux-gnu
-          path: ./bin-linux
-      - name: Download WASI binary
-        uses: actions/download-artifact@v4
-        with:
-          name: shader-language-server-wasm32-wasip1-threads
-          path: ./bin-wasi
-      - name: Download windows dxc dll.
+          name: shader-language-server-${{ matrix.rust-target }}
+          path: ./bin
+      - name: Download dxc dll.
         uses: robinraju/release-downloader@v1.11
+        if: ${{ matrix.dxc-zip != '' }}
         with:
           repository: 'microsoft/DirectXShaderCompiler'
           tag: v1.8.2405
-          fileName: 'dxc_2024_05_24.zip'
+          fileName: ${{ matrix.dxc-zip }}
           extract: true
           out-file-path: './dxc'
-      - name: Download unix dxc dll.
-        uses: robinraju/release-downloader@v1.11
-        with:
-          repository: 'microsoft/DirectXShaderCompiler'
-          tag: v1.8.2405
-          fileName: 'linux_dxc_2024_05_24.x86_64.tar.gz'
-          extract: true
-          out-file-path: './dxc-unix'
-      - name: Copy dxc windows dll to bin.
-        run: cp ./dxc/bin/x64/dxcompiler.dll ./bin-windows/dxcompiler.dll && cp ./dxc/bin/x64/dxil.dll ./bin-windows/dxil.dll
-      - name: Copy dxc linux dynamic library to bin.
-        run: cp ./dxc-unix/lib/libdxcompiler.so ./bin-linux/libdxcompiler.so && cp ./dxc-unix/lib/libdxil.so ./bin-linux/libdxil.so
-      - name: Zip Windows binary
-        run: zip -v -r -j shader-language-server-x86_64-pc-windows-msvc.zip ./bin-windows
-      - name: Zip Linux binary
-        run: zip -v -r -j shader-language-server-x86_64-unknown-linux-gnu.zip ./bin-linux
-      - name: Zip WASI binary
-        run: zip -v -r -j shader-language-server-wasm32-wasip1-threads.zip ./bin-wasi
+      - name: Copy dxc library to bin.
+        if: ${{ matrix.dxc-zip != '' }}
+        run: cp ./dxc/bin/${{ matrix.dxc-path }}${{ matrix.dxc-dxcompiler }} ./bin/${{ matrix.dxc-dxcompiler }} && cp ./dxc/bin/${{ matrix.dxc-path }}${{ matrix.dxc-dxil }} ./bin/${{ matrix.dxc-dxil }}
+      - name: Zip binary
+        run: zip -v -r -j shader-language-server-${{ matrix.rust-target }}.zip ./bin
       - name: Upload release build
-        run: gh release upload ${{ github.ref_name }} shader-language-server-x86_64-pc-windows-msvc.zip shader-language-server-x86_64-unknown-linux-gnu.zip shader-language-server-wasm32-wasip1-threads.zip
+        run: gh release upload ${{ github.ref_name }} shader-language-server-${{ matrix.rust-target }}.zip
         env:
           GH_TOKEN: ${{ github.token }}
 
