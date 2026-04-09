@@ -814,12 +814,28 @@ impl ServerLanguageFileCache {
                     uri
                 );
                 cached_file.is_main_file = true;
-                // Replace its content from request to make sure content is correct.
-                debug_assert!(
-                    RefCell::borrow_mut(&cached_file.shader_module).content == *text,
-                    "Server deps content different from client provided one."
-                );
-                RefCell::borrow_mut(&cached_file.shader_module).content = text.into();
+                // When the cached module was loaded as an include dependency,
+                // its content was read from disk via `read_string_lossy` /
+                // `std::fs::read_to_string`, which preserves the on-disk bytes
+                // verbatim (e.g. CRLF on Windows). The client-provided didOpen
+                // text may have been normalized by the editor (e.g. CRLF -> LF),
+                // so the two buffers can differ in length. We cannot simply
+                // replace `.content` and keep the existing tree-sitter tree:
+                // the stored tree's byte offsets would still refer to the
+                // longer pre-normalization buffer, and subsequent symbol
+                // queries (e.g. `symbol_parser::get_name`) would slice the
+                // new, shorter content out of bounds and panic with
+                // "byte index N is out of bounds of ...".
+                //
+                // When the content actually differs, re-parse from scratch so
+                // the tree and content stay in sync. When they match byte-for-
+                // byte, skip the re-parse as an optimization.
+                {
+                    let mut module = RefCell::borrow_mut(&cached_file.shader_module);
+                    if module.content != *text {
+                        *module = shader_module_parser.create_module(&file_path, text)?;
+                    }
+                }
                 info!(
                     "Starting watching {:#?} dependency file as main file at {}. {} files in cache.",
                     lang,
