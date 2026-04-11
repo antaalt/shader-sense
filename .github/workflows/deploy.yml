@@ -32,8 +32,8 @@ jobs:
             - rust-target: x86_64-unknown-linux-gnu
               dxc-zip: linux_dxc_2024_05_24.x86_64.tar.gz 
               dxc-path: lib/
-              dxc-dxil: dxil.so
-              dxc-dxcompiler: dxcompiler.so
+              dxc-dxil: libdxil.so
+              dxc-dxcompiler: libdxcompiler.so
             - rust-target: wasm32-wasip1-threads
               dxc-zip: # Empty means unused.
               dxc-path:
