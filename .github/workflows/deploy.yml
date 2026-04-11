@@ -21,17 +21,17 @@ jobs:
           include:
             - rust-target: x86_64-pc-windows-msvc
               dxc-zip: dxc_2024_05_24.zip
-              dxc-path: x64/
+              dxc-path: bin/x64/
               dxc-dxil: dxil.dll
               dxc-dxcompiler: dxcompiler.dll
             - rust-target: aarch64-pc-windows-msvc
               dxc-zip: dxc_2024_05_24.zip
-              dxc-path: arm64/
+              dxc-path: bin/arm64/
               dxc-dxil: dxil.dll
               dxc-dxcompiler: dxcompiler.dll
             - rust-target: x86_64-unknown-linux-gnu
               dxc-zip: linux_dxc_2024_05_24.x86_64.tar.gz 
-              dxc-path:
+              dxc-path: lib/
               dxc-dxil: dxil.so
               dxc-dxcompiler: dxcompiler.so
             - rust-target: wasm32-wasip1-threads
@@ -43,12 +43,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4 # Required for release upload
       - name: Create bundle folder
-        run: mkdir -p ./bin
+        run: mkdir -p ./package
       - name: Download server binary
         uses: actions/download-artifact@v4
         with:
           name: shader-language-server-${{ matrix.rust-target }}
-          path: ./bin
+          path: ./package
       - name: Download dxc dll.
         uses: robinraju/release-downloader@v1.11
         if: ${{ matrix.dxc-zip != '' }}
@@ -58,12 +58,12 @@ jobs:
           fileName: ${{ matrix.dxc-zip }}
           extract: true
           out-file-path: './dxc'
-      - name: Copy dxc library to bin.
+      - name: Copy dxc library to package.
         if: ${{ matrix.dxc-zip != '' }}
-        run: cp ./dxc/bin/${{ matrix.dxc-path }}${{ matrix.dxc-dxcompiler }} ./bin/${{ matrix.dxc-dxcompiler }} && cp ./dxc/bin/${{ matrix.dxc-path }}${{ matrix.dxc-dxil }} ./bin/${{ matrix.dxc-dxil }}
-      - name: Zip binary
-        run: zip -v -r -j shader-language-server-${{ matrix.rust-target }}.zip ./bin
-      - name: Upload release build
+        run: cp ./dxc/${{ matrix.dxc-path }}${{ matrix.dxc-dxcompiler }} ./package/${{ matrix.dxc-dxcompiler }} && cp ./dxc/${{ matrix.dxc-path }}${{ matrix.dxc-dxil }} ./package/${{ matrix.dxc-dxil }}
+      - name: Zip package
+        run: zip -v -r -j shader-language-server-${{ matrix.rust-target }}.zip ./package
+      - name: Upload release package
         run: gh release upload ${{ github.ref_name }} shader-language-server-${{ matrix.rust-target }}.zip
         env:
           GH_TOKEN: ${{ github.token }}
