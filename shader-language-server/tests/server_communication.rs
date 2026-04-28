@@ -63,6 +63,26 @@ fn get_workspace_symbol_params() -> WorkspaceSymbolParams {
         partial_result_params: PartialResultParams::default(),
     }
 }
+fn assert_no_empty_document_symbol_name(response: Option<DocumentSymbolResponse>) {
+    let symbols = response.unwrap();
+    let empty_names: Vec<String> = match symbols {
+        DocumentSymbolResponse::Nested(document_symbol) => document_symbol
+            .iter()
+            .filter(|symbol| symbol.name.trim().is_empty())
+            .map(|symbol| symbol.detail.clone().unwrap_or_default())
+            .collect(),
+        DocumentSymbolResponse::Flat(workspace_symbol) => workspace_symbol
+            .iter()
+            .filter(|symbol| symbol.name.trim().is_empty())
+            .map(|symbol| symbol.name.clone())
+            .collect(),
+    };
+    assert!(
+        empty_names.is_empty(),
+        "Document symbols must not contain empty names. Offending details: {:#?}",
+        empty_names
+    );
+}
 fn get_diagnostic_report(
     result: DocumentDiagnosticReportResult,
 ) -> RelatedFullDocumentDiagnosticReport {
@@ -130,6 +150,27 @@ fn test_variant() {
     });
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: None, // Clear for next tests
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_glsl_precision_statement_document_symbols_have_names() {
+    let mut server = TestServer::desktop().unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/glsl/precision-only.glsl"),
+        ShadingLanguage::Glsl,
+    );
+    let document_symbol_params = get_document_symbol_params(&file);
+
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
+        assert_no_empty_document_symbol_name(response.unwrap());
     });
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
