@@ -18,6 +18,7 @@ impl ServerLanguage {
             .filter(|symbol| {
                 // Dont publish keywords & transient.
                 !symbol.is_type(ShaderSymbolType::Keyword)
+                    && !symbol.label.trim().is_empty()
                     && !symbol.is_transient()
                     && match &symbol.mode {
                         ShaderSymbolMode::Runtime(_) => true,
