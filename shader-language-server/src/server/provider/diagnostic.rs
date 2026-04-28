@@ -45,7 +45,11 @@ impl ServerLanguage {
         &mut self,
         uri: &Url,
     ) -> Result<DocumentDiagnosticReportResult, ServerLanguageError> {
-        let context_uri = self.watched_files.get_document_diagnostic_context(uri);
+        let context_uri = if self.config.get_dependency_context_diagnostics() {
+            self.watched_files.get_document_diagnostic_context(uri)
+        } else {
+            uri.clone()
+        };
         let mut diagnostics = self.recolt_diagnostic(&context_uri)?;
         let main_diagnostic = match diagnostics.remove(&uri) {
             Some(diag) => diag,

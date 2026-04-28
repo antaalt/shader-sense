@@ -115,13 +115,20 @@ impl ServerLanguageFileCache {
         dependent_files.sort_by(|left, right| left.as_str().cmp(right.as_str()));
         dependent_files.into_iter().next()
     }
+    fn supports_automatic_dependency_diagnostic_context(&self, uri: &Url) -> bool {
+        matches!(
+            self.files.get(uri),
+            Some(file) if file.shading_language == ShadingLanguage::Glsl
+        )
+    }
     pub fn get_document_diagnostic_context(&self, uri: &Url) -> Url {
-        match self.files.get(uri) {
-            Some(file) if file.shading_language == ShadingLanguage::Glsl => self
-                .get_primary_dependent_main_file(uri)
-                .unwrap_or_else(|| uri.clone()),
-            _ => uri.clone(),
+        if self.get_relying_variant(uri).is_some()
+            || !self.supports_automatic_dependency_diagnostic_context(uri)
+        {
+            return uri.clone();
         }
+        self.get_primary_dependent_main_file(uri)
+            .unwrap_or_else(|| uri.clone())
     }
     // Get all main files relying on the given file.
     #[allow(dead_code)]

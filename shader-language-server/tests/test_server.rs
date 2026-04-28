@@ -62,6 +62,7 @@ pub struct TestServer {
     reader: BufReader<ChildStdout>,
     err_reader: BufReader<ChildStderr>,
     request_id: i32,
+    workspace_configuration_response: Vec<Value>,
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
 impl TestServer {
@@ -142,6 +143,7 @@ impl TestServer {
             reader,
             err_reader,
             stdin,
+            workspace_configuration_response: vec![Value::Null],
             notification_handler: HashMap::new(),
         };
         // Send an LSP initialize request
@@ -277,8 +279,10 @@ impl TestServer {
     }
     fn on_request(&mut self, request: lsp_server::Request) {
         match request.method.as_str() {
-            WorkspaceConfiguration::METHOD => self
-                .send_response::<WorkspaceConfiguration>(request.id, vec![serde_json::Value::Null]),
+            WorkspaceConfiguration::METHOD => self.send_response::<WorkspaceConfiguration>(
+                request.id,
+                self.workspace_configuration_response.clone(),
+            ),
             WorkDoneProgressCreate::METHOD => {
                 self.send_response::<WorkDoneProgressCreate>(request.id, ())
             }
@@ -286,6 +290,10 @@ impl TestServer {
                 panic!("Unhandled request {}", request.method);
             }
         }
+    }
+    #[allow(dead_code)]
+    pub fn set_workspace_configuration_response(&mut self, response: Vec<Value>) {
+        self.workspace_configuration_response = response;
     }
     #[allow(dead_code)]
     pub fn subsbscribe<T: lsp_types::notification::Notification, F: FnMut(Value) + 'static>(
