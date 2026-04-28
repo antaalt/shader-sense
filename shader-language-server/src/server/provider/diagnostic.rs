@@ -45,14 +45,15 @@ impl ServerLanguage {
         &mut self,
         uri: &Url,
     ) -> Result<DocumentDiagnosticReportResult, ServerLanguageError> {
-        let mut diagnostics = self.recolt_diagnostic(&uri)?;
+        let context_uri = self.watched_files.get_document_diagnostic_context(uri);
+        let mut diagnostics = self.recolt_diagnostic(&context_uri)?;
         let main_diagnostic = match diagnostics.remove(&uri) {
             Some(diag) => diag,
             None => vec![],
         };
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
-                related_documents: Some(
+                related_documents: (context_uri == *uri).then_some(
                     diagnostics
                         .into_iter()
                         .map(|diagnostic| {
