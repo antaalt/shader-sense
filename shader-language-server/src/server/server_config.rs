@@ -93,7 +93,7 @@ pub struct ServerSerializedConfig {
     symbols: Option<bool>,                    // Query symbols
     symbol_diagnostics: Option<bool>,         // Debug option to visualise issues with tree-sitter
     dependency_context_diagnostics: Option<bool>, // Reuse a dependent main-file context for document diagnostics.
-    experimental_macro_expansion: Option<bool>, // Experimental test for the new feature.
+    experimental_macro_expansion: Option<bool>,   // Experimental test for the new feature.
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>, // Specific macro defined per shader stage
     trace: Option<ServerTrace>,      // Level of error to display
     severity: Option<String>,        // Severity of diagnostic to display
@@ -366,8 +366,7 @@ impl Default for ServerConfig {
             path_remapping: HashMap::new(),
             validate: ServerConfig::DEFAULT_VALIDATE,
             symbols: ServerConfig::DEFAULT_SYMBOLS,
-            dependency_context_diagnostics:
-                ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS,
+            dependency_context_diagnostics: ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS,
             experimental_macro_expansion: false,
             stage_define: HashMap::new(),
             symbol_diagnostics: ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC,
@@ -511,8 +510,10 @@ mod tests {
         assert!(cfg.get_symbols() == ServerConfig::DEFAULT_SYMBOLS);
         assert!(cfg.get_validate() == ServerConfig::DEFAULT_VALIDATE);
         assert!(cfg.get_symbol_diagnostics() == ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC);
-        assert!(cfg.get_dependency_context_diagnostics()
-            == ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS);
+        assert!(
+            cfg.get_dependency_context_diagnostics()
+                == ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS
+        );
         assert!(cfg.is_verbose() == ServerConfig::DEFAULT_TRACE.is_verbose());
         assert!(cfg.get_severity() == ServerConfig::DEFAULT_SEVERITY);
     }

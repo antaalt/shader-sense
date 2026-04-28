@@ -7,9 +7,9 @@ use std::{collections::HashMap, path::Path};
 use lsp_types::request::DocumentDiagnosticRequest;
 use lsp_types::{
     notification::{DidChangeConfiguration, DidCloseTextDocument, DidOpenTextDocument},
-    DiagnosticSeverity, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, DidChangeConfigurationParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, PartialResultParams, RelatedFullDocumentDiagnosticReport,
+    DiagnosticSeverity, DidChangeConfigurationParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
+    DocumentDiagnosticReportResult, PartialResultParams, RelatedFullDocumentDiagnosticReport,
     WorkDoneProgressParams,
 };
 use serde_json::{json, Value};
