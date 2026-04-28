@@ -107,6 +107,29 @@ impl ServerLanguageFileCache {
             .map(|(url, _file)| url.clone())
             .collect()
     }
+    pub fn get_primary_dependent_main_file(&self, dependent_url: &Url) -> Option<Url> {
+        let mut dependent_files: Vec<_> = self
+            .get_dependent_main_files(dependent_url)
+            .into_iter()
+            .collect();
+        dependent_files.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+        dependent_files.into_iter().next()
+    }
+    fn supports_automatic_dependency_diagnostic_context(&self, uri: &Url) -> bool {
+        matches!(
+            self.files.get(uri),
+            Some(file) if file.shading_language == ShadingLanguage::Glsl
+        )
+    }
+    pub fn get_document_diagnostic_context(&self, uri: &Url) -> Url {
+        if self.get_relying_variant(uri).is_some()
+            || !self.supports_automatic_dependency_diagnostic_context(uri)
+        {
+            return uri.clone();
+        }
+        self.get_primary_dependent_main_file(uri)
+            .unwrap_or_else(|| uri.clone())
+    }
     // Get all main files relying on the given file.
     #[allow(dead_code)]
     pub fn get_relying_main_files(&self, url: &Url) -> HashSet<Url> {
