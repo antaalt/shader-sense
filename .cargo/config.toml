@@ -24,3 +24,6 @@ rustflags = ["-Z", "wasm-c-abi=spec"]
 #CC = "your/path/to/wasi-sdk/bin/clang.exe"
 #CXX = "your/path/to/wasi-sdk/bin/clang++.exe"
 #WASI_SYSROOT= "your/path/to/wasi-sysroot"
+#CC = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang.exe"
+#CXX = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang++.exe"
+#WASI_SYSROOT= "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/share/wasi-sysroot"

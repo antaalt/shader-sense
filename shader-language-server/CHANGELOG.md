@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.3.2] - 2026-05-04
+
+### Added
+
+- Auto include context diagnostic discovery (experimental).
+- GLSL stage macros are defined in intrinsics.
+
+### Fixed
+
+- Empty document symbol names for GLSL precision symbol
+- Intrinsics macro were ignored for region check
+
 ## [1.3.1] - 2026-04-11
 
 ### Added
@@ -429,7 +441,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.3.1...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/antaalt/shader-validator/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/antaalt/shader-validator/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/antaalt/shader-sense/compare/v1.2.1...v1.2.2
