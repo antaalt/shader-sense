@@ -1,7 +1,7 @@
 [target.wasm32-wasip1-threads]
 # Single page size = 65536 bytes
 rustflags = [
-  "-C", "link-arg=--initial-memory=10485760", # 65 536 * 160
+  "-C", "link-arg=--initial-memory=13107200", # 65 536 * 200
   # This is a lot, but necessary because glslang has a HUGE memory footprint...
   "-C", "link-arg=--max-memory=134217728", # 65 536 * 2048
   #"-C", "link-arg=--shared-memory",
