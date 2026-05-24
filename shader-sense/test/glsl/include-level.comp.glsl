@@ -4,6 +4,7 @@
 
 #include "./inc0/level0.glsl"
 
+#ifdef GL_COMPUTE_SHADER
 uint fibonacci(uint nthNumber) {
     int prevprevNumber, prevNumber = 0, currentNumber = 1;
     for (int i = 1; i < nthNumber ; i++) {
@@ -24,3 +25,4 @@ void compute() {
     uint level0 = fibonacciLevel0(2);
     uint level1 = fibonacciLevel1(3);
 }
+#endif

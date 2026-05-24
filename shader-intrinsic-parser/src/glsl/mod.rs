@@ -8,6 +8,7 @@ use xmltree::XMLNode;
 
 mod extensions;
 mod keywords;
+mod macros;
 mod methods;
 mod types;
 
@@ -133,6 +134,7 @@ impl IntrinsicParser for GlslIntrinsicParser {
         self.add_types(&mut symbols);
         self.add_keywords(&mut symbols);
         self.get_extensions(&mut symbols);
+        self.add_macros(&mut symbols);
 
         symbols
     }

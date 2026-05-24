@@ -34,8 +34,8 @@ mod tests {
     use crate::{
         position::{ShaderPosition, ShaderRange},
         shader::{
-            GlslShadingLanguageTag, HlslShadingLanguageTag, ShaderParams, ShadingLanguage,
-            ShadingLanguageTag,
+            GlslShadingLanguageTag, HlslShadingLanguageTag, ShaderCompilationParams, ShaderParams,
+            ShaderStage, ShadingLanguage, ShadingLanguageTag,
         },
         symbols::{
             hlsl::hlsl_word::HlslSymbolWordProvider,
@@ -71,7 +71,14 @@ mod tests {
         let symbols = symbol_provider
             .query_symbols(
                 &shader_module,
-                ShaderParams::default(),
+                ShaderParams {
+                    compilation: ShaderCompilationParams {
+                        entry_point: Some("main".into()),
+                        shader_stage: Some(ShaderStage::Compute),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
                 &mut default_include_callback::<T>,
                 None,
             )
@@ -121,6 +128,8 @@ mod tests {
             set_region(77, 18, 78, 34, false), // 18
             // macro included after
             set_region(82, 31, 83, 34, false), // 19
+            // macro only for compute
+            set_region(87, 51, 88, 34, false), // 20
         ];
         assert!(
             symbols.preprocessor.regions.len() == expected_regions.len(),

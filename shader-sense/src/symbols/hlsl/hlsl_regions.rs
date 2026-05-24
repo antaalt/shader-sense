@@ -7,6 +7,7 @@ use crate::{
     shader::{ShaderCompilationParams, ShadingLanguage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
+        intrinsics::ShaderIntrinsics,
         prepocessor::{
             ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorDefine,
             ShaderPreprocessorInclude, ShaderRegion,
@@ -15,6 +16,7 @@ use crate::{
         shader_module_parser::get_tree_sitter_language,
         symbol_parser::{get_name, SymbolRegionFinder},
         symbol_provider::{ProxyTree, SymbolIncludeCallback, SymbolProvider},
+        symbols::ShaderSymbolData,
     },
 };
 
@@ -140,6 +142,8 @@ impl HlslSymbolRegionFinder {
         context: &ShaderPreprocessorContext,
         value: &str,
         position: &ShaderFilePosition,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
     ) -> Result<i32, ShaderError> {
         if let Some(proxy_tree) = maybe_proxy_tree {
             if let Some(condition_tree) = proxy_tree.parse(value) {
@@ -160,6 +164,8 @@ impl HlslSymbolRegionFinder {
                                 cursor,
                                 &proxy_shader_module,
                                 context,
+                                shading_language,
+                                shader_params,
                             );
                         }
                         "ERROR" => {
@@ -191,12 +197,38 @@ impl HlslSymbolRegionFinder {
             Ok(0) // Default value for now when not solved.
         }
     }
+    fn look_for_define(
+        context: &ShaderPreprocessorContext,
+        value: &str,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
+    ) -> Option<String> {
+        // Check context macro then intrinsics ones.
+        context.get_define_value(value).or_else(|| {
+            let intrinsics = ShaderIntrinsics::get(shading_language);
+            // This is kinda heavy... Should be done only at higher level and cached...
+            let intrinsics_in_context = intrinsics.get_intrinsics_symbol(&shader_params);
+            intrinsics_in_context
+                .macros
+                .iter()
+                .find(|symbol| *symbol.label == *value)
+                .map(|symbol| match &symbol.data {
+                    ShaderSymbolData::Macro {
+                        value,
+                        parameters: _,
+                    } => value.clone(),
+                    _ => panic!("Expected ShaderSymbolData::Macro"),
+                })
+        })
+    }
     fn get_define_as_i32_depth(
         proxy_tree: &mut Option<&mut ProxyTree>,
         context: &ShaderPreprocessorContext,
         value: &str,
         position: &ShaderFilePosition,
         depth: u32,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
     ) -> Result<i32, ShaderError> {
         if depth == 0 {
             Err(ShaderError::SymbolQueryError(
@@ -208,7 +240,7 @@ impl HlslSymbolRegionFinder {
             ))
         } else {
             // Here we recurse define value cuz a define might just be an alias for another define.
-            match context.get_define_value(value) {
+            match Self::look_for_define(context, value, shading_language, shader_params) {
                 Some(define_value) => {
                     // Recurse result up to 10 times for macro that define other macro.
                     Self::get_define_as_i32_depth(
@@ -217,6 +249,8 @@ impl HlslSymbolRegionFinder {
                         define_value.as_str(),
                         &position,
                         depth - 1,
+                        shading_language,
+                        shader_params,
                     )
                 }
                 None => {
@@ -232,7 +266,14 @@ impl HlslSymbolRegionFinder {
                         Err(_) => {
                             if contain_expression_character(value) {
                                 // Neither in define list, nor a number, try to parse as expression
-                                Self::get_expression_as_i32(proxy_tree, context, value, position)
+                                Self::get_expression_as_i32(
+                                    proxy_tree,
+                                    context,
+                                    value,
+                                    position,
+                                    shading_language,
+                                    shader_params,
+                                )
                             } else {
                                 Ok(0) // Return false instead of error
                             }
@@ -247,18 +288,35 @@ impl HlslSymbolRegionFinder {
         context: &ShaderPreprocessorContext,
         value: &str,
         position: &ShaderFilePosition,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
     ) -> Result<i32, ShaderError> {
         // Recurse result up to 10 times for macro that define other macro.
-        Self::get_define_as_i32_depth(proxy_tree, context, value, position, 10)
+        Self::get_define_as_i32_depth(
+            proxy_tree,
+            context,
+            value,
+            position,
+            10,
+            shading_language,
+            shader_params,
+        )
     }
-    fn is_define_defined(context: &ShaderPreprocessorContext, name: &str) -> i32 {
-        context.get_define_value(name).is_some() as i32
+    fn is_define_defined(
+        context: &ShaderPreprocessorContext,
+        value: &str,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
+    ) -> i32 {
+        Self::look_for_define(context, value, shading_language, shader_params).is_some() as i32
     }
     fn resolve_condition(
         proxy_tree: &mut Option<&mut ProxyTree>,
         cursor: tree_sitter::TreeCursor,
         shader_module: &ShaderModule,
         context: &ShaderPreprocessorContext,
+        shading_language: ShadingLanguage,
+        shader_params: &ShaderCompilationParams,
     ) -> Result<i32, ShaderError> {
         let mut cursor = cursor;
         match cursor.node().kind() {
@@ -279,7 +337,12 @@ impl HlslSymbolRegionFinder {
                 }
                 assert_node_kind!(shader_module.file_path, cursor, "identifier");
                 let condition_macro = get_name(&shader_module.content, cursor.node());
-                Ok(Self::is_define_defined(context, condition_macro))
+                Ok(Self::is_define_defined(
+                    context,
+                    condition_macro,
+                    shading_language,
+                    shader_params,
+                ))
             }
             "number_literal" => {
                 // As simple as it is, but need to be warry of hexa or octal values.
@@ -309,6 +372,8 @@ impl HlslSymbolRegionFinder {
                         shader_module.file_path.clone(),
                         ShaderPosition::from(cursor.node().start_position()),
                     ),
+                    shading_language,
+                    shader_params,
                 )?;
                 Ok(value)
             }
@@ -321,15 +386,27 @@ impl HlslSymbolRegionFinder {
                 )"#;
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_first_child());
                 assert_field_name!(shader_module.file_path, cursor, "left");
-                let left_condition =
-                    Self::resolve_condition(proxy_tree, cursor.clone(), shader_module, context)?;
+                let left_condition = Self::resolve_condition(
+                    proxy_tree,
+                    cursor.clone(),
+                    shader_module,
+                    context,
+                    shading_language,
+                    shader_params,
+                )?;
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_next_sibling());
                 assert_field_name!(shader_module.file_path, cursor, "operator");
                 let operator = cursor.node().kind();
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_next_sibling());
                 assert_field_name!(shader_module.file_path, cursor, "right");
-                let right_condition =
-                    Self::resolve_condition(proxy_tree, cursor.clone(), shader_module, context)?;
+                let right_condition = Self::resolve_condition(
+                    proxy_tree,
+                    cursor.clone(),
+                    shader_module,
+                    context,
+                    shading_language,
+                    shader_params,
+                )?;
                 match operator {
                     "&&" => Ok(((left_condition != 0) && (right_condition != 0)) as i32),
                     "||" => Ok(((left_condition != 0) || (right_condition != 0)) as i32),
@@ -370,8 +447,14 @@ impl HlslSymbolRegionFinder {
                 assert_node_kind!(shader_module.file_path, cursor, "!");
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_next_sibling());
                 assert_field_name!(shader_module.file_path, cursor, "argument");
-                let value =
-                    Self::resolve_condition(proxy_tree, cursor.clone(), shader_module, context)?;
+                let value = Self::resolve_condition(
+                    proxy_tree,
+                    cursor.clone(),
+                    shader_module,
+                    context,
+                    shading_language,
+                    shader_params,
+                )?;
                 match operator {
                     "!" => Ok(!(value != 0) as i32), // Comparing as bool
                     "+" => Ok(value),
@@ -395,7 +478,14 @@ impl HlslSymbolRegionFinder {
                 )"#;
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_first_child());
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_next_sibling());
-                Self::resolve_condition(proxy_tree, cursor, shader_module, context)
+                Self::resolve_condition(
+                    proxy_tree,
+                    cursor,
+                    shader_module,
+                    context,
+                    shading_language,
+                    shader_params,
+                )
             }
             "call_expression" => {
                 // This expression is a function call
@@ -481,6 +571,7 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                 include_callback: &mut SymbolIncludeCallback<'a>,
                 mut old_symbols: &mut Option<ShaderSymbols>,
                 last_processed_position: &mut ShaderPosition,
+                shading_language: ShadingLanguage,
             ) -> Result<Vec<ShaderRegion>, ShaderError> {
                 assert_tree_sitter!(shader_module.file_path, cursor.goto_first_child());
                 // Process includes here as they will impact defines which impact regions.
@@ -552,7 +643,12 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                         let condition_macro = get_name(&shader_module.content, cursor.node());
                         let position = ShaderPosition::from(cursor.node().range().end_point);
                         (
-                            HlslSymbolRegionFinder::is_define_defined(context, condition_macro),
+                            HlslSymbolRegionFinder::is_define_defined(
+                                context,
+                                condition_macro,
+                                shading_language,
+                                shader_params,
+                            ),
                             position,
                         )
                     }
@@ -562,7 +658,12 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                         let condition_macro = get_name(&shader_module.content, cursor.node());
                         let position = ShaderPosition::from(cursor.node().range().end_point);
                         (
-                            1 - HlslSymbolRegionFinder::is_define_defined(context, condition_macro),
+                            1 - HlslSymbolRegionFinder::is_define_defined(
+                                context,
+                                condition_macro,
+                                shading_language,
+                                shader_params,
+                            ),
                             position,
                         )
                     }
@@ -576,6 +677,8 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                                 cursor.clone(),
                                 shader_module,
                                 context,
+                                shading_language,
+                                shader_params,
                             ) {
                                 Ok(value) => value,
                                 Err(err) => {
@@ -608,6 +711,8 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                                     cursor.clone(),
                                     shader_module,
                                     context,
+                                    shading_language,
+                                    shader_params,
                                 ) {
                                     Ok(value) => value,
                                     Err(err) => match err
@@ -674,6 +779,7 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                                     include_callback,
                                     old_symbols,
                                     last_processed_position,
+                                    shading_language,
                                 )?;
                                 regions.append(&mut next_region);
                                 return Ok(regions);
@@ -742,6 +848,7 @@ impl SymbolRegionFinder for HlslSymbolRegionFinder {
                 include_callback,
                 &mut old_symbols,
                 &mut last_processed_position,
+                self.shading_language,
             )?)
         }
         // Handle includes that were not dealt by regions.

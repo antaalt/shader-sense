@@ -83,6 +83,11 @@ void main() {
 #ifdef OTHER_OTHER_CUSTOM_MACRO
     #error "Should not be reached"
 #endif
+
+// macro only for compute
+#if __SHADER_TARGET_STAGE != __SHADER_STAGE_COMPUTE
+    #error "Should not be reached"
+#endif
 }
 // Some post region definitions here.
 #include "macro_other.hlsl"
