@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Changed
+
+- Changed setting name dependency_context_diagnostics to automatic_variant_discovery for clarity.
+
 ## [1.3.2] - 2026-05-04
 
 ### Added

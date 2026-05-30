@@ -92,8 +92,8 @@ pub struct ServerSerializedConfig {
     validate: Option<bool>,                   // Validation via standard API
     symbols: Option<bool>,                    // Query symbols
     symbol_diagnostics: Option<bool>,         // Debug option to visualise issues with tree-sitter
-    dependency_context_diagnostics: Option<bool>, // Reuse a dependent main-file context for document diagnostics.
-    experimental_macro_expansion: Option<bool>,   // Experimental test for the new feature.
+    automatic_variant_discovery: Option<bool>, // Reuse a dependent main-file context for document diagnostics.
+    experimental_macro_expansion: Option<bool>, // Experimental test for the new feature.
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>, // Specific macro defined per shader stage
     trace: Option<ServerTrace>,      // Level of error to display
     severity: Option<String>,        // Severity of diagnostic to display
@@ -112,7 +112,7 @@ pub struct ServerConfig {
     validate: bool,
     symbols: bool,
     symbol_diagnostics: bool,
-    dependency_context_diagnostics: bool,
+    automatic_variant_discovery: bool,
     experimental_macro_expansion: bool,
     trace: ServerTrace,
     severity: ShaderDiagnosticSeverity,
@@ -152,9 +152,9 @@ impl ServerSerializedConfig {
             symbol_diagnostics: self
                 .symbol_diagnostics
                 .unwrap_or(ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC),
-            dependency_context_diagnostics: self
-                .dependency_context_diagnostics
-                .unwrap_or(ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS),
+            automatic_variant_discovery: self
+                .automatic_variant_discovery
+                .unwrap_or(ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY),
             trace: self.trace.unwrap_or(ServerConfig::DEFAULT_TRACE),
             stage_define: self.stage_define.unwrap_or_default(),
             severity: self
@@ -280,7 +280,7 @@ impl ServerConfig {
     pub const DEFAULT_SYMBOLS: bool = true;
     pub const DEFAULT_VALIDATE: bool = true;
     pub const DEFAULT_SYMBOL_DIAGNOSTIC: bool = false; // Mostly for debug
-    pub const DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS: bool = false;
+    pub const DEFAULT_AUTOMATIC_VARIANT_DISCOVERY: bool = false;
     pub const DEFAULT_SEVERITY: ShaderDiagnosticSeverity = ShaderDiagnosticSeverity::Error;
     pub const DEFAULT_TRACE: ServerTrace = ServerTrace {
         server: ServerTraceLevel::Off,
@@ -344,8 +344,8 @@ impl ServerConfig {
     pub fn get_symbol_diagnostics(&self) -> bool {
         self.symbol_diagnostics
     }
-    pub fn get_dependency_context_diagnostics(&self) -> bool {
-        self.dependency_context_diagnostics
+    pub fn get_automatic_variant_discovery(&self) -> bool {
+        self.automatic_variant_discovery
     }
     pub fn is_verbose(&self) -> bool {
         self.trace.is_verbose()
@@ -366,7 +366,7 @@ impl Default for ServerConfig {
             path_remapping: HashMap::new(),
             validate: ServerConfig::DEFAULT_VALIDATE,
             symbols: ServerConfig::DEFAULT_SYMBOLS,
-            dependency_context_diagnostics: ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS,
+            automatic_variant_discovery: ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY,
             experimental_macro_expansion: false,
             stage_define: HashMap::new(),
             symbol_diagnostics: ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC,
@@ -511,8 +511,8 @@ mod tests {
         assert!(cfg.get_validate() == ServerConfig::DEFAULT_VALIDATE);
         assert!(cfg.get_symbol_diagnostics() == ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC);
         assert!(
-            cfg.get_dependency_context_diagnostics()
-                == ServerConfig::DEFAULT_DEPENDENCY_CONTEXT_DIAGNOSTICS
+            cfg.get_automatic_variant_discovery()
+                == ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY
         );
         assert!(cfg.is_verbose() == ServerConfig::DEFAULT_TRACE.is_verbose());
         assert!(cfg.get_severity() == ServerConfig::DEFAULT_SEVERITY);
