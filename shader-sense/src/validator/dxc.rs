@@ -241,8 +241,8 @@ impl Dxc {
         params: &ShaderParams,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         match error {
-            HassleError::CompileError(err) => self.parse_dxc_errors(&err, file_path, &params),
-            HassleError::ValidationError(err) => Ok(ShaderDiagnosticList::from(ShaderDiagnostic {
+            HassleError::OperationError(_hres, err) => self.parse_dxc_errors(&err, file_path, &params),
+            /*HassleError::ValidationError(err) => Ok(ShaderDiagnosticList::from(ShaderDiagnostic {
                 severity: ShaderDiagnosticSeverity::Error,
                 error: err.to_string(),
                 range: ShaderFileRange::new(
@@ -250,7 +250,7 @@ impl Dxc {
                     ShaderPosition::new(0, 0),
                     ShaderPosition::new(0, 0),
                 ),
-            })),
+            })),*/
             HassleError::LibLoadingError(err) => Err(ShaderError::InternalErr(err.to_string())),
             HassleError::LoadLibraryError { filename, inner } => {
                 Err(ShaderError::InternalErr(format!(
@@ -261,10 +261,6 @@ impl Dxc {
             }
             HassleError::Win32Error(err) => Err(ShaderError::InternalErr(format!(
                 "Win32 error: HRESULT={}",
-                err
-            ))),
-            HassleError::WindowsOnly(err) => Err(ShaderError::InternalErr(format!(
-                "Windows only error: {}",
                 err
             ))),
         }
@@ -395,7 +391,7 @@ impl ValidatorImpl for Dxc {
                         Err(error) => return Err(error),
                     },
                 };
-                let warning_emitted = match self.library.get_blob_as_string(&error_blob.into()) {
+                let warning_emitted = match self.library.get_blob_as_utf8(&error_blob.into()) {
                     Ok(string) => string,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
                         Ok(diagnostics) => return Ok(diagnostics),
@@ -403,7 +399,7 @@ impl ValidatorImpl for Dxc {
                     },
                 };
                 let warning_diagnostics = match self.from_hassle_error(
-                    HassleError::CompileError(warning_emitted),
+                    HassleError::OperationError(0.into(), warning_emitted.as_str().unwrap().into()),
                     file_path,
                     &params,
                 ) {
@@ -438,12 +434,12 @@ impl ValidatorImpl for Dxc {
                                     Err(error) => return Err(error),
                                 },
                             };
-                        match validator.validate(blob_encoding.into()) {
+                        match validator.validate(&DxcBlob::from(blob_encoding)) {
                             Ok(_) => Ok(warning_diagnostics),
-                            Err((_dxc_res, hassle_err)) => {
+                            Err(result) => {
                                 //let error_blob = dxc_err.0.get_error_buffer().map_err(|e| self.from_hassle_error(e))?;
                                 //let error_emitted = self.library.get_blob_as_string(&error_blob.into()).map_err(|e| self.from_hassle_error(e))?;
-                                match self.from_hassle_error(hassle_err, file_path, &params) {
+                                match self.from_hassle_error(result, file_path, &params) {
                                     Ok(diagnostics) => Ok(ShaderDiagnosticList::join(
                                         warning_diagnostics,
                                         diagnostics,
@@ -459,15 +455,23 @@ impl ValidatorImpl for Dxc {
                     Ok(warning_diagnostics)
                 }
             }
-            Err((dxc_result, _hresult)) => {
-                let error_blob = match dxc_result.get_error_buffer() {
+            Err(result) => {
+                match result {
+                    HassleError::OperationError(_hres, err) => {
+                        self.parse_dxc_errors(&err, file_path, &params)
+                    },
+                    HassleError::Win32Error(err) => Err(ShaderError::InternalErr(format!("Failed to compile shader: {}", err))),
+                    HassleError::LoadLibraryError { filename, inner } => Err(ShaderError::InternalErr(format!("Failed to load library: {} / {}", filename.display(), inner))),
+                    HassleError::LibLoadingError(error) => Err(ShaderError::InternalErr(format!("Failed to load library: {}", error))),
+                }
+                /*let error_blob = match dxc_result.get_error_buffer() {
                     Ok(blob) => blob,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
                         Ok(diagnostics) => return Ok(diagnostics),
                         Err(error) => return Err(error),
                     },
                 };
-                let error_emitted = match self.library.get_blob_as_string(&error_blob.into()) {
+                let error_emitted = match self.library.get_blob_as_utf8(&error_blob.into()) {
                     Ok(string) => string,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
                         Ok(diagnostics) => return Ok(diagnostics),
@@ -475,13 +479,13 @@ impl ValidatorImpl for Dxc {
                     },
                 };
                 match self.from_hassle_error(
-                    HassleError::CompileError(error_emitted),
+                    result,
                     file_path,
                     &params,
                 ) {
                     Ok(diag) => Ok(diag),
                     Err(error) => Err(error),
-                }
+                }*/
             }
         }
     }

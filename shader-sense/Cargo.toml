@@ -30,5 +30,5 @@ tree-sitter-wgsl-bevy = "0.1.4"
 # cannot load DXC dll in wasi
 # There is an issue to compile DXC statically:
 # https://github.com/Traverse-Research/hassle-rs/issues/57
-hassle-rs = "0.11.0"
+hassle-rs = "0.13.0"
 libloading = "0.8.8"

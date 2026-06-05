@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
+    collections::HashMap, io, path::{Path, PathBuf}, time::SystemTime
 };
 
 use log::{info, warn};
@@ -42,7 +41,7 @@ pub struct ServerHlslConfig {
 pub struct ServerGlslConfig {
     pub target_client: Option<GlslTargetClient>,
     pub spirv_version: Option<GlslSpirvVersion>,
-    pub preamble: Option<String>, // Path to a preamble file per language.
+    pub preamble: Option<DiskFile>, // Path to a preamble file per language.
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -121,6 +120,7 @@ pub struct ServerConfig {
     wgsl: WgslCompilationParams,
 }
 
+
 impl ServerSerializedConfig {
     pub fn compute_engine_config(self) -> ServerConfig {
         fn verify_user_path(path: &str) -> PathBuf {
@@ -175,6 +175,7 @@ impl ServerSerializedConfig {
                 .map(|glsl| GlslCompilationParams {
                     client: glsl.target_client.unwrap_or_default(),
                     spirv: glsl.spirv_version.unwrap_or_default(),
+                    // Preamble not updated after that even if content change
                     preamble: match glsl.preamble {
                         Some(preamble_file_path) => {
                             match std::fs::read_to_string(&preamble_file_path) {
