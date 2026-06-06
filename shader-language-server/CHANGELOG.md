@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Fixed
+
+- Preamble should now update its content and propagate to other files correctly if modified in editor.
+
 ## [1.3.2] - 2026-05-04
 
 ### Added
