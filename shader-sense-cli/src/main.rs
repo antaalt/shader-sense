@@ -221,7 +221,8 @@ pub fn main() {
                         client: GlslTargetClient::Vulkan1_3,
                         spirv: GlslSpirvVersion::SPIRV1_6,
                         preamble_path: preamble_path.clone().map(|p| p.into()),
-                        preamble_content: preamble_path.map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
+                        preamble_content: preamble_path
+                            .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
                     },
                     wgsl: WgslCompilationParams {},
                 },
