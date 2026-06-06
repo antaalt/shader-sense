@@ -343,6 +343,9 @@ impl ServerConfig {
     pub fn get_severity(&self) -> ShaderDiagnosticSeverity {
         self.severity.clone() // TODO: ref
     }
+    pub fn get_glsl_preamble_path(&self) -> Option<&PathBuf> {
+        self.glsl.preamble_path.as_ref()
+    }
     pub fn set_trace(&mut self, trace: ServerTrace) {
         self.trace = trace
     }
