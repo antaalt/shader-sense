@@ -175,24 +175,8 @@ impl ServerSerializedConfig {
                 .map(|glsl| GlslCompilationParams {
                     client: glsl.target_client.unwrap_or_default(),
                     spirv: glsl.spirv_version.unwrap_or_default(),
-                    preamble: match glsl.preamble {
-                        Some(preamble_file_path) => {
-                            match std::fs::read_to_string(&preamble_file_path) {
-                                Ok(preamble_file) => preamble_file,
-                                Err(err) => {
-                                    warn!(
-                                        "Preamble file not found for Glsl at {:?}: {}",
-                                        preamble_file_path, err
-                                    );
-                                    String::new()
-                                }
-                            }
-                        }
-                        None => {
-                            info!("No preamble set for Glsl");
-                            String::new()
-                        } // Default
-                    },
+                    preamble_path: glsl.preamble.map(|p| p.into()),
+                    preamble_content: None, // Load later to be up to date
                 })
                 .unwrap_or_default(),
             wgsl: WgslCompilationParams {},
@@ -307,7 +291,13 @@ impl ServerConfig {
             includes.insert(0, workspace_folder.to_file_path().unwrap());
         }
         let hlsl = self.hlsl.clone();
-        let glsl = self.glsl.clone();
+        let glsl = if let Some(preamble_path) = &self.glsl.preamble_path {
+            let mut glsl = self.glsl.clone();
+            glsl.preamble_content = std::fs::read_to_string(preamble_path).ok();
+            glsl
+        } else {
+            self.glsl.clone()
+        };
         let wgsl = self.wgsl.clone();
         // Add stage defines
         let stage_defines = if let Some(shader_stage) = &shader_stage {

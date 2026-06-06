@@ -191,7 +191,8 @@ mod tests {
             &ShaderParams {
                 compilation: ShaderCompilationParams {
                     glsl: GlslCompilationParams {
-                        preamble: preamble_content,
+                        preamble_path: Some(preamble.into()),
+                        preamble_content: Some(preamble_content),
                         ..Default::default()
                     },
                     ..Default::default()
