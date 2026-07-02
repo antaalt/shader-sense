@@ -593,12 +593,16 @@ impl ServerLanguageFileCache {
         // We only track it if its open in editor.
         let need_to_recompute_all_glsl =
             if let Some(preamble_path) = config.get_glsl_preamble_path() {
-                let preamble_uri = Url::from_file_path(preamble_path).unwrap();
-                let has_glsl_preamble_in_request = async_cache_requests
-                    .iter()
-                    .find(|r| r.url == preamble_uri)
-                    .is_some();
-                has_glsl_preamble_in_request
+                if let Ok(preamble_uri) = Url::from_file_path(preamble_path) {
+                    let has_glsl_preamble_in_request = async_cache_requests
+                        .iter()
+                        .find(|r| r.url == preamble_uri)
+                        .is_some();
+                    has_glsl_preamble_in_request
+                } else {
+                    warn!("Failed to parse preamble path {:?}.", preamble_path);
+                    false
+                }
             } else {
                 false
             };
