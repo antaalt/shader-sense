@@ -199,8 +199,11 @@ impl ServerLanguageFileCache {
             .map(|(url, _file)| url.clone())
             .collect()
     }
-    // Find a variant from the list of all opened file and return the first found.
-    pub fn find_variant_from_opened_files(&self, included_file_uri: &Url) -> Option<ShaderVariant> {
+    // Find a variant from the list of all main file and return the first found.
+    pub fn find_variant_from_includer_main_files(
+        &self,
+        included_file_uri: &Url,
+    ) -> Option<ShaderVariant> {
         let first_main_file = self.get_includer_main_files(included_file_uri);
         if let Some(first_main_file) = first_main_file.into_iter().next() {
             let shading_language = self.files.get(&first_main_file).unwrap().shading_language;
@@ -774,23 +777,84 @@ impl ServerLanguageFileCache {
                 }
             }
         }
+        // Find automatic variant to be computed first.
+        let mut auto_variant_computed = 0;
+        if config.get_automatic_variant_discovery() {
+            let automatic_remaining_files = unique_remaining_files.clone();
+            for remaining_file in &automatic_remaining_files {
+                // Some check we assume to avoid conflict with manual variant.
+                debug_assert!(
+                    main_variant_option.iter().find(|v| v.url == *remaining_file).is_none(), 
+                    "Should never be reached as it should be removed from unique_remaining_files array"
+                );
+                debug_assert!(
+                    main_variant_option.iter().find(|v| self.get_all_included_files(&v.url).contains(remaining_file)).is_none(),
+                    "Should never be reached as it should be removed from unique_remaining_files array as deps"
+                );
+                if let Some(auto_variant) =
+                    self.find_variant_from_includer_main_files(remaining_file)
+                {
+                    info!(
+                        "Found file {} as automatic variant for file {}",
+                        auto_variant.url, remaining_file
+                    );
+                    let auto_variant_url = auto_variant.url.clone();
+                    let auto_variant_shading_language = auto_variant.shading_language;
+                    let language_data = language_data
+                        .get_mut(&auto_variant_shading_language)
+                        .unwrap();
+                    unique_remaining_files.remove(&auto_variant_url);
+                    files_to_publish.insert(auto_variant_url.clone());
+                    files_updating.insert(auto_variant_url.clone());
+                    let file_name = get_file_name(&auto_variant_url);
+                    file_progress_index += 1;
+                    auto_variant_computed += 1;
+                    progress_callback(
+                        &file_name,
+                        file_progress_index,
+                        unique_remaining_files.len() as u32 + 1,
+                    );
+                    let removed_files = self.cache_file_data(
+                        &auto_variant_url,
+                        language_data.validator.as_mut(),
+                        &mut language_data.shader_module_parser,
+                        &mut language_data.symbol_provider,
+                        &config,
+                        &Some(auto_variant.clone()),
+                        dirty_dependencies.clone(),
+                    )?;
+                    files_to_clear.extend(removed_files);
+                    // Remove request for included files as they are already updated by variant.
+                    let included_files = self.get_all_included_files(&auto_variant_url);
+                    unique_remaining_files.retain(|f| {
+                        if included_files.contains(f) {
+                            let includer_files = self.get_includer_main_files(f);
+                            includer_files_to_update.extend(includer_files);
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                    files_updating.extend(included_files);
+                    // If file is dirty, request update for its includer files.
+                    if dirty_files.contains(&auto_variant_url) {
+                        let includer_files = self.get_includer_main_files(&auto_variant_url);
+                        for includer_file in includer_files {
+                            if !files_updating.contains(&includer_file) {
+                                info!(
+                                    "File {} is being updated as it #includes {}",
+                                    includer_file, auto_variant_url
+                                );
+                                files_updating.insert(includer_file.clone());
+                                includer_files_to_update.insert(includer_file);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // We compute all files that were not handled by variant update.
         for remaining_file in &unique_remaining_files {
-            // If we use automatic variant discovery, we look for a custom variant for this file before if we are not on a variant.
-            let variant = if let Some(main_variant) = main_variant_option
-                .clone()
-                .filter(|v| v.url == *remaining_file)
-            {
-                Some(main_variant)
-            } else if config.get_automatic_variant_discovery() {
-                // TODO: need to compute this newly found variant first. Its deps will come next.
-                // This will cause error order to have multiple variant. The last one updated will override the others though.
-                // Will need some kind of priority system.
-                //self.find_variant_from_opened_files(remaining_file)
-                None
-            } else {
-                None
-            };
             let file_name = get_file_name(&remaining_file);
             file_progress_index += 1;
             progress_callback(
@@ -868,12 +932,14 @@ impl ServerLanguageFileCache {
         debug_assert!(
             (unique_remaining_files.len()
                 + includer_files_to_update.len()
-                + need_to_recompute_main_variant as usize)
+                + need_to_recompute_main_variant as usize
+                + auto_variant_computed)
                 == file_progress_index as usize,
-            "Invalid count for progress report ({} unique files, {} includer, {} variant, expecting a total of {})",
+            "Invalid count for progress report ({} unique files, {} includer, {} variant, {} auto variant, expecting a total of {})",
             unique_remaining_files.len(),
             includer_files_to_update.len(),
             need_to_recompute_main_variant as u32,
+            auto_variant_computed,
             file_progress_index
         );
         // TODO: Diagnostics return here are unique but might be in incorrect order...
