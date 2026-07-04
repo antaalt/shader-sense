@@ -391,7 +391,8 @@ pub enum GlslSpirvVersion {
 pub struct GlslCompilationParams {
     pub client: GlslTargetClient,
     pub spirv: GlslSpirvVersion,
-    pub preamble: String,
+    pub preamble_path: Option<PathBuf>,
+    pub preamble_content: Option<String>,
 }
 
 /// Wgsl compilation parameters for naga.

@@ -663,7 +663,7 @@ impl ServerLanguageFileCache {
     }
     pub fn cache_batched_file_data<F: Fn(&str, u32, u32)>(
         &mut self,
-        async_cache_requests: Vec<AsyncCacheRequest>,
+        mut async_cache_requests: Vec<AsyncCacheRequest>,
         language_data: &mut HashMap<ShadingLanguage, ServerLanguageData>,
         config: &ServerConfig,
         progress_callback: F,
@@ -675,6 +675,42 @@ impl ServerLanguageFileCache {
                 .unwrap()
                 .to_string_lossy()
                 .into_owned()
+        }
+
+        // Check if preamble file changed and update it.
+        // We only track it if its open in editor.
+        let need_to_recompute_all_glsl =
+            if let Some(preamble_path) = config.get_glsl_preamble_path() {
+                if let Ok(preamble_uri) = Url::from_file_path(preamble_path) {
+                    let has_glsl_preamble_in_request = async_cache_requests
+                        .iter()
+                        .find(|r| r.url == preamble_uri)
+                        .is_some();
+                    has_glsl_preamble_in_request
+                } else {
+                    warn!("Failed to parse preamble path {:?}.", preamble_path);
+                    false
+                }
+            } else {
+                false
+            };
+        if need_to_recompute_all_glsl {
+            for (url, file) in &self.files {
+                if file.shading_language == ShadingLanguage::Glsl {
+                    // Check if file already in request. If not, update it.
+                    if async_cache_requests
+                        .iter()
+                        .find(|r| r.url == *url)
+                        .is_none()
+                    {
+                        async_cache_requests.push(AsyncCacheRequest::new(
+                            url.clone(),
+                            ShadingLanguage::Glsl,
+                            true,
+                        ));
+                    }
+                }
+            }
         }
         // Get unique files to update in batch aswell as dirty ones.
         let dirty_files: HashSet<Url> = async_cache_requests
