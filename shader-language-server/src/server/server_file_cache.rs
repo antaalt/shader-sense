@@ -820,7 +820,7 @@ impl ServerLanguageFileCache {
             for remaining_file in &automatic_remaining_files {
                 // Some check we assume to avoid conflict with manual variant.
                 debug_assert!(
-                    main_variant_option.iter().find(|v| v.url == *remaining_file).is_none(), 
+                    main_variant_option.iter().find(|v| v.url == *remaining_file).is_none(),
                     "Should never be reached as it should be removed from unique_remaining_files array"
                 );
                 debug_assert!(
