@@ -35,9 +35,9 @@ fn get_diagnostic_report(
     }
 }
 
-fn enable_dependency_context_diagnostics(server: &mut TestServer) {
+fn enable_automatic_variant_discovery(server: &mut TestServer) {
     server.set_workspace_configuration_response(vec![json!({
-        "dependencyContextDiagnostics": true,
+        "automaticVariantDiscovery": true,
     })]);
     server.send_notification::<DidChangeConfiguration>(&DidChangeConfigurationParams {
         settings: Value::Null,
@@ -45,15 +45,15 @@ fn enable_dependency_context_diagnostics(server: &mut TestServer) {
 }
 
 #[test]
-fn test_glsl_dependency_document_diagnostics_use_includer_context() {
+fn test_automatic_variant_discovery_use_includer_context() {
     let mut server = TestServer::desktop().unwrap();
 
     let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/include-context.comp.glsl"),
+        Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
         ShadingLanguage::Glsl,
     );
     let deps = TestFile::new(
-        Path::new("../shader-sense/test/glsl/workgroup-layout.glsl"),
+        Path::new("../shader-sense/test/glsl/auto-variant/workgroup-layout.glsl"),
         ShadingLanguage::Glsl,
     );
 
@@ -89,7 +89,7 @@ fn test_glsl_dependency_document_diagnostics_use_includer_context() {
             );
         },
     );
-    enable_dependency_context_diagnostics(&mut server);
+    enable_automatic_variant_discovery(&mut server);
     server.send_request::<DocumentDiagnosticRequest>(
         &DocumentDiagnosticParams {
             text_document: deps.identifier(),
@@ -125,20 +125,20 @@ fn test_glsl_dependency_document_diagnostics_use_includer_context() {
 }
 
 #[test]
-fn test_glsl_dependency_document_diagnostics_keep_selected_variant_context() {
+fn test_automatic_variant_discovery_keep_selected_variant_context() {
     let mut server = TestServer::desktop().unwrap();
-    enable_dependency_context_diagnostics(&mut server);
+    enable_automatic_variant_discovery(&mut server);
 
     let invalid_main = TestFile::new(
-        Path::new("../shader-sense/test/glsl/a-include-context.frag.glsl"),
+        Path::new("../shader-sense/test/glsl/auto-variant/a-auto-variant.frag.glsl"),
         ShadingLanguage::Glsl,
     );
     let selected_variant = TestFile::new(
-        Path::new("../shader-sense/test/glsl/include-context.comp.glsl"),
+        Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
         ShadingLanguage::Glsl,
     );
     let deps = TestFile::new(
-        Path::new("../shader-sense/test/glsl/workgroup-layout.glsl"),
+        Path::new("../shader-sense/test/glsl/auto-variant/workgroup-layout.glsl"),
         ShadingLanguage::Glsl,
     );
 
