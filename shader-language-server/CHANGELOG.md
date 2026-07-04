@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.4.0] - 2026-07-04
+
 ### Changed
 
 - Preamble should now update its content and propagate to other files correctly if modified in editor.
 - Changed setting name dependency_context_diagnostics to automatic_variant_discovery for clarity.
+
+### Fixed
+
+- Automatic variant discovery was not working properly and should now be more stable and working for every language.
 
 
 ## [1.3.2] - 2026-05-04
@@ -447,7 +453,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.3.2...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/antaalt/shader-validator/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/antaalt/shader-validator/compare/v1.2.2...v1.3.0
