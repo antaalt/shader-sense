@@ -369,7 +369,7 @@ impl ValidatorImpl for Dxc {
                 )))
             }
         };
-        // Check shader model and profile to avoid incompatible types. 
+        // Check shader model and profile to avoid incompatible types.
         let dxc_profile = get_profile(params.compilation.shader_stage);
         match params.compilation.hlsl.shader_model {
             HlslShaderModel::ShaderModel6
