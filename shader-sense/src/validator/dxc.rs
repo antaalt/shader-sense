@@ -352,6 +352,35 @@ impl ValidatorImpl for Dxc {
             options
         };
         let dxc_options_str: Vec<&str> = dxc_options.iter().map(|s| s.as_str()).collect();
+        let dxc_shader_model = match params.compilation.hlsl.shader_model {
+            HlslShaderModel::ShaderModel6 => "6_0",
+            HlslShaderModel::ShaderModel6_1 => "6_1",
+            HlslShaderModel::ShaderModel6_2 => "6_2",
+            HlslShaderModel::ShaderModel6_3 => "6_3",
+            HlslShaderModel::ShaderModel6_4 => "6_4",
+            HlslShaderModel::ShaderModel6_5 => "6_5",
+            HlslShaderModel::ShaderModel6_6 => "6_6",
+            HlslShaderModel::ShaderModel6_7 => "6_7",
+            HlslShaderModel::ShaderModel6_8 => "6_8",
+            sm => {
+                return Err(ShaderError::ValidationError(format!(
+                    "Shader model {:?} not supported by DXC.",
+                    sm
+                )))
+            }
+        };
+        // Check shader model and profile to avoid incompatible types. 
+        let dxc_profile = get_profile(params.compilation.shader_stage);
+        match params.compilation.hlsl.shader_model {
+            HlslShaderModel::ShaderModel6
+            | HlslShaderModel::ShaderModel6_1
+            | HlslShaderModel::ShaderModel6_2 => {
+                if dxc_profile == "lib" {
+                    return Err(ShaderError::ValidationError(format!("Shader model {:?} do not support lib profile. You need to setup a shader stage via shader variant for validation to work properly.", params.compilation.hlsl.shader_model)));
+                }
+            }
+            _ => {}
+        }
         let result = self.compiler.compile(
             &blob,
             file_name.as_str(),
@@ -359,27 +388,7 @@ impl ValidatorImpl for Dxc {
                 Some(entry_point) => entry_point.as_str(),
                 None => "",
             },
-            format!(
-                "{}_{}",
-                get_profile(params.compilation.shader_stage),
-                match params.compilation.hlsl.shader_model {
-                    HlslShaderModel::ShaderModel6 => "6_0",
-                    HlslShaderModel::ShaderModel6_1 => "6_1",
-                    HlslShaderModel::ShaderModel6_2 => "6_2",
-                    HlslShaderModel::ShaderModel6_3 => "6_3",
-                    HlslShaderModel::ShaderModel6_4 => "6_4",
-                    HlslShaderModel::ShaderModel6_5 => "6_5",
-                    HlslShaderModel::ShaderModel6_6 => "6_6",
-                    HlslShaderModel::ShaderModel6_7 => "6_7",
-                    HlslShaderModel::ShaderModel6_8 => "6_8",
-                    sm =>
-                        return Err(ShaderError::ValidationError(format!(
-                            "Shader model {:?} not supported by DXC.",
-                            sm
-                        ))),
-                }
-            )
-            .as_str(),
+            format!("{}_{}", dxc_profile, dxc_shader_model).as_str(),
             &dxc_options_str,
             Some(&mut include_handler),
             &defines,

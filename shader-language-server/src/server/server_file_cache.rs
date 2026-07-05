@@ -425,7 +425,7 @@ impl ServerLanguageFileCache {
                     Err(err) => ShaderDiagnosticList { diagnostics: vec![
                         ShaderDiagnostic {
                             severity: ShaderDiagnosticSeverity::Error,
-                            error: format!("Failed to validate shader: {:?}", err),
+                            error: format!("Failed to validate shader: {}", err),
                             range: ShaderFileRange::zero(file_path.clone())
                         }
                     ]},
