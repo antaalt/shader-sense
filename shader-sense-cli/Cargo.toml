@@ -4,10 +4,10 @@ description = "Command line interface for shader validation and symbol inspectio
 repository = "https://github.com/antaalt/shader-sense"
 keywords = ["shader", "validate", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 license-file = "../LICENSE"
 
 [dependencies]
 colored = "3.0.0"
-shader-sense = { version = "1.3.2", path = "../shader-sense" }
+shader-sense = { version = "1.4.1", path = "../shader-sense" }

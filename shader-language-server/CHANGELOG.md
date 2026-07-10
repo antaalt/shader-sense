@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.4.1] - 2026-07-10
+
+### Fixed
+
+- Preamble path was not resolved correctly as absolute, which failed the load in the end.
+- Preamble was added to preamble. Not anymore.
+- Send a warning when using unsupported shader model
+
 ## [1.4.0] - 2026-07-04
 
 ### Changed
@@ -453,7 +461,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/antaalt/shader-sense/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/antaalt/shader-validator/compare/v1.3.0...v1.3.1
