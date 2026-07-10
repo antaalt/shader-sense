@@ -703,6 +703,7 @@ impl ServerLanguageFileCache {
                         .find(|r| r.url == *url)
                         .is_none()
                     {
+                        info!("Preamble edited, caching file {} for recomputing", url);
                         async_cache_requests.push(AsyncCacheRequest::new(
                             url.clone(),
                             ShadingLanguage::Glsl,

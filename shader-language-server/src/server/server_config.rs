@@ -175,8 +175,8 @@ impl ServerSerializedConfig {
                 .map(|glsl| GlslCompilationParams {
                     client: glsl.target_client.unwrap_or_default(),
                     spirv: glsl.spirv_version.unwrap_or_default(),
-                    preamble_path: glsl.preamble.map(|p| p.into()),
-                    preamble_content: None, // Load later to be up to date
+                    preamble_path: glsl.preamble.map(|p| verify_user_path(&p)),
+                    preamble_content: None, // Loaded later to be up to date
                 })
                 .unwrap_or_default(),
             wgsl: WgslCompilationParams {},
@@ -293,6 +293,7 @@ impl ServerConfig {
         let hlsl = self.hlsl.clone();
         let glsl = if let Some(preamble_path) = &self.glsl.preamble_path {
             let mut glsl = self.glsl.clone();
+            // TODO: preamble content can be outdated if not saved.
             glsl.preamble_content = std::fs::read_to_string(preamble_path).ok();
             glsl
         } else {
