@@ -263,11 +263,18 @@ impl ValidatorImpl for Glslang {
         let file_name = self.get_file_name(file_path);
 
         // Ensure we have a newline character at the end to avoid issues with offset.
-        let preamble = if let Some(preamble) = &params.compilation.glsl.preamble_content {
-            if !preamble.is_empty() && !preamble.ends_with('\n') {
-                let mut preamble = String::from(preamble);
-                preamble.push('\n');
-                preamble
+        let preamble = if let (Some(preamble_path), Some(preamble)) = (
+            &params.compilation.glsl.preamble_path,
+            &params.compilation.glsl.preamble_content,
+        ) {
+            if file_path != preamble_path {
+                if !preamble.is_empty() && !preamble.ends_with('\n') {
+                    let mut preamble = String::from(preamble);
+                    preamble.push('\n');
+                    preamble
+                } else {
+                    String::new()
+                }
             } else {
                 String::new()
             }
