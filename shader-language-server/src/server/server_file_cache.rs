@@ -1041,7 +1041,7 @@ impl ServerLanguageFileCache {
         // Check if watched file already watched as deps
         match self.files.get_mut(&uri) {
             Some(cached_file) => {
-                assert!(
+                debug_assert!(
                     !cached_file.is_main_file,
                     "File {} already watched as main.",
                     uri
