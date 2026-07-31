@@ -356,27 +356,19 @@ pub struct HlslCompilationParams {
 /// Glsl target client
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GlslTargetClient {
-    Vulkan1_0,
-    Vulkan1_1,
-    Vulkan1_2,
+    None,      // No client, only validation (WebGL for example)
+    Vulkan1_0, // as GLSL dialect, specifies KHR_vulkan_glsl extension
+    Vulkan1_1, // as GLSL dialect, specifies KHR_vulkan_glsl extension
+    Vulkan1_2, // as GLSL dialect, specifies KHR_vulkan_glsl extension
     #[default]
-    Vulkan1_3,
-    OpenGL450,
-}
-
-impl GlslTargetClient {
-    /// Check if glsl is for OpenGL or Vulkan
-    pub fn is_opengl(&self) -> bool {
-        match *self {
-            GlslTargetClient::OpenGL450 => true,
-            _ => false,
-        }
-    }
+    Vulkan1_3, // as GLSL dialect, specifies KHR_vulkan_glsl extension
+    OpenGL450, // as GLSL dialect, specifies ARB_gl_spirv extension
 }
 
 /// All SPIRV version supported for glsl
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GlslSpirvVersion {
+    None, // No target language
     SPIRV1_0,
     SPIRV1_1,
     SPIRV1_2,

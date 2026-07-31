@@ -48,6 +48,8 @@ pub struct Glslang {
 }
 
 impl Glslang {
+    // Soon to be deprecated, see https://github.com/KhronosGroup/glslang/issues/4210
+    // What alternative ?
     #[allow(dead_code)] // Only used for WASI (alternative to DXC)
     pub fn hlsl() -> Self {
         Self::new(true)
@@ -329,13 +331,14 @@ impl ValidatorImpl for Glslang {
         );
 
         let lang_version = match params.compilation.glsl.spirv {
-            GlslSpirvVersion::SPIRV1_0 => glslang::SpirvVersion::SPIRV1_0,
-            GlslSpirvVersion::SPIRV1_1 => glslang::SpirvVersion::SPIRV1_1,
-            GlslSpirvVersion::SPIRV1_2 => glslang::SpirvVersion::SPIRV1_2,
-            GlslSpirvVersion::SPIRV1_3 => glslang::SpirvVersion::SPIRV1_3,
-            GlslSpirvVersion::SPIRV1_4 => glslang::SpirvVersion::SPIRV1_4,
-            GlslSpirvVersion::SPIRV1_5 => glslang::SpirvVersion::SPIRV1_5,
-            GlslSpirvVersion::SPIRV1_6 => glslang::SpirvVersion::SPIRV1_6,
+            GlslSpirvVersion::None => None,
+            GlslSpirvVersion::SPIRV1_0 => Some(glslang::SpirvVersion::SPIRV1_0),
+            GlslSpirvVersion::SPIRV1_1 => Some(glslang::SpirvVersion::SPIRV1_1),
+            GlslSpirvVersion::SPIRV1_2 => Some(glslang::SpirvVersion::SPIRV1_2),
+            GlslSpirvVersion::SPIRV1_3 => Some(glslang::SpirvVersion::SPIRV1_3),
+            GlslSpirvVersion::SPIRV1_4 => Some(glslang::SpirvVersion::SPIRV1_4),
+            GlslSpirvVersion::SPIRV1_5 => Some(glslang::SpirvVersion::SPIRV1_5),
+            GlslSpirvVersion::SPIRV1_6 => Some(glslang::SpirvVersion::SPIRV1_6),
         };
         let input = match ShaderInput::new(
             &source,
@@ -348,25 +351,37 @@ impl ValidatorImpl for Glslang {
                 },
                 // Should have some settings to select these.
                 target: if self.hlsl {
-                    glslang::Target::None(Some(lang_version))
+                    glslang::Target::None(lang_version)
                 } else {
-                    if params.compilation.glsl.client.is_opengl() {
-                        glslang::Target::OpenGL {
+                    match params.compilation.glsl.client {
+                        GlslTargetClient::None => glslang::Target::None(None),
+                        GlslTargetClient::Vulkan1_0
+                        | GlslTargetClient::Vulkan1_1
+                        | GlslTargetClient::Vulkan1_2
+                        | GlslTargetClient::Vulkan1_3 => {
+                            let client_version = match params.compilation.glsl.client {
+                                GlslTargetClient::Vulkan1_0 => glslang::VulkanVersion::Vulkan1_0,
+                                GlslTargetClient::Vulkan1_1 => glslang::VulkanVersion::Vulkan1_1,
+                                GlslTargetClient::Vulkan1_2 => glslang::VulkanVersion::Vulkan1_2,
+                                GlslTargetClient::Vulkan1_3 => glslang::VulkanVersion::Vulkan1_3,
+                                _ => unreachable!(),
+                            };
+                            if let Some(lang_version) = lang_version {
+                                glslang::Target::Vulkan {
+                                    version: client_version,
+                                    spirv_version: lang_version,
+                                }
+                            } else {
+                                return Err(ShaderError::ValidationError(
+                                    "Trying to set glsl client Vulkan but no SPIRV version set."
+                                        .into(),
+                                ));
+                            }
+                        }
+                        GlslTargetClient::OpenGL450 => glslang::Target::OpenGL {
                             version: glslang::OpenGlVersion::OpenGL4_5,
-                            spirv_version: None, // TODO ?
-                        }
-                    } else {
-                        let client_version = match params.compilation.glsl.client {
-                            GlslTargetClient::Vulkan1_0 => glslang::VulkanVersion::Vulkan1_0,
-                            GlslTargetClient::Vulkan1_1 => glslang::VulkanVersion::Vulkan1_1,
-                            GlslTargetClient::Vulkan1_2 => glslang::VulkanVersion::Vulkan1_2,
-                            GlslTargetClient::Vulkan1_3 => glslang::VulkanVersion::Vulkan1_3,
-                            _ => unreachable!(),
-                        };
-                        glslang::Target::Vulkan {
-                            version: client_version,
                             spirv_version: lang_version,
-                        }
+                        },
                     }
                 },
                 messages: glslang::ShaderMessage::CASCADING_ERRORS
@@ -377,6 +392,13 @@ impl ValidatorImpl for Glslang {
                     } else {
                         glslang::ShaderMessage::DEFAULT
                     },
+                // Could expose these, but it still need to be written in code:
+                // - 100 : es (WebGL 1.0)
+                // - 300 : es (WebGL 2.0)
+                // - 110 : core (Desktop OpenGL 2.0)
+                // - 150 : core (Desktop OpenGL 3.2)
+                // - 450 : core (Desktop OpenGL 4.5)
+                //version_profile: Some((100, glslang::GlslProfile::None)),
                 ..Default::default()
             },
             Some(&defines),

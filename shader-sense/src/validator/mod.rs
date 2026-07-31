@@ -11,8 +11,8 @@ mod tests {
     use std::{collections::HashMap, path::Path};
 
     use crate::shader::{
-        GlslCompilationParams, ShaderCompilationParams, ShaderContextParams, ShaderParams,
-        ShaderStage, ShadingLanguage,
+        GlslCompilationParams, GlslSpirvVersion, GlslTargetClient, ShaderCompilationParams,
+        ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
     };
 
     use super::validator::*;
@@ -179,6 +179,25 @@ mod tests {
     }
 
     #[test]
+    fn glsl_no_preamble() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/dependent-include.frag.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams::default(),
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should not be empty: {:#?}", result);
+                assert!(!result.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
     fn glsl_preamble() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
         let file_path = Path::new("./test/glsl/dependent-include.frag.glsl");
@@ -198,6 +217,130 @@ mod tests {
                     ..Default::default()
                 },
                 ..Default::default()
+            },
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should be empty: {:#?}", result);
+                assert!(result.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_opengl() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/target-client/opengl.vert.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    entry_point: None,
+                    shader_stage: Some(ShaderStage::Vertex),
+                    glsl: GlslCompilationParams {
+                        client: GlslTargetClient::OpenGL450,
+                        spirv: GlslSpirvVersion::None,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                context: ShaderContextParams::default(),
+            },
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should be empty: {:#?}", result);
+                assert!(result.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_vulkan() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/target-client/vulkan.vert.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    entry_point: None,
+                    shader_stage: Some(ShaderStage::Vertex),
+                    glsl: GlslCompilationParams {
+                        client: GlslTargetClient::Vulkan1_3,
+                        spirv: GlslSpirvVersion::SPIRV1_6,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                context: ShaderContextParams::default(),
+            },
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should be empty: {:#?}", result);
+                assert!(result.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_webgl_1() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/target-client/webgl1.vert.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    entry_point: None,
+                    shader_stage: Some(ShaderStage::Vertex),
+                    glsl: GlslCompilationParams {
+                        client: GlslTargetClient::None,
+                        spirv: GlslSpirvVersion::None,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                context: ShaderContextParams::default(),
+            },
+            &mut default_include_callback,
+        ) {
+            Ok(result) => {
+                println!("Diagnostic should be empty: {:#?}", result);
+                assert!(result.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_webgl_2() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/target-client/webgl2.vert.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    entry_point: None,
+                    shader_stage: Some(ShaderStage::Vertex),
+                    glsl: GlslCompilationParams {
+                        client: GlslTargetClient::None,
+                        spirv: GlslSpirvVersion::None,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                context: ShaderContextParams::default(),
             },
             &mut default_include_callback,
         ) {
