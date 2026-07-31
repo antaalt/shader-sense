@@ -2,6 +2,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::format;
 use std::num::NonZero;
 use std::str::FromStr;
 use std::time::Duration;
@@ -227,8 +228,6 @@ impl ServerLanguage {
         }
         // TODO: Check features support from client params.
         debug!("Received client params");
-        // Request configuration as its not sent automatically (at least with vscode)
-        self.request_configuration();
 
         return Ok(());
     }
@@ -1127,14 +1126,22 @@ impl ServerLanguage {
 }
 
 /// Run the server with given config and transport.
-pub fn run(config: ServerConfig, transport: Transport, shading_language: HashSet<ShadingLanguage>) {
+pub fn run(
+    config: ServerConfig,
+    transport: Transport,
+    shading_language: HashSet<ShadingLanguage>,
+    initialization_errors: Vec<String>,
+) {
     let mut server = ServerLanguage::new(config, transport, shading_language);
 
     match server.initialize() {
         Ok(_) => info!("Server initialization successfull"),
         Err(value) => error!("Failed initalization: {:#?}", value),
     }
-
+    server.connection.send_notification_error(format!(
+        "Error during server initialization: \n{}",
+        initialization_errors.join("\n")
+    ));
     match server.run() {
         Ok(_) => {
             info!("Client disconnected");

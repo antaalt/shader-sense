@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    format,
     path::{Path, PathBuf},
 };
 
@@ -122,27 +123,67 @@ pub struct ServerConfig {
 }
 
 impl ServerSerializedConfig {
-    pub fn compute_engine_config(self) -> ServerConfig {
-        fn verify_user_path(path: &str) -> PathBuf {
-            // Try to canonicalize path.
-            // If it fail, still return it to avoid crashing server with invalid config.
-            canonicalize(Path::new(&path)).unwrap_or_else(|err| {
-                warn!("Failed to canonicalize setting path {}", err);
-                PathBuf::from(path)
-            })
+    fn verify_user_path(path: &str) -> PathBuf {
+        // Try to canonicalize path.
+        // If it fail, still return it to avoid crashing server with invalid config.
+        canonicalize(Path::new(&path)).unwrap_or_else(|err| {
+            warn!("Failed to canonicalize setting path {}", err);
+            PathBuf::from(path)
+        })
+    }
+    pub fn validate(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if let Some(glsl) = &self.glsl {
+            // Validate preamble path.
+            if let Some(preamble) = &glsl.preamble {
+                let preamble_path = Self::verify_user_path(preamble);
+                if let Ok(exist) = std::fs::exists(preamble_path) {
+                    if !exist {
+                        errors.push(format!("Preamble file at {:#?} not found", preamble));
+                    }
+                } else {
+                    errors.push(format!("Preamble file at {:#?} not found", preamble));
+                }
+            }
+            if let Some(target_client) = &glsl.target_client {
+                match target_client {
+                    GlslTargetClient::Vulkan1_0
+                    | GlslTargetClient::Vulkan1_1
+                    | GlslTargetClient::Vulkan1_2
+                    | GlslTargetClient::Vulkan1_3 => {
+                        if let Some(spirv_version) = &glsl.spirv_version {
+                            if *spirv_version == GlslSpirvVersion::None {
+                                errors.push(format!(
+                                    "No SPIRV version set, but required for Vulkan client."
+                                ));
+                            }
+                        } else {
+                            // Default version not None, so its fine.
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+    pub fn compute_engine_config(self) -> ServerConfig {
         // Convert ServerConfig to ServerEngineConfig
         let mut config = ServerConfig {
             includes: self
                 .includes
-                .map(|i| i.into_iter().map(|i| verify_user_path(&i)).collect())
+                .map(|i| i.into_iter().map(|i| Self::verify_user_path(&i)).collect())
                 .unwrap_or_default(),
             defines: self.defines.unwrap_or_default(),
             path_remapping: self
                 .path_remapping
                 .map(|i| {
                     i.into_iter()
-                        .map(|(v, i)| (PathBuf::from(v), verify_user_path(&i)))
+                        .map(|(v, i)| (PathBuf::from(v), Self::verify_user_path(&i)))
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -175,7 +216,7 @@ impl ServerSerializedConfig {
                 .map(|glsl| GlslCompilationParams {
                     client: glsl.target_client.unwrap_or_default(),
                     spirv: glsl.spirv_version.unwrap_or_default(),
-                    preamble_path: glsl.preamble.map(|p| verify_user_path(&p)),
+                    preamble_path: glsl.preamble.map(|p| Self::verify_user_path(&p)),
                     preamble_content: None, // Loaded later to be up to date
                 })
                 .unwrap_or_default(),
@@ -216,7 +257,7 @@ impl ServerSerializedConfig {
                     .includes
                     .map(|i| {
                         i.into_iter()
-                            .map(|i| verify_user_path(&i))
+                            .map(|i| Self::verify_user_path(&i))
                             .collect::<Vec<PathBuf>>()
                     })
                     .unwrap_or_default(),
@@ -226,7 +267,7 @@ impl ServerSerializedConfig {
                     .path_remapping
                     .map(|i| {
                         i.into_iter()
-                            .map(|(v, i)| (PathBuf::from(v), verify_user_path(&i)))
+                            .map(|(v, i)| (PathBuf::from(v), Self::verify_user_path(&i)))
                             .collect::<HashMap<PathBuf, PathBuf>>()
                     })
                     .unwrap_or_default(),
@@ -387,8 +428,14 @@ impl ServerLanguage {
                 // Sent 1 item, received 1 in an array
                 let mut parsed_config: Vec<Option<ServerSerializedConfig>> =
                     serde_json::from_value(value)?;
-                let config = parsed_config.remove(0).unwrap_or_default();
-                let config = config.compute_engine_config();
+                let serialized_config = parsed_config.remove(0).unwrap_or_default();
+                if let Err(errors) = serialized_config.validate() {
+                    server.connection.send_notification_error(format!(
+                        "Config received is invalid:\n{}",
+                        errors.join("\n")
+                    ));
+                }
+                let config = serialized_config.compute_engine_config();
                 if server.config != config {
                     profile_scope!("Updating server config: {:#?}", config);
                     server.config = config.clone();
@@ -418,10 +465,10 @@ mod tests {
     use std::{collections::HashMap, path::PathBuf};
 
     use lsp_types::Url;
-    use shader_sense::shader::{ShaderStage, ShadingLanguage};
+    use shader_sense::shader::{GlslSpirvVersion, GlslTargetClient, ShaderStage, ShadingLanguage};
 
     use crate::server::{
-        server_config::{ServerConfig, ServerSerializedConfig},
+        server_config::{ServerConfig, ServerGlslConfig, ServerSerializedConfig},
         shader_variant::ShaderVariant,
     };
 
@@ -548,5 +595,29 @@ mod tests {
         assert!(cfg.includes[0] == PathBuf::from("D:/other/path/to/my/include"));
         assert!(cfg.includes[1] == PathBuf::from("D:/path/to/my/include"));
         assert!(*cfg.defines.get("MY_MACRO").unwrap() == String::from("1"));
+    }
+
+    #[test]
+    fn test_config_validation() {
+        let invalid_config = ServerSerializedConfig {
+            glsl: Some(ServerGlslConfig {
+                target_client: Some(GlslTargetClient::Vulkan1_3),
+                spirv_version: Some(GlslSpirvVersion::None),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let result = invalid_config.validate();
+        assert!(result.is_err());
+        let valid_config = ServerSerializedConfig {
+            glsl: Some(ServerGlslConfig {
+                target_client: Some(GlslTargetClient::Vulkan1_3),
+                spirv_version: Some(GlslSpirvVersion::SPIRV1_6),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let result = valid_config.validate();
+        assert!(result.is_ok());
     }
 }
