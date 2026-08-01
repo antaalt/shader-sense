@@ -171,14 +171,14 @@ impl ServerSerializedConfig {
             Err(errors)
         }
     }
-    pub fn compute_engine_config(self) -> ServerConfig {
+    pub fn compute_engine_config(self, previous_config: ServerConfig) -> ServerConfig {
         // Convert ServerConfig to ServerEngineConfig
         let mut config = ServerConfig {
             includes: self
                 .includes
                 .map(|i| i.into_iter().map(|i| Self::verify_user_path(&i)).collect())
-                .unwrap_or_default(),
-            defines: self.defines.unwrap_or_default(),
+                .unwrap_or(previous_config.includes),
+            defines: self.defines.unwrap_or(previous_config.defines),
             path_remapping: self
                 .path_remapping
                 .map(|i| {
@@ -186,40 +186,49 @@ impl ServerSerializedConfig {
                         .map(|(v, i)| (PathBuf::from(v), Self::verify_user_path(&i)))
                         .collect()
                 })
-                .unwrap_or_default(),
-            experimental_macro_expansion: self.experimental_macro_expansion.unwrap_or(false),
-            validate: self.validate.unwrap_or(ServerConfig::DEFAULT_VALIDATE),
-            symbols: self.symbols.unwrap_or(ServerConfig::DEFAULT_SYMBOLS),
+                .unwrap_or(previous_config.path_remapping),
+            experimental_macro_expansion: self
+                .experimental_macro_expansion
+                .unwrap_or(previous_config.experimental_macro_expansion),
+            validate: self.validate.unwrap_or(previous_config.validate),
+            symbols: self.symbols.unwrap_or(previous_config.symbols),
             symbol_diagnostics: self
                 .symbol_diagnostics
-                .unwrap_or(ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC),
+                .unwrap_or(previous_config.symbol_diagnostics),
             automatic_variant_discovery: self
                 .automatic_variant_discovery
-                .unwrap_or(ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY),
-            trace: self.trace.unwrap_or(ServerConfig::DEFAULT_TRACE),
-            stage_define: self.stage_define.unwrap_or_default(),
+                .unwrap_or(previous_config.automatic_variant_discovery),
+            trace: self.trace.unwrap_or(previous_config.trace),
+            stage_define: self.stage_define.unwrap_or(previous_config.stage_define),
             severity: self
                 .severity
                 .map(|s| ShaderDiagnosticSeverity::from(s.as_str()))
-                .unwrap_or(ServerConfig::DEFAULT_SEVERITY),
+                .unwrap_or(previous_config.severity),
             hlsl: self
                 .hlsl
                 .map(|hlsl| HlslCompilationParams {
-                    shader_model: hlsl.shader_model.unwrap_or_default(),
-                    version: hlsl.version.unwrap_or_default(),
-                    enable16bit_types: hlsl.enable16bit_types.unwrap_or_default(),
-                    spirv: hlsl.spirv.unwrap_or_default(),
+                    shader_model: hlsl
+                        .shader_model
+                        .unwrap_or(previous_config.hlsl.shader_model),
+                    version: hlsl.version.unwrap_or(previous_config.hlsl.version),
+                    enable16bit_types: hlsl
+                        .enable16bit_types
+                        .unwrap_or(previous_config.hlsl.enable16bit_types),
+                    spirv: hlsl.spirv.unwrap_or(previous_config.hlsl.spirv),
                 })
-                .unwrap_or_default(),
+                .unwrap_or(previous_config.hlsl),
             glsl: self
                 .glsl
                 .map(|glsl| GlslCompilationParams {
-                    client: glsl.target_client.unwrap_or_default(),
-                    spirv: glsl.spirv_version.unwrap_or_default(),
-                    preamble_path: glsl.preamble.map(|p| Self::verify_user_path(&p)),
+                    client: glsl.target_client.unwrap_or(previous_config.glsl.client),
+                    spirv: glsl.spirv_version.unwrap_or(previous_config.glsl.spirv),
+                    preamble_path: glsl
+                        .preamble
+                        .map(|p| Self::verify_user_path(&p))
+                        .or(previous_config.glsl.preamble_path.clone()),
                     preamble_content: None, // Loaded later to be up to date
                 })
-                .unwrap_or_default(),
+                .unwrap_or(previous_config.glsl),
             wgsl: WgslCompilationParams {},
         };
         // Get engine config if set and override them.
@@ -435,7 +444,7 @@ impl ServerLanguage {
                         errors.join("\n")
                     ));
                 }
-                let config = serialized_config.compute_engine_config();
+                let config = serialized_config.compute_engine_config(server.config.clone());
                 if server.config != config {
                     profile_scope!("Updating server config: {:#?}", config);
                     server.config = config.clone();
@@ -475,7 +484,7 @@ mod tests {
     #[test]
     fn test_empty_config() {
         let cfg: ServerSerializedConfig = serde_json::from_str("{}").unwrap();
-        let cfg = cfg.compute_engine_config();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
         assert!(cfg.get_validate() == ServerConfig::DEFAULT_VALIDATE);
         let cfg_inverse: ServerSerializedConfig = serde_json::from_str(
             format!(
@@ -489,7 +498,7 @@ mod tests {
             .as_str(),
         )
         .unwrap();
-        let cfg_inverse = cfg_inverse.compute_engine_config();
+        let cfg_inverse = cfg_inverse.compute_engine_config(ServerConfig::default());
         assert!(cfg_inverse.get_validate() == !ServerConfig::DEFAULT_VALIDATE);
     }
 
@@ -503,7 +512,7 @@ mod tests {
         }"#,
         )
         .unwrap();
-        let cfg = cfg.compute_engine_config();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
         let vertex_shader_params = cfg.into_shader_params(
             None,
             Some(ShaderVariant {
@@ -547,7 +556,7 @@ mod tests {
     #[test]
     fn test_stage_define() {
         let cfg = ServerSerializedConfig::default();
-        let cfg = cfg.compute_engine_config();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
         assert!(cfg.get_symbols() == ServerConfig::DEFAULT_SYMBOLS);
         assert!(cfg.get_validate() == ServerConfig::DEFAULT_VALIDATE);
         assert!(cfg.get_symbol_diagnostics() == ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC);
@@ -590,7 +599,7 @@ mod tests {
             config_override: Some("../shader-sense/test/config-override.json".into()),
             ..Default::default()
         };
-        let cfg = cfg.compute_engine_config();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
         assert!(cfg.includes.len() == 2);
         assert!(cfg.includes[0] == PathBuf::from("D:/other/path/to/my/include"));
         assert!(cfg.includes[1] == PathBuf::from("D:/path/to/my/include"));

@@ -89,7 +89,7 @@ pub fn main() {
                                     errors.join("\n\t")
                                 ));
                             }
-                            config = config_parsed.compute_engine_config();
+                            config = config_parsed.compute_engine_config(ServerConfig::default());
                         }
                         Err(err) => {
                             error!("Failed to parse config {}: {}", config_str, err);
@@ -111,7 +111,8 @@ pub fn main() {
                                     if let Err(errors) = config_parsed.validate() {
                                         initialization_errors.push(format!("Config for argument --config-file failed validation:\n{}", errors.join("\n\t")));
                                     }
-                                    config = config_parsed.compute_engine_config();
+                                    config = config_parsed
+                                        .compute_engine_config(ServerConfig::default());
                                 }
                                 Err(err) => {
                                     error!("Failed to parse config file {}: {}", config_str, err);
