@@ -8,6 +8,7 @@ use lsp_types::{
     DocumentSymbolResponse, PartialResultParams, RelatedFullDocumentDiagnosticReport,
     WorkDoneProgressParams,
 };
+use serde_json::json;
 use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_sense::shader::ShadingLanguage;
 
@@ -45,13 +46,11 @@ fn get_document_symbol_params(file: &TestFile) -> DocumentSymbolParams {
 
 #[test]
 fn test_glsl_relative_preamble() {
-    let config: ServerSerializedConfig = serde_json::from_str(
-        r#"{
-            "glsl": { 
-                "preamble": "../shader-sense/test/glsl/helpers/preamble.glsl"
-            }
-        }"#,
-    )
+    let config: ServerSerializedConfig = serde_json::from_value(json!({
+        "glsl": {
+            "preamble": "../shader-sense/test/glsl/helpers/preamble.glsl"
+        }
+    }))
     .unwrap();
     let mut server = TestServer::desktop(config).unwrap();
 
@@ -87,11 +86,9 @@ fn test_glsl_relative_preamble() {
 }
 #[test]
 fn test_validate() {
-    let config: ServerSerializedConfig = serde_json::from_str(
-        r#"{
-            "validate": false
-        }"#,
-    )
+    let config: ServerSerializedConfig = serde_json::from_value(json!({
+        "validate": false
+    }))
     .unwrap();
     let mut server = TestServer::desktop(config).unwrap();
 
@@ -127,13 +124,45 @@ fn test_validate() {
 }
 #[test]
 fn test_symbols() {
-    let config: ServerSerializedConfig = serde_json::from_str(
-        r#"{
-            "symbols": false
-        }"#,
-    )
+    let config: ServerSerializedConfig = serde_json::from_value(json!({
+        "symbols": false
+    }))
     .unwrap();
     let mut server = TestServer::desktop(config).unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
+        ShadingLanguage::Glsl,
+    );
+    println!("Opening file {}", file.url);
+
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    let document_symbol_params = get_document_symbol_params(&file);
+    server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
+        assert!(
+            !has_any_document_symbol(response.unwrap()),
+            "Should not have any symbols"
+        );
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+#[test]
+fn test_partial_config_update() {
+    // Set some value to something else
+    let config: ServerSerializedConfig = serde_json::from_value(json!({
+        "symbols": false
+    }))
+    .unwrap();
+    let mut server = TestServer::desktop(config).unwrap();
+
+    // Partial update that should not reset symbols
+    server.update_configuration(json!({
+        "validate": true,
+    }));
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),

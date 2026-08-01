@@ -8,10 +8,10 @@ use std::{
 };
 
 use lsp_types::{
-    notification::{Exit, Initialized},
+    notification::{DidChangeConfiguration, Exit, Initialized},
     request::{Initialize, Request, Shutdown, WorkDoneProgressCreate, WorkspaceConfiguration},
-    InitializeParams, InitializedParams, Position, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, Url,
+    DidChangeConfigurationParams, InitializeParams, InitializedParams, Position,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
 };
 use serde_json::Value;
 use shader_language_server::server::server_config::ServerSerializedConfig;
@@ -46,6 +46,7 @@ impl TestFile {
             uri: self.url.clone(),
         }
     }
+    #[allow(dead_code)]
     pub fn position_params(&self, line: u32, character: u32) -> TextDocumentPositionParams {
         TextDocumentPositionParams {
             text_document: self.identifier(),
@@ -67,6 +68,7 @@ pub struct TestServer {
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
 impl TestServer {
+    #[allow(dead_code)]
     pub fn wasi(config: ServerSerializedConfig) -> Option<TestServer> {
         use std::path::Path;
 
@@ -160,7 +162,6 @@ impl TestServer {
         let params = InitializeParams::default();
         self.send_request::<Initialize>(&params, |_| {});
         self.send_notification::<Initialized>(&InitializedParams {});
-        self.expect_request::<WorkspaceConfiguration>();
     }
     fn get_server_stderr(&mut self) -> io::Result<String> {
         let mut errors = String::new();
@@ -255,6 +256,14 @@ impl TestServer {
         );
         lsp_server::Message::write(response, &mut self.stdin).unwrap();
     }
+    #[allow(dead_code)]
+    pub fn update_configuration(&mut self, json: serde_json::Value) {
+        self.workspace_configuration_response = vec![json];
+        self.send_notification::<DidChangeConfiguration>(&DidChangeConfigurationParams {
+            settings: Value::Null, // Unused
+        });
+        self.expect_request::<WorkspaceConfiguration>();
+    }
     fn expect_request<T: lsp_types::request::Request>(&mut self) {
         let message = lsp_server::Message::read(&mut self.reader).unwrap();
         println!("Received message: {:?}", message);
@@ -298,11 +307,7 @@ impl TestServer {
         }
     }
     #[allow(dead_code)]
-    pub fn set_workspace_configuration_response(&mut self, response: Vec<Value>) {
-        self.workspace_configuration_response = response;
-    }
-    #[allow(dead_code)]
-    pub fn subsbscribe<T: lsp_types::notification::Notification, F: FnMut(Value) + 'static>(
+    pub fn subscribe<T: lsp_types::notification::Notification, F: FnMut(Value) + 'static>(
         &mut self,
         callback: F,
     ) {

@@ -6,13 +6,12 @@ use std::{collections::HashMap, path::Path};
 
 use lsp_types::request::DocumentDiagnosticRequest;
 use lsp_types::{
-    notification::{DidChangeConfiguration, DidCloseTextDocument, DidOpenTextDocument},
-    DiagnosticSeverity, DidChangeConfigurationParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, PartialResultParams, RelatedFullDocumentDiagnosticReport,
-    WorkDoneProgressParams,
+    notification::{DidCloseTextDocument, DidOpenTextDocument},
+    DiagnosticSeverity, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    PartialResultParams, RelatedFullDocumentDiagnosticReport, WorkDoneProgressParams,
 };
-use serde_json::{json, Value};
+use serde_json::json;
 use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
@@ -34,15 +33,6 @@ fn get_diagnostic_report(
     } else {
         unreachable!("Should not be reached");
     }
-}
-
-fn enable_automatic_variant_discovery(server: &mut TestServer) {
-    server.set_workspace_configuration_response(vec![json!({
-        "automaticVariantDiscovery": true,
-    })]);
-    server.send_notification::<DidChangeConfiguration>(&DidChangeConfigurationParams {
-        settings: Value::Null,
-    });
 }
 
 #[test]
@@ -90,7 +80,9 @@ fn test_automatic_variant_discovery_use_includer_context() {
             );
         },
     );
-    enable_automatic_variant_discovery(&mut server);
+    server.update_configuration(json!({
+        "automaticVariantDiscovery": true,
+    }));
     server.send_request::<DocumentDiagnosticRequest>(
         &DocumentDiagnosticParams {
             text_document: deps.identifier(),
@@ -127,8 +119,11 @@ fn test_automatic_variant_discovery_use_includer_context() {
 
 #[test]
 fn test_automatic_variant_discovery_keep_selected_variant_context() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
-    enable_automatic_variant_discovery(&mut server);
+    let config: ServerSerializedConfig = serde_json::from_value(json!({
+        "automaticVariantDiscovery": true
+    }))
+    .unwrap();
+    let mut server = TestServer::desktop(config).unwrap();
 
     let invalid_main = TestFile::new(
         Path::new("../shader-sense/test/glsl/auto-variant/a-auto-variant.frag.glsl"),

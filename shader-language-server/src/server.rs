@@ -228,10 +228,6 @@ impl ServerLanguage {
         }
         // TODO: Check features support from client params.
         debug!("Received client params");
-        // Request configuration as its not sent automatically (at least with vscode)
-        // It should not be necessary anymore as we can startup server with config now, but keeping as it might break client relying on it.
-        self.request_configuration();
-
         return Ok(());
     }
     fn resolve_async_request(&mut self, request: AsyncMessage) -> Result<(), ServerLanguageError> {
