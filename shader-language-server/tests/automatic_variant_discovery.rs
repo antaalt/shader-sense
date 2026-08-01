@@ -13,6 +13,7 @@ use lsp_types::{
     WorkDoneProgressParams,
 };
 use serde_json::{json, Value};
+use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
 };
@@ -46,7 +47,7 @@ fn enable_automatic_variant_discovery(server: &mut TestServer) {
 
 #[test]
 fn test_automatic_variant_discovery_use_includer_context() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
@@ -126,7 +127,7 @@ fn test_automatic_variant_discovery_use_includer_context() {
 
 #[test]
 fn test_automatic_variant_discovery_keep_selected_variant_context() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
     enable_automatic_variant_discovery(&mut server);
 
     let invalid_main = TestFile::new(

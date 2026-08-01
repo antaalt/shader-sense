@@ -14,6 +14,7 @@ use lsp_types::{
     TextDocumentPositionParams, Url,
 };
 use serde_json::Value;
+use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_sense::{include::canonicalize, shader::ShadingLanguage};
 
 pub struct TestFile {
@@ -66,7 +67,7 @@ pub struct TestServer {
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
 impl TestServer {
-    pub fn wasi() -> Option<TestServer> {
+    pub fn wasi(config: ServerSerializedConfig) -> Option<TestServer> {
         use std::path::Path;
 
         use shader_sense::include::canonicalize;
@@ -86,6 +87,7 @@ impl TestServer {
             return None;
         }
         assert!(test_folder.is_dir(), "Missing Test folder");
+        let serialized_config = serde_json::to_string(&config).unwrap();
         let child = Command::new("wasmtime")
             .args([
                 "--wasi",
@@ -93,6 +95,8 @@ impl TestServer {
                 "--dir",
                 format!("{}::/test", test_folder.display()).as_str(),
                 format!("{}", server_path.display()).as_str(),
+                "--config",
+                &serialized_config,
             ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -102,7 +106,7 @@ impl TestServer {
             .unwrap();
         Some(Self::from_child(child))
     }
-    pub fn desktop() -> Option<TestServer> {
+    pub fn desktop(config: ServerSerializedConfig) -> Option<TestServer> {
         use std::path::Path;
 
         use shader_sense::include::canonicalize;
@@ -121,12 +125,14 @@ impl TestServer {
             return None;
         }
         assert!(test_folder.is_dir(), "Missing Test folder");
+        let serialized_config = serde_json::to_string(&config).unwrap();
         let child = Command::new(server_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .env("RUST_BACKTRACE", "full")
             .env("RUST_LOG", "shader_language_server=trace")
+            .args(["--config", &serialized_config])
             .spawn()
             .unwrap();
         Some(Self::from_child(child))
