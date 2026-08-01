@@ -64,7 +64,6 @@ pub struct TestServer {
     reader: BufReader<ChildStdout>,
     err_reader: BufReader<ChildStderr>,
     request_id: i32,
-    workspace_configuration_response: Vec<Value>,
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
 impl TestServer {
@@ -151,7 +150,6 @@ impl TestServer {
             reader,
             err_reader,
             stdin,
-            workspace_configuration_response: vec![Value::Null],
             notification_handler: HashMap::new(),
         };
         // Send an LSP initialize request
@@ -258,19 +256,18 @@ impl TestServer {
     }
     #[allow(dead_code)]
     pub fn update_configuration(&mut self, json: serde_json::Value) {
-        self.workspace_configuration_response = vec![json];
         self.send_notification::<DidChangeConfiguration>(&DidChangeConfigurationParams {
             settings: Value::Null, // Unused
         });
-        self.expect_request::<WorkspaceConfiguration>();
+        self.expect_request::<WorkspaceConfiguration>(vec![json]);
     }
-    fn expect_request<T: lsp_types::request::Request>(&mut self) {
+    fn expect_request<T: lsp_types::request::Request>(&mut self, response: T::Result) {
         let message = lsp_server::Message::read(&mut self.reader).unwrap();
         println!("Received message: {:?}", message);
         match message.unwrap() {
             lsp_server::Message::Request(request) => {
                 if request.method.as_str() == T::METHOD {
-                    self.on_request(request);
+                    self.send_response::<T>(request.id, response);
                 } else {
                     panic!(
                         "Expected request {}, received request {}",
@@ -294,10 +291,8 @@ impl TestServer {
     }
     fn on_request(&mut self, request: lsp_server::Request) {
         match request.method.as_str() {
-            WorkspaceConfiguration::METHOD => self.send_response::<WorkspaceConfiguration>(
-                request.id,
-                self.workspace_configuration_response.clone(),
-            ),
+            WorkspaceConfiguration::METHOD => self
+                .send_response::<WorkspaceConfiguration>(request.id, vec![serde_json::Value::Null]),
             WorkDoneProgressCreate::METHOD => {
                 self.send_response::<WorkDoneProgressCreate>(request.id, ())
             }
