@@ -1,3 +1,7 @@
+// Skip all these test on WASI.
+// WASI cannot spawn a server so test on pc with WASMTIME runner instead.
+#![cfg(not(target_os = "wasi"))]
+
 use std::path::Path;
 
 use lsp_types::{
