@@ -1141,10 +1141,12 @@ pub fn run(
         Ok(_) => info!("Server initialization successfull"),
         Err(value) => error!("Failed initalization: {:#?}", value),
     }
-    server.connection.send_notification_error(format!(
-        "Error during server initialization: \n{}",
-        initialization_errors.join("\n")
-    ));
+    if !initialization_errors.is_empty() {
+        server.connection.send_notification_error(format!(
+            "Error during server initialization: \n{}",
+            initialization_errors.join("\n")
+        ));
+    }
     match server.run() {
         Ok(_) => {
             info!("Client disconnected");
