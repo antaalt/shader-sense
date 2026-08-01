@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Fixed
+
+- Glslang now support WebGL validation by setting None as target client and SPIRV.
+
+### Changed
+
+- Server do not request for configuration at startup anymore as we can now pass a configuration via `--config` and `--config-file` arguments.
+- Server now validate user configuration and notify user if errors are detected.
+
 ## [1.4.1] - 2026-07-10
 
 ### Fixed
