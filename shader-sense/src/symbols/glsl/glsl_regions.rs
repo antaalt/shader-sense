@@ -1,5 +1,5 @@
 use crate::{
-    shader::ShaderCompilationParams,
+    shader::{ShaderCompilationParams, ShadingLanguage},
     shader_error::ShaderError,
     symbols::{
         hlsl::HlslSymbolRegionFinder,
@@ -17,7 +17,7 @@ pub struct GlslRegionFinder {
 impl GlslRegionFinder {
     pub fn new() -> Self {
         Self {
-            region_finder: HlslSymbolRegionFinder::new(&tree_sitter_glsl::LANGUAGE_GLSL.into()),
+            region_finder: HlslSymbolRegionFinder::new(ShadingLanguage::Glsl),
         }
     }
 }

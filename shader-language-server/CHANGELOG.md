@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Fixed
+
+- Glslang now support WebGL validation by setting None as target client and SPIRV.
+
+### Changed
+
+- Server do not request for configuration at startup anymore as we can now pass a configuration via `--config` and `--config-file` arguments.
+- Server now validate user configuration and notify user if errors are detected.
+
+## [1.4.1] - 2026-07-10
+
+### Fixed
+
+- Preamble path was not resolved correctly as absolute, which failed the load in the end.
+- Preamble was added to preamble. Not anymore.
+- Send a warning when using unsupported shader model
+
+## [1.4.0] - 2026-07-04
+
+### Changed
+
+- Preamble should now update its content and propagate to other files correctly if modified in editor.
+- Changed setting name dependency_context_diagnostics to automatic_variant_discovery for clarity.
+
+### Fixed
+
+- Automatic variant discovery was not working properly and should now be more stable and working for every language.
+
+
+## [1.3.2] - 2026-05-04
+
+### Added
+
+- Auto include context diagnostic discovery (experimental).
+- GLSL stage macros are defined in intrinsics.
+
+### Fixed
+
+- Empty document symbol names for GLSL precision symbol
+- Intrinsics macro were ignored for region check
+
+## [1.3.1] - 2026-04-11
+
+### Added
+
+- Now build and deploy a windows ARM version of the server.
+
+### Fixed
+
+- Crash when client format content of files by removing line ending for example, which ended up with different content between server and client, and access out of bounds.
+
+## [1.3.0] - 2026-01-31
+
+### Fixed
+
+- Fixed an issue that caused test to hang on panic
+
+### Added
+
+- New test for semantic tokens.
+- New experimental feature for macro expansion to add to symbols the symbols defined inside a macro. Still a work in progress.
+- Possiblity to pass a preamble file for Glsl shaders.
+
+
 ## [1.2.2] - 2025-11-24
 
 ### Fixed
@@ -406,7 +470,12 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.2.2...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/antaalt/shader-sense/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
+[1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/antaalt/shader-validator/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/antaalt/shader-validator/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/antaalt/shader-sense/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/antaalt/shader-sense/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.1.0...v1.2.0

@@ -445,9 +445,12 @@ impl SymbolTreeParser for HlslCallExpressionTreeParser {
                 parameters: symbol_match.captures[1..]
                     .iter()
                     .enumerate()
-                    .map(|(i, e)| {
+                    .map(|(_, e)| {
                         // These name are not variable. Should find definition in symbols.
-                        (format!("param{}:", i), ShaderRange::from(e.node.range()))
+                        (
+                            get_name(shader_content, e.node).into(),
+                            ShaderRange::from(e.node.range()),
+                        )
                     })
                     .collect(),
             },
@@ -587,8 +590,18 @@ mod hlsl_parser_tests {
             ) => {
                 assert!(t1 == t2, "Mismatching link")
             }
-            (ShaderSymbolData::Macro { value: v1 }, ShaderSymbolData::Macro { value: v2 }) => {
-                assert!(v1 == v2, "Mismatching macro")
+            (
+                ShaderSymbolData::Macro {
+                    value: v1,
+                    parameters: p1,
+                },
+                ShaderSymbolData::Macro {
+                    value: v2,
+                    parameters: p2,
+                },
+            ) => {
+                assert!(v1 == v2, "Mismatching macro");
+                assert!(p1 == p2, "Mismatching macro parameters");
             }
             (ShaderSymbolData::Enum { values: v1 }, ShaderSymbolData::Enum { values: v2 }) => {
                 assert!(v1.len() == v2.len(), "Invalid enum");

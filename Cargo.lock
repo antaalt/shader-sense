@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense"
-version = "1.2.1"
+version = "1.4.1"
 dependencies = [
  "glslang",
  "hassle-rs",
@@ -1334,7 +1334,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense-cli"
-version = "0.4.1"
+version = "0.6.1"
 dependencies = [
  "colored",
  "shader-sense",
@@ -1360,7 +1360,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.2.2"
+version = "1.4.1"
 dependencies = [
  "cfg-if",
  "crossbeam-channel",
@@ -1637,8 +1637,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-wgsl-bevy"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96503dc3a7f1d17d954d2569c65143a9af03d40c6ad83f7ba5241a3965c60d0"
+source = "git+https://github.com/antaalt/tree-sitter-wgsl-bevy?branch=fix-compil-clang#bf5cc8e2163441d001fc38c4a86085b19d0b7585"
 dependencies = [
  "cc",
  "tree-sitter-language",

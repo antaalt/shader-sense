@@ -1,7 +1,5 @@
 use crate::{
-    shader::ShaderCompilationParams,
-    shader_error::ShaderError,
-    symbols::{
+    shader::{ShaderCompilationParams, ShadingLanguage}, shader_error::ShaderError, symbols::{
         hlsl::HlslSymbolRegionFinder,
         prepocessor::{ShaderPreprocessor, ShaderPreprocessorContext, ShaderRegion},
         shader_module::{ShaderModule, ShaderSymbols},
@@ -17,7 +15,7 @@ pub struct SlangRegionFinder {
 impl SlangRegionFinder {
     pub fn new() -> Self {
         Self {
-            region_finder: HlslSymbolRegionFinder::new(&tree_sitter_slang::LANGUAGE_SLANG.into()),
+            region_finder: HlslSymbolRegionFinder::new(ShadingLanguage::Slang),
         }
     }
 }

@@ -22,6 +22,7 @@ use lsp_types::{
     DocumentDiagnosticReportResult, Hover, HoverParams, RelatedFullDocumentDiagnosticReport,
     SemanticTokensParams, SemanticTokensResult, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
+use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
 };
@@ -63,6 +64,26 @@ fn get_workspace_symbol_params() -> WorkspaceSymbolParams {
         partial_result_params: PartialResultParams::default(),
     }
 }
+fn assert_no_empty_document_symbol_name(response: Option<DocumentSymbolResponse>) {
+    let symbols = response.unwrap();
+    let empty_names: Vec<String> = match symbols {
+        DocumentSymbolResponse::Nested(document_symbol) => document_symbol
+            .iter()
+            .filter(|symbol| symbol.name.trim().is_empty())
+            .map(|symbol| symbol.detail.clone().unwrap_or_default())
+            .collect(),
+        DocumentSymbolResponse::Flat(workspace_symbol) => workspace_symbol
+            .iter()
+            .filter(|symbol| symbol.name.trim().is_empty())
+            .map(|symbol| symbol.name.clone())
+            .collect(),
+    };
+    assert!(
+        empty_names.is_empty(),
+        "Document symbols must not contain empty names. Offending details: {:#?}",
+        empty_names
+    );
+}
 fn get_diagnostic_report(
     result: DocumentDiagnosticReportResult,
 ) -> RelatedFullDocumentDiagnosticReport {
@@ -81,7 +102,7 @@ fn get_diagnostic_report(
 fn test_server_wasi_runtime() {
     use test_server::TestServer;
 
-    match TestServer::wasi() {
+    match TestServer::wasi(ServerSerializedConfig::default()) {
         Some(_) => {}
         None => {
             // Should ignore test instead to be clear.
@@ -93,7 +114,7 @@ fn test_server_wasi_runtime() {
 
 #[test]
 fn test_variant() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     // Test document
     let file = TestFile::new(
@@ -137,8 +158,29 @@ fn test_variant() {
 }
 
 #[test]
+fn test_glsl_precision_statement_document_symbols_have_names() {
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/glsl/precision-only.glsl"),
+        ShadingLanguage::Glsl,
+    );
+    let document_symbol_params = get_document_symbol_params(&file);
+
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
+        assert_no_empty_document_symbol_name(response.unwrap());
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
 fn test_variant_dependency() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     // Test document
     let file_variant = TestFile::new(
@@ -232,7 +274,7 @@ fn test_variant_dependency() {
 }
 #[test]
 fn test_utf8_edit() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/utf8.hlsl"),
@@ -270,7 +312,7 @@ fn test_utf8_edit() {
 
 #[test]
 fn test_dependencies() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
@@ -307,7 +349,7 @@ fn test_dependencies() {
 
 #[test]
 fn test_server_stack_overflow() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/stack-overflow.hlsl"),
@@ -325,7 +367,7 @@ fn test_server_stack_overflow() {
 #[test]
 fn test_dependency_include_guard() {
     // Test for variant dependency to have access to symbols protected by include guard
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let variant = TestFile::new(
         Path::new("../shader-sense/test/hlsl/include-level.hlsl"),
@@ -369,7 +411,7 @@ fn test_dependency_include_guard() {
 
 #[test]
 fn test_hover() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     static FILE_PATH: &str = "../shader-sense/test/hlsl/struct.hlsl";
 
@@ -432,7 +474,7 @@ fn test_hover() {
 
 #[test]
 fn test_semantic_tokens() {
-    let mut server = TestServer::desktop().unwrap();
+    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/semantic-token.hlsl"),

@@ -1,7 +1,7 @@
 [target.wasm32-wasip1-threads]
 # Single page size = 65536 bytes
 rustflags = [
-  "-C", "link-arg=--initial-memory=10485760", # 65 536 * 160
+  "-C", "link-arg=--initial-memory=13107200", # 65 536 * 200
   # This is a lot, but necessary because glslang has a HUGE memory footprint...
   "-C", "link-arg=--max-memory=134217728", # 65 536 * 2048
   #"-C", "link-arg=--shared-memory",
@@ -19,6 +19,11 @@ runner = "wasmtime --wasi threads=y --dir ../shader-sense/test::/test"
 rustflags = ["-Z", "wasm-c-abi=spec"]
 
 # Set this to your wasi-sdk compiler to avoid picking a clang version that does not support WASI (such as vs bundled version)
+# You can download wasi-sdk here https://github.com/WebAssembly/wasi-sdk
 #[env]
 #CC = "your/path/to/wasi-sdk/bin/clang.exe"
 #CXX = "your/path/to/wasi-sdk/bin/clang++.exe"
+#WASI_SYSROOT= "your/path/to/wasi-sysroot"
+#CC = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang.exe"
+#CXX = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang++.exe"
+#WASI_SYSROOT= "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/share/wasi-sysroot"

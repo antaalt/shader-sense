@@ -52,10 +52,12 @@ jobs:
             # WASI has its own build step below.
             - os: windows-latest
               target: x86_64-pc-windows-msvc
-              executable: shader-language-server.exe
+            - os: windows-11-arm
+              target: aarch64-pc-windows-msvc
             - os: ubuntu-latest
               target: x86_64-unknown-linux-gnu
-              executable: shader-language-server
+            #- os: ubuntu-24.04-arm # not supported by DXC
+            #  target: aarch64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +68,9 @@ jobs:
       - name: Build desktop executable  # Build all package on supported os.
         run: cargo build --release --verbose --target ${{ matrix.target }} # Specify target to build into target
       - name: Copy desktop executable
-        run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ matrix.executable }} ./bin/${{ matrix.executable }}
+        run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./bin/${{ env.executable }}
+        env:
+          executable: shader-language-server${{ runner.os == 'Windows' && '.exe' || '' }}
       # TODO: Add debug symbols for supported target to bin folder.
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -106,7 +110,7 @@ jobs:
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
-        run: cargo install wasmtime-cli && cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
+        run: cargo install --version 39.0.1 wasmtime-cli && cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
         env: # Somehow this VM has clang14 by default, which is not supported...
           CC: clang-17
           CXX: clang++-17

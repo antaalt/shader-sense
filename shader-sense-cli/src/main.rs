@@ -70,6 +70,7 @@ pub fn usage() {
     println!("  -I, --include <PATH>      Add an include directory");
     println!("  -E, --entry-point <NAME>  Specify the shader entry point");
     println!("  -S, --stage <STAGE>       Specify shader stage (vertex, fragment, compute, mesh, task, control, evaluation, geometry)");
+    println!("  -P, --preamble <PATH>     Specify a path to a file that will be used as preamble (GLSL only)");
     println!("  --validate                Validate the shader");
     println!("  --functions               List functions");
     println!("  --includes                List includes");
@@ -92,10 +93,12 @@ pub fn main() {
     let mut should_validate = false;
     let mut symbol_type_to_print: HashSet<ShaderSymbolType> = HashSet::new();
     let mut shading_language = ShadingLanguage::Hlsl;
+    let mut preamble_path: Option<String> = None;
     let mut defines = Vec::new();
     let mut includes = Vec::new();
     let mut entry_point = None;
     let mut shader_stage = None;
+    let mut experimental_macro_expansion = false;
     let _exe = args.next().unwrap();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -148,6 +151,13 @@ pub fn main() {
                     usage();
                 }
             },
+            "-P" | "--preamble" => match args.next() {
+                Some(arg) => preamble_path = Some(arg),
+                None => {
+                    println!("Missing preamble path value");
+                    usage();
+                }
+            },
             "--validate" => {
                 should_validate = true;
             }
@@ -178,6 +188,9 @@ pub fn main() {
             "--help" | "-h" => {
                 usage();
             }
+            "--expand-macro" => {
+                experimental_macro_expansion = true;
+            }
             parsed_file_name => match &mut file_name {
                 Some(_) => usage(),
                 None => {
@@ -197,6 +210,7 @@ pub fn main() {
                 compilation: ShaderCompilationParams {
                     entry_point: entry_point,
                     shader_stage: shader_stage,
+                    experimental_macro_expansion: experimental_macro_expansion,
                     hlsl: HlslCompilationParams {
                         shader_model: HlslShaderModel::ShaderModel6_8,
                         version: HlslVersion::V2018,
@@ -206,6 +220,9 @@ pub fn main() {
                     glsl: GlslCompilationParams {
                         client: GlslTargetClient::Vulkan1_3,
                         spirv: GlslSpirvVersion::SPIRV1_6,
+                        preamble_path: preamble_path.clone().map(|p| p.into()),
+                        preamble_content: preamble_path
+                            .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
                     },
                     wgsl: WgslCompilationParams {},
                 },

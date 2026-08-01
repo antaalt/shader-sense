@@ -48,6 +48,8 @@ pub struct Glslang {
 }
 
 impl Glslang {
+    // Soon to be deprecated, see https://github.com/KhronosGroup/glslang/issues/4210
+    // What alternative ?
     #[allow(dead_code)] // Only used for WASI (alternative to DXC)
     pub fn hlsl() -> Self {
         Self::new(true)
@@ -123,7 +125,7 @@ impl Glslang {
         errors: &String,
         file_path: &Path,
         params: &ShaderParams,
-        offset_first_line: bool,
+        preamble_line_offset: usize,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         let mut shader_error_list = ShaderDiagnosticList::empty();
 
@@ -171,18 +173,18 @@ impl Glslang {
                         }
                     }
                 };
-                let line = {
-                    // Line is indexed from 1 in glslang, so remove one line (and another one if we offset from first line).
-                    // But sometimes, it return a line of zero (probably some non initialized position) so check this aswell.
-                    let offset = 1 + offset_first_line as u32;
+                let (line, pos) = {
+                    // Line is indexed from 1 in glslang, so remove one line (and preamble lines aswell).
+                    // But sometimes, it return a line of zero (probably some non initialized position, or preamble issues) so check this aswell.
+                    let offset = 1 + preamble_line_offset as u32;
                     let line = line.parse::<u32>().unwrap_or(offset);
                     if line < offset {
-                        0
+                        (0, 0)
                     } else {
-                        line - offset
+                        let pos = pos.parse::<u32>().unwrap_or(0);
+                        (line - offset, pos)
                     }
                 };
-                let pos = pos.parse::<u32>().unwrap_or(0);
                 shader_error_list.push(ShaderDiagnostic {
                     severity: match level {
                         "ERROR" => ShaderDiagnosticSeverity::Error,
@@ -220,17 +222,17 @@ impl Glslang {
         err: GlslangError,
         file_path: &Path,
         params: &ShaderParams,
-        offset_first_line: bool,
+        preamble_line_offset: usize,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         match err {
             GlslangError::PreprocessError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::ParseError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::LinkError(error) => {
-                self.parse_errors(&error, file_path, &params, offset_first_line)
+                self.parse_errors(&error, file_path, &params, preamble_line_offset)
             }
             GlslangError::ShaderStageNotFound(stage) => Err(ShaderError::InternalErr(format!(
                 "Shader stage not found: {:#?}",
@@ -262,29 +264,54 @@ impl ValidatorImpl for Glslang {
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         let file_name = self.get_file_name(file_path);
 
-        let (shader_stage, shader_source, offset_first_line) =
+        // Ensure we have a newline character at the end to avoid issues with offset.
+        let preamble = if let (Some(preamble_path), Some(preamble)) = (
+            &params.compilation.glsl.preamble_path,
+            &params.compilation.glsl.preamble_content,
+        ) {
+            if file_path != preamble_path {
+                if !preamble.is_empty() && !preamble.ends_with('\n') {
+                    let mut preamble = String::from(preamble);
+                    preamble.push('\n');
+                    preamble
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        let preamble_line_count = preamble.lines().count();
+
+        let (shader_stage, shader_source, preamble_line_offset) =
             if let Some(variant_stage) = params.compilation.shader_stage {
-                (variant_stage, content.into(), false)
+                (variant_stage, preamble + content, preamble_line_count)
             } else if let Some(shader_stage) = ShaderStage::from_file_name(&file_name) {
-                (shader_stage, content.into(), false)
+                (shader_stage, preamble + content, preamble_line_count)
             } else {
                 // If we dont have a stage, might require some preprocess to avoid errors.
                 // glslang **REQUIRES** to have stage for linting.
                 let default_stage = ShaderStage::Fragment;
                 if self.hlsl {
                     // HLSL does not require version, simply assume stage.
-                    (default_stage, content.into(), false)
+                    (default_stage, preamble + content, preamble_line_count)
                 } else {
                     // glslang does not support linting header file, so to lint them,
                     // Assume Fragment & add default #version if missing
-                    if content.contains("#version ") {
+                    if content.contains("#version ") || preamble.contains("#version") {
                         // Main file with missing stage.
-                        (default_stage, content.into(), false)
+                        (default_stage, preamble + content, preamble_line_count)
                     } else {
                         // Header file with missing stage & missing version.
                         // WARN: Assumed this string is one line offset only.
-                        let version_header = String::from("#version 450\n");
-                        (default_stage, version_header + content, true)
+                        let preamble_with_header = format!("#version 450\n{}", preamble);
+                        (
+                            default_stage,
+                            preamble_with_header + content,
+                            preamble_line_count + 1, // +1 for added version line.
+                        )
                     }
                 }
             };
@@ -304,13 +331,14 @@ impl ValidatorImpl for Glslang {
         );
 
         let lang_version = match params.compilation.glsl.spirv {
-            GlslSpirvVersion::SPIRV1_0 => glslang::SpirvVersion::SPIRV1_0,
-            GlslSpirvVersion::SPIRV1_1 => glslang::SpirvVersion::SPIRV1_1,
-            GlslSpirvVersion::SPIRV1_2 => glslang::SpirvVersion::SPIRV1_2,
-            GlslSpirvVersion::SPIRV1_3 => glslang::SpirvVersion::SPIRV1_3,
-            GlslSpirvVersion::SPIRV1_4 => glslang::SpirvVersion::SPIRV1_4,
-            GlslSpirvVersion::SPIRV1_5 => glslang::SpirvVersion::SPIRV1_5,
-            GlslSpirvVersion::SPIRV1_6 => glslang::SpirvVersion::SPIRV1_6,
+            GlslSpirvVersion::None => None,
+            GlslSpirvVersion::SPIRV1_0 => Some(glslang::SpirvVersion::SPIRV1_0),
+            GlslSpirvVersion::SPIRV1_1 => Some(glslang::SpirvVersion::SPIRV1_1),
+            GlslSpirvVersion::SPIRV1_2 => Some(glslang::SpirvVersion::SPIRV1_2),
+            GlslSpirvVersion::SPIRV1_3 => Some(glslang::SpirvVersion::SPIRV1_3),
+            GlslSpirvVersion::SPIRV1_4 => Some(glslang::SpirvVersion::SPIRV1_4),
+            GlslSpirvVersion::SPIRV1_5 => Some(glslang::SpirvVersion::SPIRV1_5),
+            GlslSpirvVersion::SPIRV1_6 => Some(glslang::SpirvVersion::SPIRV1_6),
         };
         let input = match ShaderInput::new(
             &source,
@@ -323,25 +351,37 @@ impl ValidatorImpl for Glslang {
                 },
                 // Should have some settings to select these.
                 target: if self.hlsl {
-                    glslang::Target::None(Some(lang_version))
+                    glslang::Target::None(lang_version)
                 } else {
-                    if params.compilation.glsl.client.is_opengl() {
-                        glslang::Target::OpenGL {
+                    match params.compilation.glsl.client {
+                        GlslTargetClient::None => glslang::Target::None(None),
+                        GlslTargetClient::Vulkan1_0
+                        | GlslTargetClient::Vulkan1_1
+                        | GlslTargetClient::Vulkan1_2
+                        | GlslTargetClient::Vulkan1_3 => {
+                            let client_version = match params.compilation.glsl.client {
+                                GlslTargetClient::Vulkan1_0 => glslang::VulkanVersion::Vulkan1_0,
+                                GlslTargetClient::Vulkan1_1 => glslang::VulkanVersion::Vulkan1_1,
+                                GlslTargetClient::Vulkan1_2 => glslang::VulkanVersion::Vulkan1_2,
+                                GlslTargetClient::Vulkan1_3 => glslang::VulkanVersion::Vulkan1_3,
+                                _ => unreachable!(),
+                            };
+                            if let Some(lang_version) = lang_version {
+                                glslang::Target::Vulkan {
+                                    version: client_version,
+                                    spirv_version: lang_version,
+                                }
+                            } else {
+                                return Err(ShaderError::ValidationError(
+                                    "Trying to set glsl client Vulkan but no SPIRV version set."
+                                        .into(),
+                                ));
+                            }
+                        }
+                        GlslTargetClient::OpenGL450 => glslang::Target::OpenGL {
                             version: glslang::OpenGlVersion::OpenGL4_5,
-                            spirv_version: None, // TODO ?
-                        }
-                    } else {
-                        let client_version = match params.compilation.glsl.client {
-                            GlslTargetClient::Vulkan1_0 => glslang::VulkanVersion::Vulkan1_0,
-                            GlslTargetClient::Vulkan1_1 => glslang::VulkanVersion::Vulkan1_1,
-                            GlslTargetClient::Vulkan1_2 => glslang::VulkanVersion::Vulkan1_2,
-                            GlslTargetClient::Vulkan1_3 => glslang::VulkanVersion::Vulkan1_3,
-                            _ => unreachable!(),
-                        };
-                        glslang::Target::Vulkan {
-                            version: client_version,
                             spirv_version: lang_version,
-                        }
+                        },
                     }
                 },
                 messages: glslang::ShaderMessage::CASCADING_ERRORS
@@ -352,12 +392,19 @@ impl ValidatorImpl for Glslang {
                     } else {
                         glslang::ShaderMessage::DEFAULT
                     },
+                // Could expose these, but it still need to be written in code:
+                // - 100 : es (WebGL 1.0)
+                // - 300 : es (WebGL 2.0)
+                // - 110 : core (Desktop OpenGL 2.0)
+                // - 150 : core (Desktop OpenGL 3.2)
+                // - 450 : core (Desktop OpenGL 4.5)
+                //version_profile: Some((100, glslang::GlslProfile::None)),
                 ..Default::default()
             },
             Some(&defines),
             Some(&mut include_handler),
         )
-        .map_err(|e| self.from_glslang_error(e, file_path, &params, offset_first_line))
+        .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
             Err(error) => match error {
@@ -366,7 +413,7 @@ impl ValidatorImpl for Glslang {
             },
         };
         let _shader = match glslang::Shader::new(&self.compiler, input)
-            .map_err(|e| self.from_glslang_error(e, file_path, &params, offset_first_line))
+            .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
             Err(error) => match error {

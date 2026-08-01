@@ -21,6 +21,7 @@ fn run_server(
     config: ServerConfig,
     transport: Transport,
     shading_language: HashSet<ShadingLanguage>,
+    initialization_errors: Vec<String>,
 ) {
     info!(
         "shader-language-server v{} ({}-{}-{})",
@@ -38,7 +39,7 @@ fn run_server(
             current_dir.display()
         );
     }
-    server::run(config, transport, shading_language);
+    server::run(config, transport, shading_language, initialization_errors);
 }
 
 fn usage() {
@@ -71,6 +72,7 @@ pub fn main() {
     let mut transport = Transport::default();
     let mut config = ServerConfig::default();
     let mut shading_language = HashSet::new();
+    let mut initialization_errors = Vec::new();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--version" => return print_version(),
@@ -82,6 +84,12 @@ pub fn main() {
                     match serde_json::from_str::<ServerSerializedConfig>(&config_str) {
                         Ok(config_parsed) => {
                             info!("Parsed config {:?}", config_parsed);
+                            if let Err(errors) = config_parsed.validate() {
+                                initialization_errors.push(format!(
+                                    "Config for argument --config failed validation:\n{}",
+                                    errors.join("\n\t")
+                                ));
+                            }
                             config = config_parsed.compute_engine_config();
                         }
                         Err(err) => {
@@ -101,6 +109,9 @@ pub fn main() {
                             match serde_json::from_str::<ServerSerializedConfig>(&config_str) {
                                 Ok(config_parsed) => {
                                     info!("Parsed config {:?}", config_parsed);
+                                    if let Err(errors) = config_parsed.validate() {
+                                        initialization_errors.push(format!("Config for argument --config-file failed validation:\n{}", errors.join("\n\t")));
+                                    }
                                     config = config_parsed.compute_engine_config();
                                 }
                                 Err(err) => {
@@ -156,5 +167,5 @@ pub fn main() {
         shading_language.insert(ShadingLanguage::Hlsl);
         shading_language.insert(ShadingLanguage::Wgsl);
     }
-    run_server(config, transport, shading_language);
+    run_server(config, transport, shading_language, initialization_errors);
 }
