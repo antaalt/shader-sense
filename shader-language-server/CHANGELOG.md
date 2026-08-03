@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.4.2] - 2026-08-03
+
 ### Fixed
 
 - Glslang now support WebGL validation by setting None as target client and SPIRV.
@@ -471,7 +473,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.1...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/antaalt/shader-sense/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/antaalt/shader-sense/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
