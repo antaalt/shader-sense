@@ -71,6 +71,7 @@ pub fn usage() {
     println!("  -E, --entry-point <NAME>  Specify the shader entry point");
     println!("  -S, --stage <STAGE>       Specify shader stage (vertex, fragment, compute, mesh, task, control, evaluation, geometry)");
     println!("  -P, --preamble <PATH>     Specify a path to a file that will be used as preamble (GLSL only)");
+    println!("  --target-client           Specify GLSL target client");
     println!("  --validate                Validate the shader");
     println!("  --functions               List functions");
     println!("  --includes                List includes");
@@ -99,6 +100,7 @@ pub fn main() {
     let mut entry_point = None;
     let mut shader_stage = None;
     let mut experimental_macro_expansion = false;
+    let mut target_client = GlslTargetClient::Vulkan1_3;
     let _exe = args.next().unwrap();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -155,6 +157,21 @@ pub fn main() {
                 Some(arg) => preamble_path = Some(arg),
                 None => {
                     println!("Missing preamble path value");
+                    usage();
+                }
+            },
+            "--target-client" => match args.next() {
+                Some(client) => match client.as_str() {
+                "vulkan1_0" => target_client = GlslTargetClient::Vulkan1_0,
+                "vulkan1_1" => target_client = GlslTargetClient::Vulkan1_1,
+                "vulkan1_2" => target_client = GlslTargetClient::Vulkan1_2,
+                "vulkan1_3" => target_client = GlslTargetClient::Vulkan1_3,
+                "opengl450" => target_client = GlslTargetClient::OpenGL450,
+                client => println!("Unknown GLSL target client {}", client),
+
+                },
+                None=> {
+                    println!("Missing GLSL target client");
                     usage();
                 }
             },
@@ -218,7 +235,7 @@ pub fn main() {
                         spirv: false,
                     },
                     glsl: GlslCompilationParams {
-                        client: GlslTargetClient::Vulkan1_3,
+                        client: target_client,
                         spirv: GlslSpirvVersion::SPIRV1_6,
                         preamble_path: preamble_path.clone().map(|p| p.into()),
                         preamble_content: preamble_path
