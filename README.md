@@ -29,6 +29,111 @@ This library is using an intrinsic json database that is parsed with [shader-int
 ## Documentation
 
 Documentation can be found on [doc.rs](https://docs.rs/shader-sense/latest/shader_sense/)
+<details>
+<summary>Lsp configuration json </summary>
+<br/>
+  
+json configuration for the server to be sent through `workspace/configuration` Lsp request or as input when starting the server.
+
+```text
+shader-validator: 
+    {
+      includes: string[] | null                     // Include folders to check
+      defines: { string: string } | null            // Defines to set
+      pathRemapping: { string: string } | null      // Virtual path remapping
+      validate: bool | null                         // Validation via standard API
+      symbols: bool | null                          // Query symbols
+      symbolDiagnostics: bool | null                // Debug option to visualize issues with tree-sitter
+      automaticVariantDiscovery: bool | null        // Reuse a dependent main-file context for document diagnostics
+      experimentalMacroExpansion: bool | null       // Experimental test for macro expansion
+
+      stageDefine: {
+        ShaderStage: { string: string }
+      } | null                                      // Macros defined per shader stage
+
+      trace: {
+        server: "off" | "messages" | "verbose"
+      } | null                                      // Level of server tracing
+
+      severity: string | null                       // Diagnostic severity to display
+      configOverride: string | null                 // Override configuration file
+
+      hlsl: {
+        shaderModel: HlslShaderModel | null
+        version: HlslVersion | null
+        enable16bitTypes: bool | null
+        spirv: bool | null
+      } | null                                      // HLSL-specific configuration
+
+      glsl: {
+        targetClient: GlslTargetClient | null
+        spirvVersion: GlslSpirvVersion | null
+        preamble: string | null                     // Path to a preamble file
+      } | null                                      // GLSL-specific configuration
+    }
+
+    ShaderStage =
+      "vertex"
+      | "fragment"                                  // aka pixel shader
+      | "compute"
+      | "tesselationControl"                        // aka hull shader
+      | "tesselationEvaluation"                     // aka domain shader
+      | "mesh"
+      | "task"                                      // aka amplification shader
+      | "geometry"
+      | "rayGeneration"
+      | "closestHit"
+      | "anyHit"
+      | "callable"
+      | "miss"
+      | "intersect"
+
+    HlslShaderModel =
+      "ShaderModel1"
+      | "ShaderModel1_1"
+      | "ShaderModel1_2"
+      | "ShaderModel1_3"
+      | "ShaderModel1_4"
+      | "ShaderModel2"
+      | "ShaderModel3"
+      | "ShaderModel4"
+      | "ShaderModel4_1"
+      | "ShaderModel5"
+      | "ShaderModel5_1"
+      | "ShaderModel6"
+      | "ShaderModel6_1"
+      | "ShaderModel6_2"
+      | "ShaderModel6_3"
+      | "ShaderModel6_4"
+      | "ShaderModel6_5"
+      | "ShaderModel6_6"
+      | "ShaderModel6_7"
+      | "ShaderModel6_8"                            // default
+
+    HlslVersion =
+      "V2016"
+      | "V2017"
+      | "V2018"
+      | "V2021"                                     // default
+
+    GlslTargetClient =
+      "Vulkan1_0"
+      | "Vulkan1_1"
+      | "Vulkan1_2"
+      | "Vulkan1_3"                                 // default
+      | "OpenGL450"
+
+    GlslSpirvVersion =
+      "SPIRV1_0"
+      | "SPIRV1_1"
+      | "SPIRV1_2"
+      | "SPIRV1_3"
+      | "SPIRV1_4"
+      | "SPIRV1_5"
+      | "SPIRV1_6"                                  // default
+    }
+```
+</details>
 
 ## Build for WASI
 
