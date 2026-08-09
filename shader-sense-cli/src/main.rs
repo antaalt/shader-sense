@@ -227,8 +227,15 @@ pub fn main() {
                     wgsl: WgslCompilationParams {},
                 },
             };
+
             let shader_path = Path::new(&file_name);
-            let shader_content = std::fs::read_to_string(shader_path).unwrap();
+            let shader_content = match std::fs::read_to_string(shader_path) {
+                Ok(shader_content) => shader_content,
+                Err(_) => {
+                    println!("{} {1}", "Failed to read file".red(), file_name.red());
+                    return;
+                }
+            };
             // By default validate (if we dont parse symbols)
             if should_validate || symbol_type_to_print.is_empty() {
                 // Validator intended to validate a file using standard API.
