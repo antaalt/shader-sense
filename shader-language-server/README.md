@@ -110,14 +110,9 @@ Currently, the server only support stdio transport.
 
 The communication with the server is done via stdin and stdout, while the logs are printed into stderr.
 
+### Tcp Listen / Connect
 
-### Tcp
-
-To be implemented
-
-### Memory
-
-To be implemented, mostly for debug
+The communication with the server is done via tcp
 
 ## Specific features
 
