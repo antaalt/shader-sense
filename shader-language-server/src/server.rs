@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::format;
+use std::net::SocketAddr;
 use std::num::NonZero;
 use std::str::FromStr;
 use std::time::Duration;
@@ -107,8 +108,8 @@ fn shader_error_to_lsp_error(error: &ServerLanguageError) -> ErrorCode {
 pub enum Transport {
     #[default]
     Stdio,
-    Tcp,    // TODO: supported by lsp_server
-    Memory, // TODO: supported by lsp_server
+    TcpListen(SocketAddr),
+    TcpConnect(SocketAddr),
 }
 
 impl ServerLanguage {
@@ -116,18 +117,18 @@ impl ServerLanguage {
         config: ServerConfig,
         transport: Transport,
         supported_shading_languages: HashSet<ShadingLanguage>,
-    ) -> Self {
-        assert!(
-            transport == Transport::Stdio,
-            "Only stdio transport implemented for now"
-        );
+    ) -> std::io::Result<Self> {
         // Run the server and wait for the two threads to end (typically by trigger LSP Exit event).
         info!(
             "Creating server with transport {:?} and config {:#?}",
             transport, config
         );
-        Self {
-            connection: ServerConnection::new(),
+        Ok(Self {
+            connection: match transport {
+                Transport::Stdio => ServerConnection::stdio(),
+                Transport::TcpListen(socket_addr) => ServerConnection::listen(socket_addr)?,
+                Transport::TcpConnect(socket_addr) => ServerConnection::connect(socket_addr)?,
+            },
             watched_files: ServerLanguageFileCache::new(),
             config: config,
             language_data: supported_shading_languages
@@ -144,7 +145,7 @@ impl ServerLanguage {
             // Else when recomputing a file, we will recreate all regex and reinsert
             // them instead of reading from cache. So we update it size at runtime.
             regex_cache: LruCache::new(NonZero::new(50).unwrap()),
-        }
+        })
     }
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         let is_clang_format_available = Self::is_clang_format_available();
@@ -1131,7 +1132,13 @@ pub fn run(
     shading_language: HashSet<ShadingLanguage>,
     initialization_errors: Vec<String>,
 ) {
-    let mut server = ServerLanguage::new(config, transport, shading_language);
+    let mut server = match ServerLanguage::new(config, transport, shading_language) {
+        Ok(server) => server,
+        Err(error) => {
+            error!("Server failed to create transport: {:#?}", error);
+            return;
+        }
+    };
 
     match server.initialize() {
         Ok(_) => info!("Server initialization successfull"),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::ToSocketAddrs};
 
 use log::error;
 use lsp_server::{Connection, IoThreads, Message, RequestId, Response};
@@ -20,7 +20,7 @@ pub struct ServerConnection {
 }
 
 impl ServerConnection {
-    pub fn new() -> Self {
+    pub fn stdio() -> Self {
         // Create the transport. Includes the stdio (stdin and stdout) versions but this could
         // also be implemented to use sockets or HTTP.
         let (connection, io_threads) = Connection::stdio();
@@ -30,6 +30,28 @@ impl ServerConnection {
             request_id: 0,
             request_callbacks: HashMap::new(),
         }
+    }
+    pub fn listen<A: ToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+        // Create the transport. Includes the stdio (stdin and stdout) versions but this could
+        // also be implemented to use sockets or HTTP.
+        let (connection, io_threads) = Connection::listen(addr)?;
+        Ok(Self {
+            connection,
+            io_threads: Some(io_threads),
+            request_id: 0,
+            request_callbacks: HashMap::new(),
+        })
+    }
+    pub fn connect<A: ToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+        // Create the transport. Includes the stdio (stdin and stdout) versions but this could
+        // also be implemented to use sockets or HTTP.
+        let (connection, io_threads) = Connection::connect(addr)?;
+        Ok(Self {
+            connection,
+            io_threads: Some(io_threads),
+            request_id: 0,
+            request_callbacks: HashMap::new(),
+        })
     }
     pub fn initialize(
         &mut self,

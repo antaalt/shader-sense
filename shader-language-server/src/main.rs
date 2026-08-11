@@ -60,8 +60,8 @@ fn usage() {
     println!("  --wgsl                    Add support for wgsl language id.");
     println!("Transport:");
     println!("  --stdio                   Use the stdio transport. Default transport.");
-    println!("  --tcp                     Use tcp transport. Not implemented yet.");
-    println!("  --memory                  Use memory transport. Not implemented yet.");
+    println!("  --tcp-listen <IP addr>    Listen for a connection on given address.");
+    println!("  --tcp-connect <IP addr>   Connect to a tcp stream at given address.");
 }
 
 pub fn main() {
@@ -140,8 +140,32 @@ pub fn main() {
                 shading_language.insert(ShadingLanguage::Glsl);
             }
             "--stdio" => transport = Transport::Stdio,
-            "--tcp" => transport = Transport::Tcp,
-            "--memory" => transport = Transport::Memory,
+            "--tcp-listen" => {
+                if let Some(address) = args.next() {
+                    if let Ok(address) = address.parse() {
+                        transport = Transport::TcpListen(address);
+                    } else {
+                        error!("Failed to parse IP for --tcp-listen: {}", address);
+                        return usage();
+                    }
+                } else {
+                    error!("Missing file path for argument --tcp-listen");
+                    return usage();
+                }
+            }
+            "--tcp-connect" => {
+                if let Some(address) = args.next() {
+                    if let Ok(address) = address.parse() {
+                        transport = Transport::TcpConnect(address);
+                    } else {
+                        error!("Failed to parse IP for --tcp-connect: {}", address);
+                        return usage();
+                    }
+                } else {
+                    error!("Missing file path for argument --tcp-connect");
+                    return usage();
+                }
+            }
             "--cwd" => {
                 if let Some(cwd) = args.next() {
                     match std::env::set_current_dir(cwd) {
