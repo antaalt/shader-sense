@@ -619,5 +619,3 @@ fn test_semantic_tokens() {
         text_document: file.identifier(),
     });
 }
-
-// Test missing: inlay hint, document symbol, workspace symbol

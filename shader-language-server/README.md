@@ -8,11 +8,11 @@ This application is a language server for shaders (HLSL, GLSL, WGSL) that is mai
 
 It can be launched using the following options:
 ```bash
-    --config                    Pass a custom config as a JSON string for server.
-    --config-file               Pass a custom config as a file for server.
+    --config                    Pass a custom config as a JSON string for server. See configuration section for the expected format.
+    --config-file               Pass a custom config as a file for server. See configuration section for the expected format.
     --cwd                       Set current working directory of server. If not set, will be the server executable path.
-    --version | -v              Print server version.
-    --help | -h                 Print this helper.
+    --version | -v              Print server version and exit.
+    --help | -h                 Print this helper and exit.
     --hlsl                      Add support for hlsl language id.
     --glsl                      Add support for glsl language id.
     --wgsl                      Add support for wgsl language id.
@@ -177,4 +177,4 @@ Symbols are retrieved using queries based on [tree-sitter](https://tree-sitter.g
 
 ## Web support
 
-This server can be run in the browser when compiled to WASI. Because of this restriction, we can't use dxc here as it does not compile to WASI and instead rely on glslang, which is more limited in linting (Only support some basic features of SM 6.0, while DXC support all newly added SM (current 6.8)).
+This server can be run in the browser when compiled to [WASI](https://wasi.dev/). Because of this restriction, we can't use dxc here as it does not compile to WASI and instead rely on glslang, which is more limited in linting (Only support some basic features of SM 6.0, while DXC support all newly added SM (current 6.8)).

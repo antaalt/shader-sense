@@ -60,8 +60,8 @@ fn usage() {
     println!("  --wgsl                    Add support for wgsl language id.");
     println!("Transport:");
     println!("  --stdio                   Use the stdio transport. Default transport.");
-    println!("  --tcp-listen <IP addr>    Listen for a connection on given address.");
-    println!("  --tcp-connect <IP addr>   Connect to a tcp stream at given address.");
+    println!("  --tcp-listen <IP addr>    Listen for a connection on given address and port.");
+    println!("  --tcp-connect <IP addr>   Connect to a tcp stream at given address and port.");
 }
 
 pub fn main() {
@@ -74,10 +74,8 @@ pub fn main() {
     let mut initialization_errors = Vec::new();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--version" => return print_version(),
-            "-v" => return print_version(),
-            "--help" => return usage(),
-            "-h" => return usage(),
+            "--version" | "-v" => return print_version(),
+            "--help" | "-h" => return usage(),
             "--config" => {
                 if let Some(config_str) = args.next() {
                     match serde_json::from_str::<ServerSerializedConfig>(&config_str) {

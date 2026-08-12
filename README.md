@@ -28,7 +28,7 @@ This library is using an intrinsic json database that is parsed with [shader-int
 
 ## Documentation
 
-Documentation can be found on [doc.rs](https://docs.rs/shader-sense/latest/shader_sense/)
+Documentation can be found on [doc.rs](https://docs.rs/shader-sense/latest/shader_sense/) and in local crates README
 
 ## Build for WASI
 
