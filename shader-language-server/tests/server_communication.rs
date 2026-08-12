@@ -5,7 +5,9 @@
 use core::panic;
 use std::collections::HashMap;
 use std::iter::zip;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::path::Path;
+use std::str::FromStr;
 
 use lsp_types::request::{
     DocumentDiagnosticRequest, HoverRequest, SemanticTokensFullRequest, WorkspaceSymbolRequest,
@@ -26,6 +28,7 @@ use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
 };
+use shader_language_server::server::Transport;
 use shader_sense::position::ShaderPosition;
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use test_server::{TestFile, TestServer};
@@ -113,8 +116,72 @@ fn test_server_wasi_runtime() {
 }
 
 #[test]
+fn test_communication_stdio() {
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    // Test document
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
+        ShadingLanguage::Hlsl,
+    );
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_communication_tcp_connect() {
+    let mut server = TestServer::desktop(
+        ServerSerializedConfig::default(),
+        Transport::TcpConnect(SocketAddr::V4(
+            SocketAddrV4::from_str("127.0.0.1:45365").unwrap(),
+        )),
+    )
+    .unwrap();
+
+    // Test document
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
+        ShadingLanguage::Hlsl,
+    );
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+#[test]
+fn test_communication_tcp_listen() {
+    let mut server = TestServer::desktop(
+        ServerSerializedConfig::default(),
+        Transport::TcpListen(SocketAddr::V4(
+            SocketAddrV4::from_str("127.0.0.1:45366").unwrap(),
+        )),
+    )
+    .unwrap();
+
+    // Test document
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
+        ShadingLanguage::Hlsl,
+    );
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
 fn test_variant() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test document
     let file = TestFile::new(
@@ -159,7 +226,8 @@ fn test_variant() {
 
 #[test]
 fn test_glsl_precision_statement_document_symbols_have_names() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/precision-only.glsl"),
@@ -180,7 +248,8 @@ fn test_glsl_precision_statement_document_symbols_have_names() {
 
 #[test]
 fn test_variant_dependency() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test document
     let file_variant = TestFile::new(
@@ -274,7 +343,8 @@ fn test_variant_dependency() {
 }
 #[test]
 fn test_utf8_edit() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/utf8.hlsl"),
@@ -312,7 +382,8 @@ fn test_utf8_edit() {
 
 #[test]
 fn test_dependencies() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
@@ -349,7 +420,8 @@ fn test_dependencies() {
 
 #[test]
 fn test_server_stack_overflow() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/stack-overflow.hlsl"),
@@ -367,7 +439,8 @@ fn test_server_stack_overflow() {
 #[test]
 fn test_dependency_include_guard() {
     // Test for variant dependency to have access to symbols protected by include guard
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let variant = TestFile::new(
         Path::new("../shader-sense/test/hlsl/include-level.hlsl"),
@@ -411,7 +484,8 @@ fn test_dependency_include_guard() {
 
 #[test]
 fn test_hover() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     static FILE_PATH: &str = "../shader-sense/test/hlsl/struct.hlsl";
 
@@ -474,7 +548,8 @@ fn test_hover() {
 
 #[test]
 fn test_semantic_tokens() {
-    let mut server = TestServer::desktop(ServerSerializedConfig::default()).unwrap();
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/semantic-token.hlsl"),
@@ -544,3 +619,5 @@ fn test_semantic_tokens() {
         text_document: file.identifier(),
     });
 }
+
+// Test missing: inlay hint, document symbol, workspace symbol

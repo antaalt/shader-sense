@@ -13,7 +13,7 @@ use lsp_types::{
     WorkDoneProgressParams,
 };
 use serde_json::json;
-use shader_language_server::server::server_config::ServerSerializedConfig;
+use shader_language_server::server::{server_config::ServerSerializedConfig, Transport};
 use shader_sense::shader::ShadingLanguage;
 
 use crate::test_server::{TestFile, TestServer};
@@ -56,7 +56,7 @@ fn test_glsl_relative_preamble() {
         }
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config).unwrap();
+    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/dependent-include.frag.glsl"),
@@ -94,7 +94,7 @@ fn test_validate() {
         "validate": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config).unwrap();
+    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/error-parsing.frag.glsl"),
@@ -132,7 +132,7 @@ fn test_symbols() {
         "symbols": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config).unwrap();
+    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
@@ -161,7 +161,7 @@ fn test_partial_config_update() {
         "symbols": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config).unwrap();
+    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
 
     // Partial update that should not reset symbols
     server.update_configuration(json!({

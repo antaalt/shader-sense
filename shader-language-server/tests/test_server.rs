@@ -2,7 +2,8 @@ use core::panic;
 use std::{
     collections::HashMap,
     env,
-    io::{self, BufReader, Read},
+    io::{self, BufRead, BufReader, BufWriter, Read, Write},
+    net::{TcpListener, TcpStream},
     path::Path,
     process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
 };
@@ -14,7 +15,7 @@ use lsp_types::{
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
 };
 use serde_json::Value;
-use shader_language_server::server::server_config::ServerSerializedConfig;
+use shader_language_server::server::{server_config::ServerSerializedConfig, Transport};
 use shader_sense::{include::canonicalize, shader::ShadingLanguage};
 
 pub struct TestFile {
@@ -58,11 +59,50 @@ impl TestFile {
     }
 }
 
-pub struct TestServer {
-    child: Child,
+struct StdioConnection {
     stdin: ChildStdin,
     reader: BufReader<ChildStdout>,
     err_reader: BufReader<ChildStderr>,
+}
+
+struct TcpConnection {
+    _stream: TcpStream,
+    reader: BufReader<TcpStream>,
+    writer: BufWriter<TcpStream>,
+    err_reader: BufReader<ChildStderr>,
+}
+
+enum Connection {
+    Stdio(StdioConnection),
+    Tcp(TcpConnection),
+}
+
+impl Connection {
+    fn read_err_to_string(&mut self, string: &mut String) -> io::Result<usize> {
+        match self {
+            Connection::Stdio(stdio_connection) => {
+                stdio_connection.err_reader.read_to_string(string)
+            }
+            Connection::Tcp(tcp_connection) => tcp_connection.err_reader.read_to_string(string),
+        }
+    }
+    fn write(&mut self) -> &mut dyn Write {
+        match self {
+            Connection::Stdio(stdio_connection) => &mut stdio_connection.stdin,
+            Connection::Tcp(tcp_connection) => &mut tcp_connection.writer,
+        }
+    }
+    fn read(&mut self) -> &mut dyn BufRead {
+        match self {
+            Connection::Stdio(stdio_connection) => &mut stdio_connection.reader,
+            Connection::Tcp(tcp_connection) => &mut tcp_connection.reader,
+        }
+    }
+}
+
+pub struct TestServer {
+    child: Child,
+    connection: Connection,
     request_id: i32,
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
@@ -105,9 +145,9 @@ impl TestServer {
             .env("RUST_LOG", "shader_language_server=trace")
             .spawn()
             .unwrap();
-        Some(Self::from_child(child))
+        Some(Self::from_child(child, Transport::Stdio))
     }
-    pub fn desktop(config: ServerSerializedConfig) -> Option<TestServer> {
+    pub fn desktop(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
         use std::path::Path;
 
         use shader_sense::include::canonicalize;
@@ -127,29 +167,73 @@ impl TestServer {
         }
         assert!(test_folder.is_dir(), "Missing Test folder");
         let serialized_config = serde_json::to_string(&config).unwrap();
+        let (transport_parameter, transport_arg) = match transport {
+            Transport::Stdio => ("--stdio", "".to_string()),
+            Transport::TcpListen(socket_addr) => ("--tcp-listen", socket_addr.to_string()),
+            Transport::TcpConnect(socket_addr) => ("--tcp-connect", socket_addr.to_string()),
+        };
         let child = Command::new(server_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .env("RUST_BACKTRACE", "full")
             .env("RUST_LOG", "shader_language_server=trace")
-            .args(["--config", &serialized_config])
+            .args([
+                "--config",
+                &serialized_config,
+                transport_parameter,
+                &transport_arg,
+            ])
             .spawn()
             .unwrap();
-        Some(Self::from_child(child))
+        Some(Self::from_child(child, transport))
     }
-    fn from_child(mut child: Child) -> TestServer {
-        let stdin = child.stdin.take().expect("Failed to open stdin");
-        let stdout = child.stdout.take().expect("Failed to open stdout");
-        let stderr = child.stderr.take().expect("Failed to open stdout");
-        let reader = BufReader::new(stdout);
-        let err_reader = BufReader::new(stderr);
+    fn from_child(mut child: Child, transport: Transport) -> TestServer {
+        let connection = match transport {
+            Transport::Stdio => {
+                let stdin = child.stdin.take().expect("Failed to open stdin");
+                let stdout = child.stdout.take().expect("Failed to open stdout");
+                let stderr = child.stderr.take().expect("Failed to open stdout");
+                let reader = BufReader::new(stdout);
+                let err_reader = BufReader::new(stderr);
+                Connection::Stdio(StdioConnection {
+                    reader,
+                    err_reader,
+                    stdin,
+                })
+            }
+            Transport::TcpListen(socket_addr) => {
+                let stream = TcpStream::connect(socket_addr).unwrap();
+                let stderr = child.stderr.take().expect("Failed to open stdout");
+                let writer = BufWriter::new(stream.try_clone().unwrap());
+                let reader = BufReader::new(stream.try_clone().unwrap());
+                let err_reader = BufReader::new(stderr);
+                Connection::Tcp(TcpConnection {
+                    _stream: stream,
+                    reader,
+                    writer,
+                    err_reader,
+                })
+            }
+            Transport::TcpConnect(socket_addr) => {
+                let listener = TcpListener::bind(socket_addr).unwrap();
+                let stderr = child.stderr.take().expect("Failed to open stdout");
+                let (stream, _addr) = listener.accept().unwrap();
+                let writer = BufWriter::new(stream.try_clone().unwrap());
+                let reader = BufReader::new(stream.try_clone().unwrap());
+                let err_reader = BufReader::new(stderr);
+                Connection::Tcp(TcpConnection {
+                    _stream: stream,
+                    reader,
+                    writer,
+                    err_reader,
+                })
+            }
+        };
         let mut server = TestServer {
             child: child,
+            connection,
             request_id: 0,
-            reader,
-            err_reader,
-            stdin,
             notification_handler: HashMap::new(),
         };
         // Send an LSP initialize request
@@ -163,7 +247,7 @@ impl TestServer {
     }
     fn get_server_stderr(&mut self) -> io::Result<String> {
         let mut errors = String::new();
-        self.err_reader.read_to_string(&mut errors)?;
+        self.connection.read_err_to_string(&mut errors)?;
         Ok(errors)
     }
     fn exit(&mut self) {
@@ -197,10 +281,10 @@ impl TestServer {
         ));
         self.request_id += 1;
         println!("Send request: {}", serde_json::to_string(&request).unwrap());
-        lsp_server::Message::write(request, &mut self.stdin).unwrap();
+        lsp_server::Message::write(request, &mut self.connection.write()).unwrap();
         // Wait for response
         loop {
-            let message = lsp_server::Message::read(&mut self.reader).unwrap();
+            let message = lsp_server::Message::read(&mut self.connection.read()).unwrap();
             println!("Received message: {:?}", message);
             match message {
                 Some(message) => match message {
@@ -221,9 +305,7 @@ impl TestServer {
                     lsp_server::Message::Request(request) => self.on_request(request),
                 },
                 None => {
-                    let mut errors = String::new();
-                    self.err_reader.read_to_string(&mut errors).unwrap();
-                    panic!("Server crashed:\n{}", errors);
+                    panic!("Server crashed:\n{}", self.get_server_stderr().unwrap());
                 }
             }
         }
@@ -240,7 +322,7 @@ impl TestServer {
             "Send notification: {}",
             serde_json::to_string(&notification).unwrap()
         );
-        lsp_server::Message::write(notification, &mut self.stdin).unwrap();
+        lsp_server::Message::write(notification, &mut self.connection.write()).unwrap();
     }
     pub fn send_response<T: lsp_types::request::Request>(
         &mut self,
@@ -252,7 +334,7 @@ impl TestServer {
             "Send response: {}",
             serde_json::to_string(&response).unwrap()
         );
-        lsp_server::Message::write(response, &mut self.stdin).unwrap();
+        lsp_server::Message::write(response, &mut self.connection.write()).unwrap();
     }
     #[allow(dead_code)]
     pub fn update_configuration(&mut self, json: serde_json::Value) {
@@ -262,7 +344,7 @@ impl TestServer {
         self.expect_request::<WorkspaceConfiguration>(vec![json]);
     }
     fn expect_request<T: lsp_types::request::Request>(&mut self, response: T::Result) {
-        let message = lsp_server::Message::read(&mut self.reader).unwrap();
+        let message = lsp_server::Message::read(&mut self.connection.read()).unwrap();
         println!("Received message: {:?}", message);
         match message.unwrap() {
             lsp_server::Message::Request(request) => {
