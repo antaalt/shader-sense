@@ -4,5 +4,10 @@
     ],
     "defines": {
         "MY_MACRO": "1"
+    },
+    "stageDefine": {
+        "fragment": {
+            "VARIANT_DEFINE": "1"
+        }
     }
 }

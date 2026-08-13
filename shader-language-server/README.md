@@ -72,7 +72,7 @@ interface ServerConfig {
     }?, // Specific macro defined per shader stage
     trace: 'off' | 'messages' | 'verbose' | null, // Level of error to display
     severity: 'error' | 'warning'| 'info'| 'hint' | null, // Severity of diagnostic to display
-    configOverride: string?, // Path to a JSON containig some information formated following `ServerConfigOverride`
+    configOverride: string?, // Path to a JSON containig some configuration formatted following `ServerConfigOverride`
     hlsl: {
         shaderModel: 'ShaderModel6' | 'ShaderModel6_1' | 'ShaderModel6_2' | 'ShaderModel6_3' | 'ShaderModel6_4' | 'ShaderModel6_5' | 'ShaderModel6_6' | 'ShaderModel6_7' | 'ShaderModel6_8' | null,
         version: 'V2016' | 'V2017' | 'V2018' | 'V2021' | null,
@@ -82,29 +82,21 @@ interface ServerConfig {
     glsl: {
         targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null,
         spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null,
+        preamble: string?, // Path to a file which content will be added at start of every GLSL files.
     }?, // Glsl specific configuration
 }
-// Config that can be loaded by server through configOverride option.
+// Configuration that can be loaded by server through configOverride option. Useful for engine specific configuration to be swapped.
 interface ServerConfigOverride {
     includes: string[]?,
     defines: { string: string }?,
     pathRemapping: { string: string }?,
-    hlsl: {
-        shaderModel: 'ShaderModel6' | 'ShaderModel6_1' | 'ShaderModel6_2' | 'ShaderModel6_3' | 'ShaderModel6_4' | 'ShaderModel6_5' | 'ShaderModel6_6' | 'ShaderModel6_7' | 'ShaderModel6_8' | null,
-        version: 'V2016' | 'V2017' | 'V2018' | 'V2021' | null,
-        enable16bitTypes: boolean?,
-        spirv: boolean?,
-    }?, // Hlsl specific configuration
-    glsl: {
-        targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null,
-        spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null,
-    }?, // Glsl specific configuration
+    stageDefine: { ... } // Same as ServerConfig
+    hlsl: { ... }?, // Same as ServerConfig
+    glsl: { ... }?, // Same as ServerConfig
 }
 ```
 
 ## Transport
-
-Currently, the server only support stdio transport.
 
 ### Stdio
 

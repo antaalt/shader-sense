@@ -78,6 +78,7 @@ pub struct ServerSerializedConfigOverride {
     includes: Option<Vec<String>>,
     defines: Option<HashMap<String, String>>,
     path_remapping: Option<HashMap<String, String>>,
+    stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>,
     hlsl: Option<ServerHlslConfig>,
     glsl: Option<ServerGlslConfig>,
 }
@@ -165,6 +166,46 @@ impl ServerSerializedConfig {
                 }
             }
         }
+        if let Some(config_override) = &self.config_override {
+            let config_override_path = Self::verify_user_path(config_override);
+            if let Ok(exist) = std::fs::exists(config_override_path) {
+                if !exist {
+                    errors.push(format!(
+                        "Config override file at {:#?} not found",
+                        config_override
+                    ));
+                }
+            } else {
+                errors.push(format!(
+                    "Config override file at {:#?} not found",
+                    config_override
+                ));
+            }
+        }
+        if let Some(includes) = &self.includes {
+            for include in includes {
+                let include_path = Self::verify_user_path(include);
+                if let Ok(exist) = std::fs::exists(include_path) {
+                    if !exist {
+                        errors.push(format!("Include folder at {:#?} not found", include));
+                    }
+                } else {
+                    errors.push(format!("Include folder at {:#?} not found", include));
+                }
+            }
+        }
+        if let Some(path_remappings) = &self.path_remapping {
+            for (_virtual_path, path) in path_remappings {
+                let verified_path = Self::verify_user_path(path);
+                if let Ok(exist) = std::fs::exists(verified_path) {
+                    if !exist {
+                        errors.push(format!("Virtual path folder at {:#?} not found", path));
+                    }
+                } else {
+                    errors.push(format!("Virtual path folder at {:#?} not found", path));
+                }
+            }
+        }
         if errors.is_empty() {
             Ok(())
         } else {
@@ -236,12 +277,13 @@ impl ServerSerializedConfig {
             if config_override.is_empty() {
                 return config;
             }
-            let settings = match std::fs::read_to_string(&config_override) {
+            let config_override_path = Self::verify_user_path(&config_override);
+            let settings = match std::fs::read_to_string(&config_override_path) {
                 Ok(setting) => setting,
                 Err(err) => {
                     warn!(
                         "Failed to read engine settings at {:?}: {}",
-                        config_override, err
+                        config_override_path, err
                     );
                     return config;
                 }
@@ -252,7 +294,7 @@ impl ServerSerializedConfig {
                     Err(err) => {
                         warn!(
                             "Failed to parse engine settings at {:?}: {}",
-                            config_override, err
+                            config_override_path, err
                         );
                         return config;
                     }
@@ -281,6 +323,9 @@ impl ServerSerializedConfig {
                     })
                     .unwrap_or_default(),
             );
+            config
+                .stage_define
+                .extend(override_config.stage_define.unwrap_or_default());
             if let Some(override_glsl) = override_config.glsl {
                 if let Some(spirv_version) = override_glsl.spirv_version {
                     config.glsl.spirv = spirv_version;
