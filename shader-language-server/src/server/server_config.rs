@@ -94,6 +94,7 @@ pub struct ServerSerializedConfig {
     validate: Option<bool>,                   // Validation via standard API
     symbols: Option<bool>,                    // Query symbols
     symbol_diagnostics: Option<bool>,         // Debug option to visualise issues with tree-sitter
+    validate_config: Option<bool>,            // Validate user config
     automatic_variant_discovery: Option<bool>, // Reuse a dependent main-file context for document diagnostics.
     experimental_macro_expansion: Option<bool>, // Experimental test for the new feature.
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>, // Specific macro defined per shader stage
@@ -133,6 +134,12 @@ impl ServerSerializedConfig {
         })
     }
     pub fn validate(&self) -> Result<(), Vec<String>> {
+        // Validation is opt-out, so default is validate, unless specified otherwise.
+        if let Some(validate_config) = self.validate_config {
+            if !validate_config {
+                return Ok(());
+            }
+        }
         let mut errors = Vec::new();
         if let Some(glsl) = &self.glsl {
             // Validate preamble path.
@@ -360,6 +367,7 @@ impl ServerConfig {
     pub const DEFAULT_VALIDATE: bool = true;
     pub const DEFAULT_SYMBOL_DIAGNOSTIC: bool = false; // Mostly for debug
     pub const DEFAULT_AUTOMATIC_VARIANT_DISCOVERY: bool = false;
+    pub const DEFAULT_EXPERIMENTAL_MACRO_EXPANSION: bool = false;
     pub const DEFAULT_SEVERITY: ShaderDiagnosticSeverity = ShaderDiagnosticSeverity::Error;
     pub const DEFAULT_TRACE: ServerTrace = ServerTrace {
         server: ServerTraceLevel::Off,
@@ -456,7 +464,7 @@ impl Default for ServerConfig {
             validate: ServerConfig::DEFAULT_VALIDATE,
             symbols: ServerConfig::DEFAULT_SYMBOLS,
             automatic_variant_discovery: ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY,
-            experimental_macro_expansion: false,
+            experimental_macro_expansion: ServerConfig::DEFAULT_EXPERIMENTAL_MACRO_EXPANSION,
             stage_define: HashMap::new(),
             symbol_diagnostics: ServerConfig::DEFAULT_SYMBOL_DIAGNOSTIC,
             trace: ServerConfig::DEFAULT_TRACE,

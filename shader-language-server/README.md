@@ -46,14 +46,15 @@ It expects the following structure (note that every field is optionnal):
 
 ```typescript
 interface ServerConfig {
-    includes: string[]?, // Includes folder to check
-    defines: { string: string }?, // Defines to set
-    pathRemapping: { string: string }?, // Virtual path remapping
-    validate: boolean?, // Validation via standard API
-    symbols: boolean?, // Query symbols
-    symbolDiagnostics: boolean?, // Debug option to visualise issues with tree-sitter
-    automaticVariantDiscovery: boolean?, // Reuse a dependent main-file context for document diagnostics
-    experimentalMacroExpansion: boolean?, // Experimental test for macro expansion
+    includes: string[]?, // Includes folder to check. Default empty.
+    defines: { string: string }?, // Defines to set. Default empty.
+    pathRemapping: { string: string }?, // Virtual path remapping. Default empty.
+    validate: boolean?, // Validation via standard API. Default is true.
+    symbols: boolean?, // Query symbols. Default is true.
+    symbolDiagnostics: boolean?, // Debug option to visualise issues with tree-sitter. Default is false.
+    automaticVariantDiscovery: boolean?, // Reuse a dependent main-file context for document diagnostics. Default is false.
+    experimentalMacroExpansion: boolean?, // Experimental test for macro expansion. Default is false.
+    validateConfig: boolean?, // Validate configuration. Default is true.
     stageDefine: {
         'vertex': { string: string }?,
         'fragment': { string: string }?,
@@ -69,20 +70,20 @@ interface ServerConfig {
         'callable': { string: string }?,
         'miss': { string: string }?,
         'intersect': { string: string }?,
-    }?, // Specific macro defined per shader stage
-    trace: 'off' | 'messages' | 'verbose' | null, // Level of error to display
-    severity: 'error' | 'warning'| 'info'| 'hint' | null, // Severity of diagnostic to display
-    configOverride: string?, // Path to a JSON containig some configuration formatted following `ServerConfigOverride`
+    }?, // Specific macro defined per shader stage. Default empty.
+    trace: 'off' | 'messages' | 'verbose' | null, // Level of error to display. Default to off.
+    severity: 'error' | 'warning'| 'info'| 'hint' | null, // Severity of diagnostic to display. Default to error.
+    configOverride: string?, // Path to a JSON containig some configuration formatted following `ServerConfigOverride`. Default empty.
     hlsl: {
-        shaderModel: 'ShaderModel6' | 'ShaderModel6_1' | 'ShaderModel6_2' | 'ShaderModel6_3' | 'ShaderModel6_4' | 'ShaderModel6_5' | 'ShaderModel6_6' | 'ShaderModel6_7' | 'ShaderModel6_8' | null,
-        version: 'V2016' | 'V2017' | 'V2018' | 'V2021' | null,
-        enable16bitTypes: boolean?,
-        spirv: boolean?,
+        shaderModel: 'ShaderModel6' | 'ShaderModel6_1' | 'ShaderModel6_2' | 'ShaderModel6_3' | 'ShaderModel6_4' | 'ShaderModel6_5' | 'ShaderModel6_6' | 'ShaderModel6_7' | 'ShaderModel6_8' | null, // HLSL shader model to use. Default to ShaderModel6_8.
+        version: 'V2016' | 'V2017' | 'V2018' | 'V2021' | null, // HLSL version to use. Default to V2021.
+        enable16bitTypes: boolean?, // Enable 16 bit types with HLSL. Default to false.
+        spirv: boolean?, // Use SPIRV with HLSL. Default to false.
     }?, // Hlsl specific configuration
     glsl: {
-        targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null,
-        spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null,
-        preamble: string?, // Path to a file which content will be added at start of every GLSL files.
+        targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null, // Target client to use. Default to Vulkan1_3.
+        spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null, // Spirv version to target. Default to SPIRV1_6.
+        preamble: string?, // Path to a file which content will be added at start of every GLSL files. Default empty.
     }?, // Glsl specific configuration
 }
 // Configuration that can be loaded by server through configOverride option. Useful for engine specific configuration to be swapped.
@@ -90,7 +91,7 @@ interface ServerConfigOverride {
     includes: string[]?,
     defines: { string: string }?,
     pathRemapping: { string: string }?,
-    stageDefine: { ... } // Same as ServerConfig
+    stageDefine: { ... }?, // Same as ServerConfig
     hlsl: { ... }?, // Same as ServerConfig
     glsl: { ... }?, // Same as ServerConfig
 }
@@ -104,7 +105,7 @@ The communication with the server is done via stdin and stdout, while the logs a
 
 ### Tcp Listen / Connect
 
-The communication with the server is done via tcp
+The communication with the server is done via tcp stream, it can listen for a client connection, or connect directly to a listening client. Logs are still print to stderr.
 
 ## Specific features
 
