@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "glslang",
  "hassle-rs",
@@ -1251,7 +1251,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense-cli"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "colored",
  "shader-sense",
@@ -1259,7 +1259,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "cfg-if",
  "crossbeam-channel",

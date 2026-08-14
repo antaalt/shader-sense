@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.4.3] - 2026-08-14
+
+### Added
+
+- Support for TCP listen and connect transport with server. Now we can connect remotely to server without having to rely on stdio.
+- Documentation related to settings.
+- Configuration override now support stage define aswell.
+- Warnings for configuration override, includes and path remapping if folder not available 
+- New setting `validateConfig` to control setting validation (enabled by default)
+
 ## [1.4.2] - 2026-08-03
 
 ### Fixed
@@ -473,7 +483,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.2...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.3...HEAD
+[1.4.3]: https://github.com/antaalt/shader-sense/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/antaalt/shader-sense/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/antaalt/shader-sense/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
