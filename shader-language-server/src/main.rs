@@ -59,7 +59,7 @@ fn usage() {
     println!("  --glsl                    Add support for glsl language id.");
     println!("  --wgsl                    Add support for wgsl language id.");
     println!("Transport:");
-    println!("  --stdio                   Use the stdio transport. Default transport if none specified.");
+    println!("  --stdio                   Use the stdio transport. Default transport.");
     println!("  --tcp-listen <IP addr>    Listen for a connection on given address and port.");
     println!("  --tcp-connect <IP addr>   Connect to a tcp stream at given address and port.");
 }
