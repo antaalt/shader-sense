@@ -44,22 +44,22 @@ fn run_server(
 
 fn usage() {
     print_version();
-    println!("Overview: This is a shader language server following lsp protocol.");
-    println!("Usage: shader-language-server [OPTIONS]");
+    println!("This is a shader language server following language server protocol.");
+    println!("Usage: shader-language-server [OPTIONS] [LANGUAGES] [TRANSPORT]");
     println!();
     println!("Options:");
-    println!("  --config                  Pass a custom config as a JSON string for server.");
-    println!("  --config-file             Pass a custom config as a file for server.");
-    println!("  --cwd                     Set current working directory of server. If not set, will be the server executable path.");
+    println!("  --config <cfg>            Pass a custom config as a JSON string for server.");
+    println!("  --config-file <file>      Pass a custom config as a file for server.");
+    println!("  --cwd <dir>               Set current working directory of server. If not set, will be the server executable path.");
     println!("  --version | -v            Print server version.");
     println!("  --help | -h               Print this helper.");
-    println!("Language:");
+    println!("Languages:");
     println!("  By default, all of them are enabled. If you specify a single one, you will need to pick every language you need.");
     println!("  --hlsl                    Add support for hlsl language id.");
     println!("  --glsl                    Add support for glsl language id.");
     println!("  --wgsl                    Add support for wgsl language id.");
     println!("Transport:");
-    println!("  --stdio                   Use the stdio transport. Default transport.");
+    println!("  --stdio                   Use the stdio transport. Default transport if none specified.");
     println!("  --tcp-listen <IP addr>    Listen for a connection on given address and port.");
     println!("  --tcp-connect <IP addr>   Connect to a tcp stream at given address and port.");
 }

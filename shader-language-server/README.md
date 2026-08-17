@@ -8,9 +8,9 @@ This application is a language server for shaders (HLSL, GLSL, WGSL) that is mai
 
 It can be launched using the following options:
 ```bash
-    --config                    Pass a custom config as a JSON string for server. See configuration section for the expected format.
-    --config-file               Pass a custom config as a file for server. See configuration section for the expected format.
-    --cwd                       Set current working directory of server. If not set, will be the server executable path.
+    --config <cfg>              Pass a custom config as a JSON string for server. See configuration section for the expected format.
+    --config-file <file>        Pass a custom config as a file for server. See configuration section for the expected format.
+    --cwd <dir>                 Set current working directory of server. If not set, will be the server executable path.
     --version | -v              Print server version and exit.
     --help | -h                 Print this helper and exit.
     --hlsl                      Add support for hlsl language id.
