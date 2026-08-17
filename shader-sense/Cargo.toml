@@ -8,7 +8,7 @@ version = "1.4.3"
 edition = "2021"
 license-file = "../LICENSE"
 readme = "../README.md"
-rust-version = "1.88" # Minimal version required for HashSet::extract_if
+rust-version = "1.89" # Minimal version required for wasm C ABI https://github.com/wasm-bindgen/wasm-bindgen/issues/3454
 
 [dependencies]
 glslang = "0.6.1"

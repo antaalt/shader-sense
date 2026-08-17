@@ -11,12 +11,7 @@ rustflags = [
 runner = "wasmtime --wasi threads=y --dir ../shader-sense/test::/test"
 
 [target.wasm32-unknown-unknown]
-# Tree sitter is a C API with rust binding here, and linking rust & C for wasm32-unknown-unknown is impossible without this perma-unstable flag, available only in nightly rust.
-# Will have to wait until the issue is fixed in wasm32-unknown-unknown, god knows when.
-# https://stackoverflow.com/questions/78556000/how-you-can-link-a-rust-library-with-c-c-and-wasm-bindgen-for-the-wasm32-unkno
-# https://github.com/rustwasm/wasm-bindgen/issues/3454
-# Until now, it can be compiled by switching to nightly compiler `rustup default [stable|nightly]`
-rustflags = ["-Z", "wasm-c-abi=spec"]
+# Cannot build C and C++ to this target because there is no libc available.
 
 # Set this to your wasi-sdk compiler to avoid picking a clang version that does not support WASI (such as vs bundled version)
 # You can download wasi-sdk here https://github.com/WebAssembly/wasi-sdk
@@ -24,6 +19,3 @@ rustflags = ["-Z", "wasm-c-abi=spec"]
 #CC = "your/path/to/wasi-sdk/bin/clang.exe"
 #CXX = "your/path/to/wasi-sdk/bin/clang++.exe"
 #WASI_SYSROOT= "your/path/to/wasi-sysroot"
-#CC = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang.exe"
-#CXX = "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/bin/clang++.exe"
-#WASI_SYSROOT= "D:/Bibliotheque/Dev/.third-party/wasi-sdk-29.0/share/wasi-sysroot"
