@@ -242,7 +242,17 @@ impl TestServer {
     }
     fn initialize(&mut self) {
         let params = InitializeParams::default();
-        self.send_request::<Initialize>(&params, |_| {});
+        self.send_request::<Initialize>(&params, |result| {
+            // Validate params for all test.
+            let result = result.unwrap();
+            let server_info = result.server_info.unwrap();
+            assert!(
+                server_info.name == "shader-language-server",
+                "Unexpected server name {}",
+                server_info.name
+            );
+            assert!(server_info.version.unwrap() == env!("CARGO_PKG_VERSION"));
+        });
         self.send_notification::<Initialized>(&InitializedParams {});
     }
     fn get_server_stderr(&mut self) -> io::Result<String> {

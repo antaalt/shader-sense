@@ -57,10 +57,18 @@ impl ServerConnection {
         &mut self,
         server_capabilities: Value,
     ) -> Result<InitializeParams, Box<dyn std::error::Error + Sync + Send>> {
-        match self.connection.initialize(server_capabilities) {
-            Ok(initialization_params) => {
+        match self.connection.initialize_start() {
+            Ok((id, initialization_params)) => {
                 let client_initialization_params: InitializeParams =
                     serde_json::from_value(initialization_params)?;
+                let initialize_data = serde_json::json!({
+                    "capabilities": server_capabilities,
+                    "serverInfo": {
+                        "name": "shader-language-server",
+                        "version": env!("CARGO_PKG_VERSION")
+                    }
+                });
+                self.connection.initialize_finish(id, initialize_data)?;
                 Ok(client_initialization_params)
             }
             Err(e) => {

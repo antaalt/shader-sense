@@ -216,7 +216,7 @@ impl ServerLanguage {
             }),
             ..Default::default()
         })?;
-        let client_initialization_params = self.connection.initialize(server_capabilities).unwrap();
+        let client_initialization_params = self.connection.initialize(server_capabilities)?;
         // Store workspace folder
         if let Some(workspace_folders) = client_initialization_params.workspace_folders {
             self.watched_files.workspace_folder = workspace_folders
