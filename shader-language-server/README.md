@@ -134,6 +134,21 @@ interface ShaderVariant {
 }
 ```
 
+### Compilation commands
+
+As this server has everything in its hand to compile a shader, we can simply get the resulting binary via a custom request. Use request `textDocument/compilationResult` to get the compilation result as binary.
+
+```typescript
+interface CompilationRequestParams {
+    uri: string
+}
+interface CompilationRequestResult {
+    // The requested file might require to be a variant
+    ty: 'Spirv' | 'Dxil' | 'None', // If None, compilation probably failed. Check diagnostics.
+    data: Uint8Array // The result of the compilation.
+}
+```
+
 ### Debug commands:
 
 The server offer some specific debug request to help inspect the current state of the server.
