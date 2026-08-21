@@ -11,6 +11,7 @@ use crate::{
     position::{ShaderFileRange, ShaderPosition},
     shader::{HlslShaderModel, HlslVersion, ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
+    validator::validator::CompilationResult,
 };
 
 use super::validator::ValidatorImpl;
@@ -269,6 +270,22 @@ impl Dxc {
             ))),
         }
     }
+    fn get_compilation_result(
+        &self,
+        shader_params: &ShaderParams,
+        result: DxcOperationResult,
+    ) -> CompilationResult {
+        match result.get_result() {
+            Ok(blob) => {
+                if shader_params.compilation.hlsl.spirv {
+                    CompilationResult::Spirv(blob.to_vec())
+                } else {
+                    CompilationResult::Dxil(blob.to_vec())
+                }
+            }
+            Err(_) => CompilationResult::None,
+        }
+    }
 }
 
 fn get_profile(shader_stage: Option<ShaderStage>) -> &'static str {
@@ -304,7 +321,7 @@ impl ValidatorImpl for Dxc {
         file_path: &Path,
         params: &ShaderParams,
         include_callback: &mut dyn FnMut(&Path) -> Option<String>,
-    ) -> Result<ShaderDiagnosticList, ShaderError> {
+    ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
         let file_name = self.get_file_name(file_path);
 
         let blob = match self
@@ -313,7 +330,7 @@ impl ValidatorImpl for Dxc {
         {
             Ok(blob) => blob,
             Err(err) => match self.from_hassle_error(err, file_path, &params) {
-                Ok(diagnostics) => return Ok(diagnostics),
+                Ok(diagnostics) => return Ok((CompilationResult::None, diagnostics)),
                 Err(error) => return Err(error),
             },
         };
@@ -400,14 +417,24 @@ impl ValidatorImpl for Dxc {
                 let error_blob = match dxc_result.get_error_buffer() {
                     Ok(blob) => blob,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
-                        Ok(diagnostics) => return Ok(diagnostics),
+                        Ok(diagnostics) => {
+                            return Ok((
+                                self.get_compilation_result(params, dxc_result),
+                                diagnostics,
+                            ))
+                        }
                         Err(error) => return Err(error),
                     },
                 };
                 let warning_emitted = match self.library.get_blob_as_string(&error_blob.into()) {
                     Ok(string) => string,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
-                        Ok(diagnostics) => return Ok(diagnostics),
+                        Ok(diagnostics) => {
+                            return Ok((
+                                self.get_compilation_result(params, dxc_result),
+                                diagnostics,
+                            ))
+                        }
                         Err(error) => return Err(error),
                     },
                 };
@@ -424,7 +451,10 @@ impl ValidatorImpl for Dxc {
                     Ok(blob) => blob,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
                         Ok(diagnostics) => {
-                            return Ok(ShaderDiagnosticList::join(warning_diagnostics, diagnostics))
+                            return Ok((
+                                self.get_compilation_result(params, dxc_result),
+                                ShaderDiagnosticList::join(warning_diagnostics, diagnostics),
+                            ))
                         }
                         Err(error) => return Err(error),
                     },
@@ -439,47 +469,69 @@ impl ValidatorImpl for Dxc {
                                 Ok(blob) => blob,
                                 Err(err) => match self.from_hassle_error(err, file_path, &params) {
                                     Ok(diagnostics) => {
-                                        return Ok(ShaderDiagnosticList::join(
-                                            warning_diagnostics,
-                                            diagnostics,
+                                        return Ok((
+                                            CompilationResult::Dxil(data),
+                                            ShaderDiagnosticList::join(
+                                                warning_diagnostics,
+                                                diagnostics,
+                                            ),
                                         ))
                                     }
                                     Err(error) => return Err(error),
                                 },
                             };
                         match validator.validate(blob_encoding.into()) {
-                            Ok(_) => Ok(warning_diagnostics),
+                            Ok(_) => Ok((CompilationResult::Dxil(data), warning_diagnostics)),
                             Err((_dxc_res, hassle_err)) => {
                                 //let error_blob = dxc_err.0.get_error_buffer().map_err(|e| self.from_hassle_error(e))?;
                                 //let error_emitted = self.library.get_blob_as_string(&error_blob.into()).map_err(|e| self.from_hassle_error(e))?;
                                 match self.from_hassle_error(hassle_err, file_path, &params) {
-                                    Ok(diagnostics) => Ok(ShaderDiagnosticList::join(
-                                        warning_diagnostics,
-                                        diagnostics,
+                                    Ok(diagnostics) => Ok((
+                                        CompilationResult::Dxil(data),
+                                        ShaderDiagnosticList::join(
+                                            warning_diagnostics,
+                                            diagnostics,
+                                        ),
                                     )),
                                     Err(err) => Err(err),
                                 }
                             }
                         }
                     } else {
-                        Ok(warning_diagnostics)
+                        Ok((
+                            self.get_compilation_result(params, dxc_result),
+                            warning_diagnostics,
+                        ))
                     }
                 } else {
-                    Ok(warning_diagnostics)
+                    Ok((
+                        self.get_compilation_result(params, dxc_result),
+                        warning_diagnostics,
+                    ))
                 }
             }
             Err((dxc_result, _hresult)) => {
                 let error_blob = match dxc_result.get_error_buffer() {
                     Ok(blob) => blob,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
-                        Ok(diagnostics) => return Ok(diagnostics),
+                        Ok(diagnostics) => {
+                            return Ok((
+                                self.get_compilation_result(params, dxc_result),
+                                diagnostics,
+                            ))
+                        }
                         Err(error) => return Err(error),
                     },
                 };
                 let error_emitted = match self.library.get_blob_as_string(&error_blob.into()) {
                     Ok(string) => string,
                     Err(err) => match self.from_hassle_error(err, file_path, &params) {
-                        Ok(diagnostics) => return Ok(diagnostics),
+                        Ok(diagnostics) => {
+                            return Ok((
+                                self.get_compilation_result(params, dxc_result),
+                                diagnostics,
+                            ))
+                        }
                         Err(error) => return Err(error),
                     },
                 };
@@ -488,7 +540,7 @@ impl ValidatorImpl for Dxc {
                     file_path,
                     &params,
                 ) {
-                    Ok(diag) => Ok(diag),
+                    Ok(diag) => Ok((self.get_compilation_result(params, dxc_result), diag)),
                     Err(error) => Err(error),
                 }
             }

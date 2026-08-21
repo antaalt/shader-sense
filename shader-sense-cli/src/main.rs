@@ -17,6 +17,7 @@
 //! --constants               List constants
 //! --keywords                List keywords
 //! --types                   List types
+//! --output <FILE>           Save output to specified file
 //! --version, -v             Print version information
 //! --help, -h                Print this message
 //! ```
@@ -45,7 +46,7 @@ use shader_sense::{
         symbol_provider::SymbolProvider,
         symbols::{ShaderSymbolMode, ShaderSymbolType},
     },
-    validator::validator::Validator,
+    validator::validator::{CompilationResult, Validator},
 };
 
 fn get_version() -> &'static str {
@@ -80,6 +81,7 @@ pub fn usage() {
     println!("  --constants               List constants");
     println!("  --keywords                List keywords");
     println!("  --types                   List types");
+    println!("  --output <FILE>           Save output to specified file");
     println!("  --version, -v             Print version information");
     println!("  --help, -h                Print this message");
     println!();
@@ -100,6 +102,7 @@ pub fn main() {
     let mut entry_point = None;
     let mut shader_stage = None;
     let mut experimental_macro_expansion = false;
+    let mut output: Option<PathBuf> = None;
     let mut target_client = GlslTargetClient::Vulkan1_3;
     let _exe = args.next().unwrap();
     while let Some(arg) = args.next() {
@@ -207,6 +210,16 @@ pub fn main() {
             "--expand-macro" => {
                 experimental_macro_expansion = true;
             }
+            "--output" => match args.next() {
+                Some(path) => {
+                    should_validate = true;
+                    output = Some(PathBuf::from(path))
+                }
+                None => {
+                    println!("Missing output file name");
+                    usage();
+                }
+            },
             parsed_file_name => match &mut file_name {
                 Some(_) => usage(),
                 None => {
@@ -262,7 +275,7 @@ pub fn main() {
                     &shader_params,
                     &mut |path: &Path| Some(std::fs::read_to_string(path).unwrap()),
                 ) {
-                    Ok(diagnostic_list) => {
+                    Ok((blob, diagnostic_list)) => {
                         if diagnostic_list.is_empty() {
                             println!(
                                 "{}",
@@ -295,6 +308,29 @@ pub fn main() {
                                     }
                                 };
                                 println!("{}\n{}", header, diagnostic.error.italic());
+                            }
+                        }
+                        if let Some(output) = output {
+                            let blob = match blob {
+                                CompilationResult::None => Vec::new(),
+                                CompilationResult::Spirv(spirv) => spirv,
+                                CompilationResult::Dxil(dxil) => dxil,
+                            };
+                            if !blob.is_empty() {
+                                if let Err(err) = std::fs::write(&output, &blob) {
+                                    println!(
+                                        "{}",
+                                        format!(
+                                            "Failed to save output to file {}: {}",
+                                            output.display(),
+                                            err
+                                        )
+                                        .red()
+                                        .bold()
+                                    );
+                                }
+                            } else {
+                                println!("{}", "No output generated".red().bold());
                             }
                         }
                     }

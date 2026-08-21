@@ -183,7 +183,7 @@ mod tests {
             &ShaderParams::default(),
             &mut |path| Some(std::fs::read_to_string(path).unwrap()),
         ) {
-            Ok(diagnostics) => assert!(
+            Ok((_blob, diagnostics)) => assert!(
                 !diagnostics.is_empty(),
                 "Diagnostics are empty but should not be."
             ),

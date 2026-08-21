@@ -11,7 +11,7 @@ use std::time::Duration;
 mod async_message;
 mod common;
 mod debug;
-mod provider;
+pub mod provider; // pub for test
 pub mod shader_variant; // pub for test.
 
 mod profile;
@@ -60,6 +60,7 @@ use shader_variant::DidChangeShaderVariant;
 use crate::profile_scope;
 use crate::server::async_message::{AsyncCacheRequest, AsyncMessage, AsyncRequest};
 use crate::server::common::{lsp_range_to_shader_range, ServerLanguageError};
+use crate::server::provider::compilation::CompilationRequest;
 use crate::server::server_config::{ServerTrace, ServerTraceLevel};
 use crate::server::server_file_cache::ServerFileCache;
 
@@ -451,6 +452,19 @@ impl ServerLanguage {
                     Some(semantic_tokens),
                 );
             }
+            AsyncMessage::CompilationRequest(async_request) => {
+                profile_scope!(
+                    "Received compilation request for file {}: {}",
+                    async_request.params.text_document.uri,
+                    self.debug(&async_request.params)
+                );
+                let compilation_request_result =
+                    self.recolt_compilation_result(&async_request.params.text_document.uri)?;
+                self.connection.send_response::<CompilationRequest>(
+                    async_request.req_id.clone(),
+                    compilation_request_result,
+                );
+            }
             AsyncMessage::DumpDependencyRequest(async_request) => {
                 profile_scope!(
                     "Received dump dependency request for file {}: {}",
@@ -809,6 +823,10 @@ impl ServerLanguage {
                 DumpDependencyRequest::METHOD => AsyncMessage::DumpDependencyRequest(
                     AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
                 ),
+                CompilationRequest::METHOD => AsyncMessage::CompilationRequest(AsyncRequest::new(
+                    req.id,
+                    serde_json::from_value(req.params)?,
+                )),
                 _ => {
                     warn!("Received unhandled request: {:#?}", req);
                     return Err(ServerLanguageError::MethodNotFound(req.method));

@@ -15,6 +15,7 @@ use shader_sense::shader::ShadingLanguage;
 use crate::server::{
     clean_url,
     debug::{DumpAstParams, DumpAstRequest, DumpDependencyParams, DumpDependencyRequest},
+    provider::compilation::{CompilationRequest, CompilationRequestParams},
 };
 
 pub struct AsyncRequest<R: Request> {
@@ -47,6 +48,7 @@ pub enum AsyncMessage {
     Completion(AsyncRequest<Completion>),
     GotoDefinition(AsyncRequest<GotoDefinition>),
     DocumentDiagnosticRequest(AsyncRequest<DocumentDiagnosticRequest>),
+    CompilationRequest(AsyncRequest<CompilationRequest>),
     // Debug
     DumpDependencyRequest(AsyncRequest<DumpDependencyRequest>),
     DumpAstRequest(AsyncRequest<DumpAstRequest>),
@@ -84,6 +86,7 @@ impl AsyncMessage {
             AsyncMessage::Completion(async_request) => &async_request.req_id,
             AsyncMessage::GotoDefinition(async_request) => &async_request.req_id,
             AsyncMessage::DocumentDiagnosticRequest(async_request) => &async_request.req_id,
+            AsyncMessage::CompilationRequest(async_request) => &async_request.req_id,
             AsyncMessage::DumpDependencyRequest(async_request) => &async_request.req_id,
             AsyncMessage::DumpAstRequest(async_request) => &async_request.req_id,
             // These variants do not have a RequestId
@@ -107,6 +110,7 @@ impl AsyncMessage {
             AsyncMessage::Completion(_) => Completion::METHOD,
             AsyncMessage::GotoDefinition(_) => GotoDefinition::METHOD,
             AsyncMessage::DocumentDiagnosticRequest(_) => DocumentDiagnosticRequest::METHOD,
+            AsyncMessage::CompilationRequest(_) => CompilationRequest::METHOD,
             AsyncMessage::DumpDependencyRequest(_) => DumpDependencyRequest::METHOD,
             AsyncMessage::DumpAstRequest(_) => DumpAstRequest::METHOD,
             // These variants do not have a method
@@ -170,6 +174,9 @@ impl AsyncMessage {
                 Some(&async_request.params.text_document.uri)
             }
             AsyncMessage::DumpAstRequest(async_request) => {
+                Some(&async_request.params.text_document.uri)
+            }
+            AsyncMessage::CompilationRequest(async_request) => {
                 Some(&async_request.params.text_document.uri)
             }
             // These variants do not have a uri
@@ -253,6 +260,11 @@ impl ParamsDeserialization for GotoDefinitionParams {
     }
 }
 impl ParamsDeserialization for DocumentDiagnosticParams {
+    fn clean(&mut self) {
+        self.text_document.uri = clean_url(&self.text_document.uri)
+    }
+}
+impl ParamsDeserialization for CompilationRequestParams {
     fn clean(&mut self) {
         self.text_document.uri = clean_url(&self.text_document.uri)
     }
