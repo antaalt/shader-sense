@@ -145,7 +145,7 @@ interface CompilationRequestParams {
 interface CompilationRequestResult {
     // The requested file might require to be a variant
     ty: 'Spirv' | 'Dxil' | 'None', // If None, compilation probably failed. Check diagnostics.
-    data: Uint8Array // The result of the compilation.
+    data: string // The result of the compilation as a base64 encoded byte array.
 }
 ```
 
