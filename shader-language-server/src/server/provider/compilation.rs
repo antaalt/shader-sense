@@ -35,6 +35,7 @@ pub enum CompilationType {
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct CompilationRequestResult {
     pub ty: CompilationType,
+    #[serde(with = "base64_bytes")] // Compress the data
     pub data: Vec<u8>,
 }
 

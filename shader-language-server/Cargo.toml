@@ -27,3 +27,4 @@ lsp-server = "=0.7.8" # 0.7.9 has some breaking changes.
 lsp-types = "0.95.0"
 crossbeam-channel = "0.5.8"
 lru = "0.16.0"
+base64-bytes = "0.1.0"
