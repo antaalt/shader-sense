@@ -29,7 +29,6 @@ pub struct CompilationRequestParams {
 pub enum CompilationType {
     Spirv,
     Dxil,
-    None,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -53,18 +52,22 @@ impl ServerLanguage {
         let cached_file = self.get_cachable_file(&uri)?;
 
         if let Some(data) = &cached_file.data {
-            Ok(Some(CompilationRequestResult {
-                ty: match &data.compilation_cache {
-                    CompilationResult::None => CompilationType::None,
-                    CompilationResult::Dxil(_) => CompilationType::Dxil,
-                    CompilationResult::Spirv(_) => CompilationType::Spirv,
-                },
-                data: match &data.compilation_cache {
-                    CompilationResult::None => Vec::new(),
-                    CompilationResult::Dxil(dxil) => dxil.clone(),
-                    CompilationResult::Spirv(spirv) => spirv.clone(),
-                },
-            }))
+            if let CompilationResult::None = data.compilation_cache {
+                Ok(None)
+            } else {
+                Ok(Some(CompilationRequestResult {
+                    ty: match &data.compilation_cache {
+                        CompilationResult::None => unreachable!(),
+                        CompilationResult::Dxil(_) => CompilationType::Dxil,
+                        CompilationResult::Spirv(_) => CompilationType::Spirv,
+                    },
+                    data: match &data.compilation_cache {
+                        CompilationResult::None => Vec::new(),
+                        CompilationResult::Dxil(dxil) => dxil.clone(),
+                        CompilationResult::Spirv(spirv) => spirv.clone(),
+                    },
+                }))
+            }
         } else {
             Ok(None)
         }
