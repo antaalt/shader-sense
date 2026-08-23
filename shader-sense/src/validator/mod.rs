@@ -269,7 +269,7 @@ mod tests {
             file_path,
             &ShaderParams {
                 compilation: ShaderCompilationParams {
-                    entry_point: None,
+                    entry_point: Some("main".into()), // TODO: should not require this and induce main as entry point if not set for compile
                     shader_stage: Some(ShaderStage::Vertex),
                     glsl: GlslCompilationParams {
                         client: GlslTargetClient::Vulkan1_3,
