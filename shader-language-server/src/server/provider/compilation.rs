@@ -39,6 +39,7 @@ pub enum CompilationType {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CompilationRequestResult {
     pub compilation_type: CompilationType,
     #[serde(with = "base64_bytes")] // Compress the data

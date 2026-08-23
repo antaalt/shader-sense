@@ -671,9 +671,9 @@ fn test_compilation_glsl_spirv() {
         |result| {
             let compilation = result.unwrap().unwrap();
             assert!(
-                compilation.ty == CompilationType::Spirv,
+                compilation.compilation_type == CompilationType::Spirv,
                 "Invalid compilation type: {:?}",
-                compilation.ty
+                compilation.compilation_type
             );
             assert!(
                 compilation.data.len() == 360,
@@ -734,9 +734,9 @@ fn test_compilation_hlsl_dxil() {
         |result| {
             let compilation = result.unwrap().unwrap();
             assert!(
-                compilation.ty == CompilationType::Dxil,
+                compilation.compilation_type == CompilationType::Dxil,
                 "Invalid compilation type: {:?}",
-                compilation.ty
+                compilation.compilation_type
             );
             assert!(
                 compilation.data.len() == 2672,
