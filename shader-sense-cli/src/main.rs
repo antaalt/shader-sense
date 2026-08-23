@@ -315,6 +315,7 @@ pub fn main() {
                                 CompilationResult::None => Vec::new(),
                                 CompilationResult::Spirv(spirv) => spirv,
                                 CompilationResult::Dxil(dxil) => dxil,
+                                CompilationResult::Wgsl(wgsl) => wgsl.into_bytes(),
                             };
                             if !blob.is_empty() {
                                 if let Err(err) = std::fs::write(&output, &blob) {

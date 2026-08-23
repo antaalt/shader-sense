@@ -750,4 +750,20 @@ mod tests {
             Err(err) => panic!("{}", err),
         };
     }
+
+    #[test]
+    fn wgsl_spirv_conversion() {
+        let file_path = Path::new("./test/wgsl/ok.wgsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let spirv = match naga::Naga::wgsl_to_spirv(&shader_content) {
+            Ok(spirv) => spirv,
+            Err(err) => panic!("{}", err),
+        };
+        assert!(!spirv.is_empty());
+        match naga::Naga::spirv_to_wgsl(&spirv) {
+            // Generated wgsl is not the same as the input one, but should hold the same entry point.
+            Ok(wgsl) => assert!(wgsl.contains("vs_main"), "Unexpected wgsl output: {}", wgsl),
+            Err(err) => panic!("{}", err),
+        };
+    }
 }

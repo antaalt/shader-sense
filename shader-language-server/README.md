@@ -141,10 +141,11 @@ As this server has everything in its hand to compile a shader, we can simply get
 ```typescript
 interface CompilationRequestParams {
     uri: string
+    compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the .
 }
+// Might be null if compilation failed. Check diagnostics
 interface CompilationRequestResult {
-    // The requested file might require to be a variant
-    ty: 'Spirv' | 'Dxil' | 'None', // If None, compilation probably failed. Check diagnostics.
+    compilationType: 'Spirv' | 'Dxil' | 'Wgsl',
     data: string // The result of the compilation as a base64 encoded byte array.
 }
 ```

@@ -666,6 +666,7 @@ fn test_compilation_glsl_spirv() {
     server.send_request::<CompilationRequest>(
         &CompilationRequestParams {
             text_document: file.identifier(),
+            compilation_type: None,
         },
         |result| {
             let compilation = result.unwrap().unwrap();
@@ -728,6 +729,7 @@ fn test_compilation_hlsl_dxil() {
     server.send_request::<CompilationRequest>(
         &CompilationRequestParams {
             text_document: file.identifier(),
+            compilation_type: None,
         },
         |result| {
             let compilation = result.unwrap().unwrap();

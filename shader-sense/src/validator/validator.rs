@@ -20,6 +20,7 @@ pub enum CompilationResult {
     None,
     Spirv(Vec<u8>),
     Dxil(Vec<u8>),
+    Wgsl(String),
 }
 
 /// Trait that all validator must implement to validate files.

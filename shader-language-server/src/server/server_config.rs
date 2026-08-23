@@ -14,7 +14,7 @@ use shader_sense::{
     shader::{
         GlslCompilationParams, GlslSpirvVersion, GlslTargetClient, HlslCompilationParams,
         HlslShaderModel, HlslVersion, ShaderCompilationParams, ShaderContextParams, ShaderParams,
-        ShaderStage, WgslCompilationParams,
+        ShaderStage, ShadingLanguage, WgslCompilationParams,
     },
     shader_error::ShaderDiagnosticSeverity,
 };
@@ -449,6 +449,13 @@ impl ServerConfig {
     }
     pub fn get_glsl_preamble_path(&self) -> Option<&PathBuf> {
         self.glsl.preamble_path.as_ref()
+    }
+    pub fn is_generating_spirv(&self, shading_language: ShadingLanguage) -> bool {
+        match shading_language {
+            ShadingLanguage::Wgsl => false,
+            ShadingLanguage::Hlsl => self.hlsl.spirv,
+            ShadingLanguage::Glsl => self.glsl.spirv != GlslSpirvVersion::None,
+        }
     }
     pub fn set_trace(&mut self, trace: ServerTrace) {
         self.trace = trace
