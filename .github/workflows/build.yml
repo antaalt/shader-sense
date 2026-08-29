@@ -125,6 +125,8 @@ jobs:
         env: # Somehow this VM has clang14 by default, which is not supported...
           CC: clang-17
           CXX: clang++-17
+      - name: Test WASI server # Ensure wasi server correctly start
+        run: cargo test test_server_wasi -- --nocapture
       - name: Build WASI executable # Build only server on WASI
         run: cargo build --package shader_language_server --release --target wasm32-wasip1-threads --verbose
         env: # Somehow this VM has clang14 by default, which is not supported...

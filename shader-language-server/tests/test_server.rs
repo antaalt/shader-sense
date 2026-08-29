@@ -131,7 +131,7 @@ impl TestServer {
         let serialized_config = serde_json::to_string(&config).unwrap();
         let child = Command::new("wasmtime")
             .args([
-                "-wasm",
+                "--wasm",
                 "shared-memory=y",
                 "--wasi",
                 "threads=y",
@@ -144,6 +144,7 @@ impl TestServer {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .env("RUST_BACKTRACE", "full")
             .env("RUST_LOG", "shader_language_server=trace")
             .spawn()
             .unwrap();
