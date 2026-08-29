@@ -141,7 +141,7 @@ As this server has everything in its hand to compile a shader, we can simply get
 ```typescript
 interface CompilationRequestParams {
     uri: string
-    compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the .
+    compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the compilation result.
 }
 // Might be null if compilation failed. Check diagnostics
 interface CompilationRequestResult {
