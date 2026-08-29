@@ -1,9 +1,7 @@
 use log::{error, warn};
+use shader_renderer::server;
 
 use crate::server::{ServerConfig, ServerTransport};
-
-mod renderer;
-mod server;
 
 fn get_version() -> &'static str {
     static VERSION: &str = env!("CARGO_PKG_VERSION");

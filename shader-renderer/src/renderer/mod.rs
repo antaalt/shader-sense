@@ -1,6 +1,6 @@
 use std::{collections::HashMap, num::NonZeroU64, time::Duration};
 
-use log::{info, warn};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use wgpu::{
@@ -40,6 +40,9 @@ impl Shader {
     }
     pub fn source(&self) -> &ShaderSource {
         &self.source
+    }
+    pub fn entry_point(&self) -> &str {
+        &self.entry_point
     }
 }
 
@@ -275,17 +278,24 @@ impl Renderer {
     }
     /// Run a wgpu operation with a validation error scope, so an invalid shader is reported back to
     /// the client instead of reaching the uncaptured error handler, which panics.
+    ///
+    /// Wrap the smallest step possible: an error is reported to the innermost scope that catches it,
+    /// so a scope around a whole pipeline creation cannot tell a bad shader module from a bad pipeline.
     fn catch_validation_error<T, F: FnOnce(&Self) -> T>(
         &self,
+        step: &str,
         callback: F,
     ) -> Result<T, RendererError> {
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let value = callback(self);
         match pollster::block_on(scope.pop()) {
-            Some(error) => Err(RendererError::ValidationError(format!(
-                "Failed to validate callback: {}",
-                error.to_string()
-            ))),
+            Some(error) => {
+                error!("Failed to {}: {}", step, error);
+                Err(RendererError::ValidationError(format!(
+                    "Failed to {}: {}",
+                    step, error
+                )))
+            }
             None => Ok(value),
         }
     }
@@ -301,53 +311,61 @@ impl Renderer {
                 shader.shading_language
             )));
         }
-        Ok(match &shader.source {
-            // Ensure validation
-            ShaderSource::Spirv(_) | ShaderSource::Wgsl(_) => {
-                self.device.create_shader_module(ShaderModuleDescriptor {
-                    label: Some(&shader.stage.to_string()),
-                    source: match &shader.source {
-                        ShaderSource::Spirv(spirv) => {
-                            wgpu::ShaderSource::SpirV(std::borrow::Cow::Borrowed(spirv))
-                        }
-                        ShaderSource::Wgsl(wgsl) => {
-                            wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(wgsl))
-                        }
-                        _ => unreachable!(),
-                    },
-                })
-            }
-            // Unsafe.
-            ShaderSource::Dxil(_) | ShaderSource::Glsl(_) => unsafe {
-                self.device.create_shader_module_passthrough(
-                    CreateShaderModuleDescriptorPassthrough {
+        info!(
+            "Creating shader module for {:?} stage with entry point {}",
+            shader.stage, shader.entry_point
+        );
+        self.catch_validation_error(
+            &format!("create the {:?} shader module", shader.stage),
+            |renderer| match &shader.source {
+                // Ensure validation
+                ShaderSource::Spirv(_) | ShaderSource::Wgsl(_) => renderer
+                    .device
+                    .create_shader_module(ShaderModuleDescriptor {
                         label: Some(&shader.stage.to_string()),
-                        entry_points: std::borrow::Cow::Borrowed(&[PassthroughShaderEntryPoint {
-                            name: std::borrow::Cow::Borrowed(&shader.entry_point),
-                            workgroup_size: (1, 1, 1), // Only for metal
-                        }]),
-                        dxil: if let ShaderSource::Dxil(dxil) = &shader.source {
-                            Some(std::borrow::Cow::Borrowed(dxil))
-                        } else {
-                            None
+                        source: match &shader.source {
+                            ShaderSource::Spirv(spirv) => {
+                                wgpu::ShaderSource::SpirV(std::borrow::Cow::Borrowed(spirv))
+                            }
+                            ShaderSource::Wgsl(wgsl) => {
+                                wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(wgsl))
+                            }
+                            _ => unreachable!(),
                         },
-                        glsl: if let ShaderSource::Glsl(glsl) = &shader.source {
-                            Some(std::borrow::Cow::Borrowed(glsl))
-                        } else {
-                            None
+                    }),
+                // Unsafe.
+                ShaderSource::Dxil(_) | ShaderSource::Glsl(_) => unsafe {
+                    renderer.device.create_shader_module_passthrough(
+                        CreateShaderModuleDescriptorPassthrough {
+                            label: Some(&shader.stage.to_string()),
+                            entry_points: std::borrow::Cow::Borrowed(&[
+                                PassthroughShaderEntryPoint {
+                                    name: std::borrow::Cow::Borrowed(&shader.entry_point),
+                                    workgroup_size: (1, 1, 1), // Only for metal
+                                },
+                            ]),
+                            dxil: if let ShaderSource::Dxil(dxil) = &shader.source {
+                                Some(std::borrow::Cow::Borrowed(dxil))
+                            } else {
+                                None
+                            },
+                            glsl: if let ShaderSource::Glsl(glsl) = &shader.source {
+                                Some(std::borrow::Cow::Borrowed(glsl))
+                            } else {
+                                None
+                            },
+                            ..Default::default()
                         },
-                        ..Default::default()
-                    },
-                )
+                    )
+                },
             },
-        })
+        )
     }
     /// Get the graphic pipeline for the currently bound shaders, creating it if needed.
     fn ensure_graphic_pipeline(&mut self) -> Result<&RenderPipeline, RendererError> {
         if self.graphic_pipeline.is_none() {
             // Creating a pipeline from a shader the client sent us is expected to fail.
-            let pipeline =
-                self.catch_validation_error(|renderer| renderer.create_graphic_pipeline())??;
+            let pipeline = self.create_graphic_pipeline()?;
             self.graphic_pipeline = Some(pipeline);
         }
         Ok(self.graphic_pipeline.as_ref().unwrap())
@@ -355,8 +373,7 @@ impl Renderer {
     /// Get the compute pipeline for the currently bound shaders, creating it if needed.
     fn ensure_compute_pipeline(&mut self) -> Result<&ComputePipeline, RendererError> {
         if self.compute_pipeline.is_none() {
-            let pipeline =
-                self.catch_validation_error(|renderer| renderer.create_compute_pipeline())??;
+            let pipeline = self.create_compute_pipeline()?;
             self.compute_pipeline = Some(pipeline);
         }
         Ok(self.compute_pipeline.as_ref().unwrap())
@@ -373,7 +390,7 @@ impl Renderer {
         let pipeline_layout = self
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
+                label: Some("GraphicPipelineLayout"),
                 bind_group_layouts: &bind_group_layout
                     .iter()
                     .map(|layout| Some(layout))
@@ -403,45 +420,47 @@ impl Renderer {
             blend: None,
             write_mask: ColorWrites::all(),
         })];
-        Ok(self
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("RenderPipeline".into()),
-                layout: Some(&pipeline_layout),
-                vertex: VertexState {
-                    module: &vertex_shader,
-                    entry_point: Some(&vertex_entry_point),
-                    compilation_options: PipelineCompilationOptions {
-                        constants: &[],
-                        zero_initialize_workgroup_memory: false,
-                    },
-                    buffers: &[],
-                },
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: None,
-                    unclipped_depth: false,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: MultisampleState::default(),
-                fragment: fragment_shader.as_ref().map(
-                    |(fragment_shader, fragment_entry_point)| wgpu::FragmentState {
-                        module: fragment_shader,
-                        entry_point: Some(fragment_entry_point),
+        self.catch_validation_error("create the render pipeline", |renderer| {
+            renderer
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("RenderPipeline".into()),
+                    layout: Some(&pipeline_layout),
+                    vertex: VertexState {
+                        module: &vertex_shader,
+                        entry_point: Some(&vertex_entry_point),
                         compilation_options: PipelineCompilationOptions {
                             constants: &[],
                             zero_initialize_workgroup_memory: false,
                         },
-                        targets: &color_target_state,
+                        buffers: &[],
                     },
-                ),
-                multiview_mask: None,
-                cache: None,
-            }))
+                    primitive: PrimitiveState {
+                        topology: PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: None,
+                        unclipped_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        conservative: false,
+                    },
+                    depth_stencil: None,
+                    multisample: MultisampleState::default(),
+                    fragment: fragment_shader.as_ref().map(
+                        |(fragment_shader, fragment_entry_point)| wgpu::FragmentState {
+                            module: fragment_shader,
+                            entry_point: Some(fragment_entry_point),
+                            compilation_options: PipelineCompilationOptions {
+                                constants: &[],
+                                zero_initialize_workgroup_memory: false,
+                            },
+                            targets: &color_target_state,
+                        },
+                    ),
+                    multiview_mask: None,
+                    cache: None,
+                })
+        })
     }
     fn create_mesh_pipeline(
         &mut self,
@@ -482,16 +501,18 @@ impl Renderer {
         match self.active_shaders.get(&ShaderStage::Compute) {
             Some(compute_shader) => {
                 let compute_module = self.create_shader_module(compute_shader)?;
-                Ok(self
-                    .device
-                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                        label: None,
-                        layout: Some(&pipeline_layout),
-                        module: &compute_module,
-                        entry_point: Some(&compute_shader.entry_point),
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        cache: None,
-                    }))
+                self.catch_validation_error("create the compute pipeline", |renderer| {
+                    renderer
+                        .device
+                        .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                            label: None,
+                            layout: Some(&pipeline_layout),
+                            module: &compute_module,
+                            entry_point: Some(&compute_shader.entry_point),
+                            compilation_options: wgpu::PipelineCompilationOptions::default(),
+                            cache: None,
+                        })
+                })
             }
             None => Err(RendererError::InternalError("No compute shader set".into())),
         }
@@ -503,7 +524,7 @@ impl Renderer {
     pub fn render(&mut self) -> Result<Vec<u8>, RendererError> {
         self.ensure_graphic_pipeline()?;
         // Rendering a shader the client sent us is expected to fail.
-        self.catch_validation_error(|renderer| renderer.render_frame())?
+        self.catch_validation_error("render the frame", |renderer| renderer.render_frame())?
     }
     fn render_frame(&self) -> Result<Vec<u8>, RendererError> {
         let graphic_pipeline = self
@@ -614,7 +635,9 @@ impl Renderer {
     }
     pub fn compute(&mut self) -> Result<Vec<u8>, RendererError> {
         self.ensure_compute_pipeline()?;
-        self.catch_validation_error(|renderer| renderer.dispatch_compute())?
+        self.catch_validation_error("dispatch the compute pass", |renderer| {
+            renderer.dispatch_compute()
+        })?
     }
     fn dispatch_compute(&self) -> Result<Vec<u8>, RendererError> {
         let compute_pipeline = self

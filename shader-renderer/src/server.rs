@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use log::info;
 use lsp_server::{Message, RequestId};
 
 use crate::{
@@ -17,9 +18,11 @@ use crate::{
 
 mod connection;
 mod error;
-mod notification;
-mod request;
+// pub for test
+pub mod notification;
+pub mod request;
 
+#[derive(Debug)]
 pub struct ServerConfig {
     pub width: u32,
     pub height: u32,
@@ -50,6 +53,7 @@ pub enum ServerTransport {
 
 impl Server {
     pub fn new(config: ServerConfig, transport: ServerTransport) -> Result<Self, ServerError> {
+        info!("Starting shader renderer server with config {:?}", config);
         Ok(Self {
             renderer: Renderer::new(config.width, config.height),
             config,

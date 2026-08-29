@@ -3,7 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shader_sense::shader::ShaderStage;
 
 use crate::{
-    renderer::{Renderer, Shader},
+    renderer::{Renderer, Shader, ShaderSource},
     server::error::ServerError,
 };
 
@@ -121,9 +121,15 @@ impl Notification for UpdateShaderNotification {
                 )));
             }
             info!(
-                "Set shader stage {:?}: {:?}",
+                "Set shader stage {:?} with entry point {} as {}",
                 shader.stage(),
-                shader.source()
+                shader.entry_point(),
+                match shader.source() {
+                    ShaderSource::Spirv(_) => "Spirv",
+                    ShaderSource::Dxil(_) => "Dxil",
+                    ShaderSource::Wgsl(_) => "Wgsl",
+                    ShaderSource::Glsl(_) => "Glsl",
+                }
             );
             renderer.set_shader(shader);
         } else {

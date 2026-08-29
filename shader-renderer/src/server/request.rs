@@ -64,7 +64,7 @@ pub enum RenderRequest {}
 #[derive(Serialize, Deserialize)]
 pub struct RenderRequestResult {
     #[serde(with = "base64_bytes")]
-    data: Vec<u8>, // For now, base64 encoded raw image. Should use shared memory instead.
+    pub data: Vec<u8>, // For now, base64 encoded raw image. Should use shared memory instead.
 }
 
 impl Request for RenderRequest {
