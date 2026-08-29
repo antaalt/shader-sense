@@ -9,7 +9,7 @@ use crate::{
         connection::ServerConnection,
         error::ServerError,
         notification::{
-            dispatch_notification, ErrorNotification, ErrorNotificationParams,
+            dispatch_notification, ErrorNotification, ErrorNotificationParams, ExitNotification,
             ResizeTargetNotification, UpdateShaderNotification,
         },
         request::{dispatch_request, RenderRequest, ShutdownRequest},
@@ -68,7 +68,12 @@ impl Server {
         loop {
             let msg = match self.connection.connection.receiver.recv() {
                 Ok(msg) => msg,
-                Err(_) => break, // Client disconnected, exit server.
+                Err(_) => {
+                    // Client disconnected. The reader thread already reached the end of the
+                    // transport, so joining it returns instead of blocking.
+                    info!("Client disconnected, exiting server");
+                    return Ok(self.connection.join()?);
+                }
             };
             match msg {
                 Message::Request(req) => {
@@ -103,8 +108,6 @@ impl Server {
                 },
             }
         }
-        // Let the transport flush whatever is still pending before leaving.
-        self.connection.join()?;
         return Ok(());
     }
     pub fn on_request(
@@ -122,6 +125,7 @@ impl Server {
             self,
             notification,
             [
+                ExitNotification,
                 ErrorNotification,
                 ResizeTargetNotification,
                 UpdateShaderNotification

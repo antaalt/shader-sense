@@ -89,10 +89,6 @@ impl Notification for ResizeTargetNotification {
     }
 }
 
-pub struct UpdateGraphicPipeline {
-    depth: bool,
-}
-
 pub struct UpdateShaderNotification {}
 
 #[derive(Serialize, Deserialize)]
@@ -135,6 +131,21 @@ impl Notification for UpdateShaderNotification {
         } else {
             renderer.remove_shader(params.shader_stage);
         }
+        Ok(())
+    }
+}
+
+pub struct ExitNotification {}
+
+impl Notification for ExitNotification {
+    type Params = ();
+
+    const METHOD: &'static str = "exit";
+
+    fn handle_notification(
+        _renderer: &mut Renderer,
+        _params: Self::Params,
+    ) -> Result<(), ServerError> {
         Ok(())
     }
 }
