@@ -38,8 +38,7 @@ fn get_diagnostic_report(
 
 #[test]
 fn test_automatic_variant_discovery_use_includer_context() {
-    let mut server =
-        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
@@ -125,7 +124,7 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
         "automaticVariantDiscovery": true
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let invalid_main = TestFile::new(
         Path::new("../shader-sense/test/glsl/auto-variant/a-auto-variant.frag.glsl"),

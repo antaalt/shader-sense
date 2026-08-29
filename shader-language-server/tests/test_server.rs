@@ -107,10 +107,24 @@ pub struct TestServer {
     notification_handler: HashMap<&'static str, Box<dyn FnMut(Value)>>,
 }
 impl TestServer {
-    #[allow(dead_code)]
-    pub fn wasi(config: ServerSerializedConfig) -> Option<TestServer> {
+    pub fn new(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
+        // Run the WASI server if required by env.
+        let use_wasi_server = match std::env::var("USE_WASI_SERVER") {
+            Ok(use_wasi_server) => use_wasi_server.parse().unwrap(),
+            Err(_) => false,
+        };
+        if use_wasi_server {
+            TestServer::wasi(config, transport)
+        } else {
+            TestServer::native(config, transport)
+        }
+    }
+    fn wasi(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
         use std::path::Path;
-
+        assert!(
+            transport == Transport::Stdio,
+            "Wasi server does not support socket"
+        );
         use shader_sense::include::canonicalize;
         let server_path = canonicalize(Path::new(&format!(
             "../target/wasm32-wasip1-threads/debug/{}.{}",
@@ -119,7 +133,7 @@ impl TestServer {
         )))
         .unwrap();
         let test_folder = canonicalize(Path::new("../shader-sense/test")).unwrap();
-        println!("Server path: {}", server_path.display());
+        println!("Wasi server path: {}", server_path.display());
         println!("Test folder: {}", test_folder.display());
         // If wasm is not built, simply skip the test.
         // On PC build workflow, no WASI available, too heavy to rebuild it, so skip instead.
@@ -150,7 +164,7 @@ impl TestServer {
             .unwrap();
         Some(Self::from_child(child, Transport::Stdio))
     }
-    pub fn desktop(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
+    fn native(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
         use std::path::Path;
 
         use shader_sense::include::canonicalize;
@@ -161,11 +175,11 @@ impl TestServer {
         )))
         .unwrap();
         let test_folder = canonicalize(Path::new("../shader-sense/test")).unwrap();
-        println!("Server path: {}", server_path.display());
+        println!("Native server path: {}", server_path.display());
         println!("Test folder: {}", test_folder.display());
         // If server is not built, simply skip the test.
         if !server_path.is_file() {
-            println!("Desktop server not built, skipping test.");
+            println!("Native server not built, skipping test.");
             return None;
         }
         assert!(test_folder.is_dir(), "Missing Test folder");

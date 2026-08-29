@@ -60,7 +60,7 @@ fn test_glsl_relative_preamble() {
         }
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/dependent-include.frag.glsl"),
@@ -98,7 +98,7 @@ fn test_validate() {
         "validate": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/error-parsing.frag.glsl"),
@@ -136,7 +136,7 @@ fn test_symbols() {
         "symbols": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
@@ -165,7 +165,7 @@ fn test_partial_config_update() {
         "symbols": false
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     // Partial update that should not reset symbols
     server.update_configuration(json!({
@@ -204,7 +204,7 @@ fn test_stage_define() {
         }
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/variants.hlsl"),
@@ -269,7 +269,7 @@ fn test_config_override() {
         }
     }))
     .unwrap();
-    let mut server = TestServer::desktop(config, Transport::Stdio).unwrap();
+    let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new(
         Path::new("../shader-sense/test/hlsl/variants.hlsl"),
