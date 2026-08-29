@@ -8,7 +8,7 @@ rustflags = [
   #"-C", "link-arg=--import-memory",
   #"-C", "link-arg=--export-memory",
 ]
-runner = "wasmtime --wasi threads=y --dir ../shader-sense/test::/test"
+runner = "wasmtime --wasm shared-memory=y --wasi threads=y --dir ../shader-sense/test::/test"
 
 [target.wasm32-unknown-unknown]
 # Cannot build C and C++ to this target because there is no libc available.
