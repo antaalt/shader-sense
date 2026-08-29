@@ -4,7 +4,8 @@ members = [
     "shader-sense",
     "shader-language-server",
     "shader-sense-cli",
-    "shader-intrinsic-parser"
+    "shader-intrinsic-parser",
+    "shader-renderer"
 ]
 resolver = "2"
 
