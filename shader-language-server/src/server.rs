@@ -156,7 +156,7 @@ impl ServerLanguage {
             )),
             diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
                 DiagnosticOptions {
-                    identifier: Some(env!("CARGO_PKG_NAME").into()),
+                    identifier: Some(env!("CARGO_PKG_NAME").replace("_", "-")),
                     inter_file_dependencies: true,
                     workspace_diagnostics: false, // TODO: workspace diag
                     work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -185,7 +185,7 @@ impl ServerLanguage {
             implementation_provider: None, // TODO: Could add this.
             folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Right(DocumentSymbolOptions {
-                label: Some(env!("CARGO_PKG_NAME").into()),
+                label: Some(env!("CARGO_PKG_NAME").replace("_", "-")),
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: None,
                 },
