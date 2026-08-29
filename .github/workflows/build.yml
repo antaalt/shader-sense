@@ -109,8 +109,8 @@ jobs:
               clang-17 --version
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
-      - name: Install wasmtime as test runner.
-        run: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version v46.0.3
+      - name: Install wasmtime as test runner and reload env.
+        run: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version v46.0.3 | source ~/.bashrc
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
         run: cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
         env: # Somehow this VM has clang14 by default, which is not supported...
