@@ -1,3 +1,4 @@
+use log::info;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shader_sense::shader::ShaderStage;
 
@@ -82,6 +83,7 @@ impl Notification for ResizeTargetNotification {
         renderer: &mut Renderer,
         params: Self::Params,
     ) -> Result<(), ServerError> {
+        info!("Resizing renderer to {}x{}", params.width, params.height);
         renderer.resize(params.width, params.height);
         Ok(())
     }
@@ -109,6 +111,20 @@ impl Notification for UpdateShaderNotification {
         params: Self::Params,
     ) -> Result<(), ServerError> {
         if let Some(shader) = params.shader {
+            // The stage is carried by both the params & the shader, so reject a shader
+            // that would not end up bound to the slot the client asked for.
+            if shader.stage() != params.shader_stage {
+                return Err(ServerError::InternalError(format!(
+                    "Shader stage {:?} does not match the updated stage {:?}",
+                    shader.stage(),
+                    params.shader_stage
+                )));
+            }
+            info!(
+                "Set shader stage {:?}: {:?}",
+                shader.stage(),
+                shader.source()
+            );
             renderer.set_shader(shader);
         } else {
             renderer.remove_shader(params.shader_stage);

@@ -9,9 +9,9 @@ use crate::{
         error::ServerError,
         notification::{
             dispatch_notification, ErrorNotification, ErrorNotificationParams,
-            ResizeTargetNotification,
+            ResizeTargetNotification, UpdateShaderNotification,
         },
-        request::{dispatch_request, ShutdownRequest},
+        request::{dispatch_request, RenderRequest, ShutdownRequest},
     },
 };
 
@@ -61,12 +61,15 @@ impl Server {
         })
     }
     pub fn run(&mut self) -> Result<(), ServerError> {
-        let msg_err = self.connection.connection.receiver.recv();
-        match msg_err {
-            Ok(msg) => match msg {
+        loop {
+            let msg = match self.connection.connection.receiver.recv() {
+                Ok(msg) => msg,
+                Err(_) => break, // Client disconnected, exit server.
+            };
+            match msg {
                 Message::Request(req) => {
                     if self.connection.connection.handle_shutdown(&req)? {
-                        return Ok(());
+                        break; // Client asked to exit.
                     }
                     let id = req.id.clone();
                     match self.on_request(id.clone(), req) {
@@ -94,11 +97,10 @@ impl Server {
                         },
                     ),
                 },
-            },
-            Err(_) => {
-                return Ok(()); // Exit server.
             }
         }
+        // Let the transport flush whatever is still pending before leaving.
+        self.connection.join()?;
         return Ok(());
     }
     pub fn on_request(
@@ -106,7 +108,7 @@ impl Server {
         request_id: RequestId,
         request: lsp_server::Request,
     ) -> Result<(), ServerError> {
-        dispatch_request!(self, request_id, request, [ShutdownRequest,])
+        dispatch_request!(self, request_id, request, [ShutdownRequest, RenderRequest,])
     }
     pub fn on_notification(
         &mut self,
@@ -115,7 +117,11 @@ impl Server {
         dispatch_notification!(
             self,
             notification,
-            [ErrorNotification, ResizeTargetNotification]
+            [
+                ErrorNotification,
+                ResizeTargetNotification,
+                UpdateShaderNotification
+            ]
         )
     }
     pub fn on_response(&mut self, response: lsp_server::Response) -> Result<(), ServerError> {

@@ -1,22 +1,23 @@
 use std::{collections::HashMap, num::NonZeroU64, time::Duration};
 
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use wgpu::{
-    util::DeviceExt,
     wgt::{BufferDescriptor, CreateShaderModuleDescriptorPassthrough, TextureDescriptor},
-    BufferBinding, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePipeline,
-    ExperimentalFeatures, Extent3d, MeshPipelineDescriptor, MultisampleState, Operations, Origin3d,
-    PassthroughShaderEntryPoint, PipelineCompilationOptions, PrimitiveState, PrimitiveTopology,
-    RenderPassColorAttachment, RenderPipeline, ShaderModule, ShaderModuleDescriptor,
-    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase, VertexState,
+    Backends, BufferBinding, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePipeline,
+    ExperimentalFeatures, Extent3d, InstanceFlags, MeshPipelineDescriptor, MultisampleState,
+    Operations, Origin3d, PassthroughShaderEntryPoint, PipelineCompilationOptions, PrimitiveState,
+    PrimitiveTopology, RenderPassColorAttachment, RenderPipeline, ShaderModule,
+    ShaderModuleDescriptor, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase,
+    VertexState,
 };
 
 use crate::renderer::error::RendererError;
 
 pub mod error;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ShaderSource {
     Spirv(Vec<u32>),
     Dxil(Vec<u8>),
@@ -31,6 +32,15 @@ pub struct Shader {
     stage: ShaderStage,
     entry_point: String,
     source: ShaderSource,
+}
+
+impl Shader {
+    pub fn stage(&self) -> ShaderStage {
+        self.stage
+    }
+    pub fn source(&self) -> &ShaderSource {
+        &self.source
+    }
 }
 
 pub struct BindGroupLayoutEntry {}
@@ -112,43 +122,22 @@ pub struct Renderer {
 
 impl Renderer {
     const SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    const SURFACE_BYTES_PER_TEXEL: u32 = 4;
 
-    pub fn new(width: u32, height: u32) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: Default::default(), // TODO: Dxil vs spirv vs wgsl need different backend...
-            flags: Default::default(),
-            memory_budget_thresholds: Default::default(),
-            backend_options: Default::default(),
-            display: None,
-        });
+    /// Pitch of a row of the render target once copied to the read back buffer.
+    /// A texture to buffer copy requires its rows to be aligned, so the read back
+    /// data may be padded & the client needs to take this pitch into account.
+    pub fn get_bytes_per_row(width: u32) -> u32 {
+        let bytes_per_row = width * Self::SURFACE_BYTES_PER_TEXEL;
+        bytes_per_row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+    }
 
-        // Select adapter
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-                .expect("Failed to create adapter");
-
-        // Print out some basic information about the adapter.
-        println!("Running on Adapter: {:#?}", adapter.get_info());
-
-        // Check to see if the adapter supports compute shaders. While WebGPU guarantees support for
-        // compute shaders, wgpu supports a wider range of devices through the use of "downlevel" devices.
-        let downlevel_capabilities = adapter.get_downlevel_capabilities();
-        if !downlevel_capabilities
-            .flags
-            .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS)
-        {
-            panic!("Adapter does not support compute shaders");
-        }
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("Device".into()),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::downlevel_defaults(),
-            memory_hints: wgpu::MemoryHints::MemoryUsage,
-            trace: wgpu::Trace::Off,
-            experimental_features: ExperimentalFeatures::disabled(),
-        }))
-        .expect("Failed to create device");
-
+    /// Create the render target & the buffer used to read it back on the CPU.
+    fn create_target(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+    ) -> (wgpu::Texture, wgpu::TextureView, wgpu::Buffer) {
         let headless_surface = device.create_texture(&TextureDescriptor {
             label: Some("HeadlessSurface".into()),
             size: wgpu::Extent3d {
@@ -160,7 +149,8 @@ impl Renderer {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: Self::SURFACE_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            // COPY_SRC is required to read the rendered image back.
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[Self::SURFACE_FORMAT],
         });
         let headless_surface_view =
@@ -177,10 +167,61 @@ impl Renderer {
             });
         let read_back_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("ReadbackBuffer".into()),
-            size: (width * height * 4) as u64,
-            usage: BufferUsages::MAP_READ,
+            size: (Self::get_bytes_per_row(width) * height) as u64,
+            // COPY_DST is required as destination of the texture to buffer copy.
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        (headless_surface, headless_surface_view, read_back_buffer)
+    }
+
+    pub fn new(width: u32, height: u32) -> Self {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: Backends::default(), // TODO: Dxil vs spirv vs wgsl need different backend...
+            flags: InstanceFlags::default(),
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
+            display: None,
+        });
+
+        // Select adapter
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect("Failed to create adapter");
+
+        // Print out some basic information about the adapter.
+        // Never print to stdout: it is the transport used by the stdio connection.
+        info!("Running on Adapter: {:#?}", adapter.get_info());
+
+        // Check to see if the adapter supports compute shaders. While WebGPU guarantees support for
+        // compute shaders, wgpu supports a wider range of devices through the use of "downlevel" devices.
+        let downlevel_capabilities = adapter.get_downlevel_capabilities();
+        if !downlevel_capabilities
+            .flags
+            .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS)
+        {
+            panic!("Adapter does not support compute shaders");
+        }
+        // DXIL & GLSL sources are created through create_shader_module_passthrough, which needs
+        // this feature. Only request it when available so we still run for SPIRV & WGSL sources.
+        let required_features = adapter.features() & wgpu::Features::PASSTHROUGH_SHADERS;
+        if !required_features.contains(wgpu::Features::PASSTHROUGH_SHADERS) {
+            warn!("Adapter does not support passthrough shaders. Only SPIRV & WGSL sources will be supported.");
+        }
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("Device".into()),
+            required_features,
+            // Keep downlevel defaults for compatibility, but allow the resolution the adapter supports
+            // so that a large render target is not rejected.
+            required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+            memory_hints: wgpu::MemoryHints::MemoryUsage,
+            trace: wgpu::Trace::Off,
+            experimental_features: ExperimentalFeatures::disabled(),
+        }))
+        .expect("Failed to create device");
+
+        let (headless_surface, headless_surface_view, read_back_buffer) =
+            Self::create_target(&device, width, height);
         Self {
             width,
             height,
@@ -197,24 +238,70 @@ impl Renderer {
             bind_group: None,
         }
     }
-    pub fn resize(&self, width: u32, height: u32) {
-        todo!()
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if self.width == width && self.height == height {
+            return;
+        }
+        info!("Resizing render target to {}x{}", width, height);
+        let (headless_surface, headless_surface_view, read_back_buffer) =
+            Self::create_target(&self.device, width, height);
+        self.headless_surface = headless_surface;
+        self.headless_surface_view = headless_surface_view;
+        self.read_back_buffer = read_back_buffer;
+        self.width = width;
+        self.height = height;
+        // Pipelines do not depend on the target size, so they are kept as is.
     }
-    pub fn remove_shader(&self, shader_stage: ShaderStage) {
-        todo!()
+    pub fn remove_shader(&mut self, shader_stage: ShaderStage) {
+        if self.active_shaders.remove(&shader_stage).is_some() {
+            self.invalidate_pipelines();
+        }
     }
     pub fn set_shader(&mut self, shader: Shader) {
         // TODO: need to reflect shader and create bind group here. Or pass reflection result as JSON.
         // Would be nice to pass reflection result as client NEEDS them to map everything.
         // But it could be generated here via spirv tools (and naga and what about dxil ??)
         // and returned via a response.
-        if let Some(old_shader) = self.active_shaders.insert(shader.stage, shader) {
-            // TODO: something ?
-        }
-        let graphic_pipeline = self.create_graphic_pipeline();
+        self.active_shaders.insert(shader.stage, shader);
+        self.invalidate_pipelines();
     }
-    pub fn create_shader_module(&self, shader: &Shader) -> ShaderModule {
-        match &shader.source {
+    /// Drop the pipelines so that they are recreated with the current shaders on next use.
+    ///
+    /// Pipelines are not rebuilt here: a client binding the stages of a pipeline one by one would
+    /// else fail on every incomplete state & rebuild the pipeline as many times as it has stages.
+    fn invalidate_pipelines(&mut self) {
+        self.graphic_pipeline = None;
+        self.compute_pipeline = None;
+    }
+    /// Run a wgpu operation with a validation error scope, so an invalid shader is reported back to
+    /// the client instead of reaching the uncaptured error handler, which panics.
+    fn catch_validation_error<T, F: FnOnce(&Self) -> T>(
+        &self,
+        callback: F,
+    ) -> Result<T, RendererError> {
+        let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let value = callback(self);
+        match pollster::block_on(scope.pop()) {
+            Some(error) => Err(RendererError::ValidationError(format!(
+                "Failed to validate callback: {}",
+                error.to_string()
+            ))),
+            None => Ok(value),
+        }
+    }
+    pub fn create_shader_module(&self, shader: &Shader) -> Result<ShaderModule, RendererError> {
+        if matches!(shader.source, ShaderSource::Dxil(_) | ShaderSource::Glsl(_))
+            && !self
+                .device
+                .features()
+                .contains(wgpu::Features::PASSTHROUGH_SHADERS)
+        {
+            return Err(RendererError::InternalError(format!(
+                "Device does not support passthrough shaders, required for {:?} sources. Compile the shader to SPIRV or WGSL instead.",
+                shader.shading_language
+            )));
+        }
+        Ok(match &shader.source {
             // Ensure validation
             ShaderSource::Spirv(_) | ShaderSource::Wgsl(_) => {
                 self.device.create_shader_module(ShaderModuleDescriptor {
@@ -253,40 +340,28 @@ impl Renderer {
                     },
                 )
             },
-        }
+        })
     }
-    /*fn update_bind_group(&mut self) {
-        let input_data_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: &[],
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-
-        // Now we create a buffer to store the output data.
-        let output_data_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: input_data_buffer.size(),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: input_data_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: output_data_buffer.as_entire_binding(),
-                },
-            ],
-        });
-    }*/
-    fn create_graphic_pipeline(&mut self) -> Result<RenderPipeline, RendererError> {
+    /// Get the graphic pipeline for the currently bound shaders, creating it if needed.
+    fn ensure_graphic_pipeline(&mut self) -> Result<&RenderPipeline, RendererError> {
+        if self.graphic_pipeline.is_none() {
+            // Creating a pipeline from a shader the client sent us is expected to fail.
+            let pipeline =
+                self.catch_validation_error(|renderer| renderer.create_graphic_pipeline())??;
+            self.graphic_pipeline = Some(pipeline);
+        }
+        Ok(self.graphic_pipeline.as_ref().unwrap())
+    }
+    /// Get the compute pipeline for the currently bound shaders, creating it if needed.
+    fn ensure_compute_pipeline(&mut self) -> Result<&ComputePipeline, RendererError> {
+        if self.compute_pipeline.is_none() {
+            let pipeline =
+                self.catch_validation_error(|renderer| renderer.create_compute_pipeline())??;
+            self.compute_pipeline = Some(pipeline);
+        }
+        Ok(self.compute_pipeline.as_ref().unwrap())
+    }
+    fn create_graphic_pipeline(&self) -> Result<RenderPipeline, RendererError> {
         let bind_group_layout = if let Some(bind_group) = &self.bind_group {
             bind_group
                 .into_iter()
@@ -308,7 +383,7 @@ impl Renderer {
         let (vertex_shader, vertex_entry_point) =
             if let Some(vertex) = self.active_shaders.get(&ShaderStage::Vertex) {
                 (
-                    self.create_shader_module(vertex),
+                    self.create_shader_module(vertex)?,
                     vertex.entry_point.clone(),
                 )
             } else {
@@ -317,7 +392,7 @@ impl Renderer {
         let fragment_shader =
             if let Some(fragment) = self.active_shaders.get(&ShaderStage::Fragment) {
                 Some((
-                    self.create_shader_module(fragment),
+                    self.create_shader_module(fragment)?,
                     fragment.entry_point.clone(),
                 ))
             } else {
@@ -395,7 +470,7 @@ impl Renderer {
             cache: todo!(),
         }))
     }
-    fn create_compute_pipeline(&mut self) -> Result<ComputePipeline, RendererError> {
+    fn create_compute_pipeline(&self) -> Result<ComputePipeline, RendererError> {
         // The pipeline layout describes the bind groups that a pipeline expects
         let pipeline_layout = self
             .device
@@ -406,7 +481,7 @@ impl Renderer {
             });
         match self.active_shaders.get(&ShaderStage::Compute) {
             Some(compute_shader) => {
-                let compute_module = self.create_shader_module(compute_shader);
+                let compute_module = self.create_shader_module(compute_shader)?;
                 Ok(self
                     .device
                     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -422,12 +497,19 @@ impl Renderer {
         }
     }
 
-    pub fn render(&self) -> Result<Vec<u8>, RendererError> {
-        if self.graphic_pipeline.is_none() {
-            return Err(RendererError::InternalError(
-                "No graphic pipeline set".into(),
-            ));
-        }
+    /// Render a frame with the currently bound shaders & read it back.
+    ///
+    /// Rows of the returned image are padded up to [`Self::get_bytes_per_row`].
+    pub fn render(&mut self) -> Result<Vec<u8>, RendererError> {
+        self.ensure_graphic_pipeline()?;
+        // Rendering a shader the client sent us is expected to fail.
+        self.catch_validation_error(|renderer| renderer.render_frame())?
+    }
+    fn render_frame(&self) -> Result<Vec<u8>, RendererError> {
+        let graphic_pipeline = self
+            .graphic_pipeline
+            .as_ref()
+            .ok_or_else(|| RendererError::InternalError("No graphic pipeline set".into()))?;
         let bind_groups = if let Some(bind_group) = &self.bind_group {
             bind_group
                 .into_iter()
@@ -456,7 +538,7 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        render_pass.set_pipeline(self.graphic_pipeline.as_ref().unwrap());
+        render_pass.set_pipeline(graphic_pipeline);
         for (index, bind_group) in bind_groups.iter().enumerate() {
             render_pass.set_bind_group(index as u32, bind_group, &[]);
         }
@@ -474,8 +556,9 @@ impl Renderer {
                 buffer: &self.read_back_buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: None,
-                    rows_per_image: None,
+                    // A copy with more than one row requires an explicit aligned pitch.
+                    bytes_per_row: Some(Self::get_bytes_per_row(self.width)),
+                    rows_per_image: Some(self.height),
                 },
             },
             Extent3d {
@@ -490,27 +573,54 @@ impl Renderer {
         let submission_index = self.queue.submit([command_buffer]);
 
         let buffer_slice = self.read_back_buffer.slice(..);
-        buffer_slice.map_async(wgpu::MapMode::Read, |_| {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             // mapping will be finished with poll. Not in WebGpu though...
+            let _ = sender.send(result);
         });
 
         self.device
             .poll(wgpu::PollType::Wait {
                 submission_index: Some(submission_index),
-                timeout: Some(Duration::from_secs(1)),
+                timeout: Some(Duration::from_secs(5)),
             })
-            .unwrap();
+            .map_err(|err| {
+                RendererError::InternalError(format!("Failed to wait for the GPU: {}", err))
+            })?;
+        match receiver.try_recv() {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => {
+                return Err(RendererError::InternalError(format!(
+                    "Failed to map the read back buffer: {}",
+                    err
+                )))
+            }
+            Err(_) => {
+                return Err(RendererError::InternalError(
+                    "Read back buffer was not mapped once the GPU was done".into(),
+                ))
+            }
+        }
 
         // We can now read the data from the buffer.
-        let data = buffer_slice.get_mapped_range().unwrap();
-        Ok(data.to_vec())
+        let data = buffer_slice.get_mapped_range().map_err(|err| {
+            RendererError::InternalError(format!("Failed to read the read back buffer: {}", err))
+        })?;
+        let image = data.to_vec();
+        // The buffer needs to be unmapped before it can be used by another render.
+        drop(data);
+        self.read_back_buffer.unmap();
+        Ok(image)
     }
-    pub fn compute(&self) -> Result<Vec<u8>, RendererError> {
-        if self.compute_pipeline.is_none() {
-            return Err(RendererError::InternalError(
-                "No compute pipeline set".into(),
-            ));
-        }
+    pub fn compute(&mut self) -> Result<Vec<u8>, RendererError> {
+        self.ensure_compute_pipeline()?;
+        self.catch_validation_error(|renderer| renderer.dispatch_compute())?
+    }
+    fn dispatch_compute(&self) -> Result<Vec<u8>, RendererError> {
+        let compute_pipeline = self
+            .compute_pipeline
+            .as_ref()
+            .ok_or_else(|| RendererError::InternalError("No compute pipeline set".into()))?;
         let bind_groups = if let Some(bind_group) = &self.bind_group {
             bind_group
                 .into_iter()
@@ -528,7 +638,7 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        compute_pass.set_pipeline(self.compute_pipeline.as_ref().unwrap());
+        compute_pass.set_pipeline(compute_pipeline);
         for (index, bind_group) in bind_groups.iter().enumerate() {
             compute_pass.set_bind_group(index as u32, bind_group, &[]);
         }
@@ -544,9 +654,11 @@ impl Renderer {
         self.device
             .poll(wgpu::PollType::Wait {
                 submission_index: Some(submission_index),
-                timeout: Some(Duration::from_secs(1)),
+                timeout: Some(Duration::from_secs(5)),
             })
-            .unwrap();
+            .map_err(|err| {
+                RendererError::InternalError(format!("Failed to wait for the GPU: {}", err))
+            })?;
         Ok(vec![])
     }
     pub fn raytrace(&self) {

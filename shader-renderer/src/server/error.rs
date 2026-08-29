@@ -15,7 +15,13 @@ pub enum ServerError {
 
 impl Display for ServerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            ServerError::InternalError(message) => write!(f, "Internal error: {}", message),
+            ServerError::ShaderError(error) => write!(f, "Shader error: {}", error),
+            ServerError::RendererError(error) => write!(f, "Renderer error: {}", error),
+            ServerError::SerializationError(error) => write!(f, "Serialization error: {}", error),
+            ServerError::IoError(error) => write!(f, "IO error: {}", error),
+        }
     }
 }
 
