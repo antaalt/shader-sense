@@ -388,7 +388,10 @@ mod tests {
                 );
                 assert!(
                     match &blob {
+                        #[cfg(not(target_os = "wasi"))]
                         CompilationResult::Dxil(blob) => !blob.is_empty(),
+                        #[cfg(target_os = "wasi")]
+                        CompilationResult::Spirv(blob) => !blob.is_empty(),
                         _ => false, // Only expect Dxil
                     },
                     "Blob should not be empty: {:?}",
