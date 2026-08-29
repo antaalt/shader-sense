@@ -110,7 +110,19 @@ fn test_server_wasi_runtime() {
     use test_server::TestServer;
 
     match TestServer::wasi(ServerSerializedConfig::default()) {
-        Some(_) => {}
+        Some(mut wasi_server) => {
+            // Test document
+            let file = TestFile::new(
+                Path::new("../shader-sense/test/glsl/ok.frag.glsl"),
+                ShadingLanguage::Glsl,
+            );
+            wasi_server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+                text_document: file.item(),
+            });
+            wasi_server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+                text_document: file.identifier(),
+            });
+        }
         None => {
             // Should ignore test instead to be clear.
             // https://github.com/rust-lang/rust/issues/68007

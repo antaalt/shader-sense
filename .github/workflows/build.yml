@@ -109,11 +109,24 @@ jobs:
               clang-17 --version
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
+      - name: Install wasmtime as test runner.
+        # The installer appends the PATH export to ~/.bashrc, but Actions steps run in a
+        # non-interactive bash which bails out at the top of ~/.bashrc, and PATH would not
+        # persist to the next step anyway. So export it through $GITHUB_PATH instead.
+        run: |
+          wget https://wasmtime.dev/install.sh
+          chmod +x ./install.sh
+          ./install.sh --version v46.0.3
+          echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+      - name: Check wasmtime version
+        run: wasmtime --version
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
-        run: cargo install --version 39.0.1 wasmtime-cli && cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
+        run: cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
         env: # Somehow this VM has clang14 by default, which is not supported...
           CC: clang-17
           CXX: clang++-17
+      - name: Test WASI server # Ensure wasi server correctly start
+        run: cargo test test_server_wasi -- --nocapture
       - name: Build WASI executable # Build only server on WASI
         run: cargo build --package shader_language_server --release --target wasm32-wasip1-threads --verbose
         env: # Somehow this VM has clang14 by default, which is not supported...

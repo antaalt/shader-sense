@@ -56,22 +56,24 @@ interface ServerConfig {
     experimentalMacroExpansion: boolean?, // Experimental test for macro expansion. Default is false.
     validateConfig: boolean?, // Validate configuration. Default is true.
     stageDefine: {
-        'vertex': { string: string }?,
-        'fragment': { string: string }?,
-        'compute': { string: string }?,
-        'tesselationControl': { string: string }?,
-        'tesselationEvaluation': { string: string }?,
-        'mesh': { string: string }?,
-        'task': { string: string }?,
-        'geometry': { string: string }?,
-        'rayGeneration': { string: string }?,
-        'closestHit': { string: string }?,
-        'anyHit': { string: string }?,
-        'callable': { string: string }?,
-        'miss': { string: string }?,
-        'intersect': { string: string }?,
+        vertex: { string: string }?,
+        fragment: { string: string }?,
+        compute: { string: string }?,
+        tesselationControl: { string: string }?,
+        tesselationEvaluation: { string: string }?,
+        mesh: { string: string }?,
+        task: { string: string }?,
+        geometry: { string: string }?,
+        rayGeneration: { string: string }?,
+        closestHit: { string: string }?,
+        anyHit: { string: string }?,
+        callable: { string: string }?,
+        miss: { string: string }?,
+        intersect: { string: string }?,
     }?, // Specific macro defined per shader stage. Default empty.
-    trace: 'off' | 'messages' | 'verbose' | null, // Level of error to display. Default to off.
+    trace: {
+        server: 'off' | 'messages' | 'verbose' | null, // Level of error to display. Default to off.
+    },
     severity: 'error' | 'warning'| 'info'| 'hint' | null, // Severity of diagnostic to display. Default to error.
     configOverride: string?, // Path to a JSON containig some configuration formatted following `ServerConfigOverride`. Default empty.
     hlsl: {
@@ -85,6 +87,7 @@ interface ServerConfig {
         spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null, // Spirv version to target. Default to SPIRV1_6.
         preamble: string?, // Path to a file which content will be added at start of every GLSL files. Default empty.
     }?, // Glsl specific configuration
+    wgsl: {} // Wgsl specific configuration
 }
 // Configuration that can be loaded by server through configOverride option. Useful for engine specific configuration to be swapped.
 interface ServerConfigOverride {
@@ -94,6 +97,7 @@ interface ServerConfigOverride {
     stageDefine: { ... }?, // Same as ServerConfig
     hlsl: { ... }?, // Same as ServerConfig
     glsl: { ... }?, // Same as ServerConfig
+    wgsl: { ... }?, // Same as ServerConfig
 }
 ```
 
@@ -141,7 +145,7 @@ As this server has everything in its hand to compile a shader, we can simply get
 ```typescript
 interface CompilationRequestParams {
     uri: string
-    compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the .
+    compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the compilation result.
 }
 // Might be null if compilation failed. Check diagnostics
 interface CompilationRequestResult {
