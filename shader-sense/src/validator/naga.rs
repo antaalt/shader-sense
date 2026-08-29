@@ -10,6 +10,7 @@ use crate::{
     position::{ShaderFileRange, ShaderPosition},
     shader::{ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
+    validator::validator::CompilationResult,
 };
 
 use super::validator::ValidatorImpl;
@@ -41,6 +42,56 @@ impl Naga {
             }
         }
     }
+    /// Convert a SPIR-V binary module to its WGSL representation.
+    pub fn spirv_to_wgsl(spirv: &[u8]) -> Result<String, ShaderError> {
+        // TODO: Option should change depending on target spirv version (adjust_coordinate_space which is > SPV1.0).
+        let module = naga::front::spv::parse_u8_slice(spirv, &naga::front::spv::Options::default())
+            .map_err(|err| {
+                ShaderError::ValidationError(format!("Failed to parse SPIR-V module: {}", err))
+            })?;
+        let mut validator =
+            naga::valid::Validator::new(ValidationFlags::all(), Capabilities::all());
+        let module_info = validator.validate(&module).map_err(|err| {
+            ShaderError::ValidationError(format!(
+                "Failed to validate SPIR-V module: {}",
+                err.emit_to_string("")
+            ))
+        })?;
+        naga::back::wgsl::write_string(
+            &module,
+            &module_info,
+            naga::back::wgsl::WriterFlags::empty(),
+        )
+        .map_err(|err| ShaderError::InternalErr(format!("Failed to write WGSL: {}", err)))
+    }
+    /// Convert a WGSL shader to its SPIR-V binary representation.
+    pub fn wgsl_to_spirv(shader_content: &str) -> Result<Vec<u8>, ShaderError> {
+        let module = wgsl::parse_str(shader_content).map_err(|err| {
+            ShaderError::ValidationError(format!(
+                "Failed to parse WGSL module: {}",
+                err.emit_to_string(shader_content)
+            ))
+        })?;
+        let mut validator =
+            naga::valid::Validator::new(ValidationFlags::all(), Capabilities::all());
+        let module_info = validator.validate(&module).map_err(|err| {
+            ShaderError::ValidationError(format!(
+                "Failed to validate WGSL module: {}",
+                err.emit_to_string(shader_content)
+            ))
+        })?;
+        let words = naga::back::spv::write_vec(
+            &module,
+            &module_info,
+            &naga::back::spv::Options::default(),
+            None, // Emit every entry point.
+        )
+        .map_err(|err| {
+            ShaderError::InternalErr(format!("Failed to write SPIR-V module: {}", err))
+        })?;
+        // Little endian, to match what naga::front::spv expects.
+        Ok(words.iter().flat_map(|word| word.to_le_bytes()).collect())
+    }
 }
 impl ValidatorImpl for Naga {
     fn validate_shader(
@@ -49,13 +100,13 @@ impl ValidatorImpl for Naga {
         file_path: &Path,
         _params: &ShaderParams,
         _include_callback: &mut dyn FnMut(&Path) -> Option<String>,
-    ) -> Result<ShaderDiagnosticList, ShaderError> {
+    ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
         let module = match wgsl::parse_str(shader_content)
             .map_err(|err| Self::from_parse_err(err, file_path, shader_content))
         {
             Ok(module) => module,
             Err(diag) => {
-                return Ok(ShaderDiagnosticList::from(diag));
+                return Ok((CompilationResult::None, ShaderDiagnosticList::from(diag)));
             }
         };
 
@@ -80,10 +131,14 @@ impl ValidatorImpl for Naga {
                     error.emit_to_string(shader_content),
                 ))
             } else {
-                Ok(list)
+                Ok((CompilationResult::None, list))
             }
         } else {
-            Ok(ShaderDiagnosticList::empty())
+            // Wgsl compile to itself
+            Ok((
+                CompilationResult::Wgsl(shader_content.into()),
+                ShaderDiagnosticList::empty(),
+            ))
         }
     }
     fn support(&self, shader_stage: ShaderStage) -> bool {

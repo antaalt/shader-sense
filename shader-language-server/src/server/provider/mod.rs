@@ -1,3 +1,4 @@
+pub mod compilation;
 mod completion;
 mod diagnostic;
 mod document_symbol;

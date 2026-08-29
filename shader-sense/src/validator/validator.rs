@@ -14,6 +14,15 @@ pub fn default_include_callback(path: &Path) -> Option<String> {
     Some(std::fs::read_to_string(path).unwrap())
 }
 
+#[derive(Debug, Clone, Default)]
+pub enum CompilationResult {
+    #[default]
+    None,
+    Spirv(Vec<u8>),
+    Dxil(Vec<u8>),
+    Wgsl(String),
+}
+
 /// Trait that all validator must implement to validate files.
 pub trait ValidatorImpl {
     fn validate_shader(
@@ -22,7 +31,7 @@ pub trait ValidatorImpl {
         file_path: &Path,
         params: &ShaderParams,
         include_callback: &mut dyn FnMut(&Path) -> Option<String>,
-    ) -> Result<ShaderDiagnosticList, ShaderError>;
+    ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError>;
 
     fn support(&self, shader_stage: ShaderStage) -> bool;
 
@@ -100,7 +109,7 @@ impl Validator {
         file_path: &Path,
         params: &ShaderParams,
         include_callback: &mut dyn FnMut(&Path) -> Option<String>, // TODO: Check if we cant pass a ref instead of a copy here.
-    ) -> Result<ShaderDiagnosticList, ShaderError> {
+    ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
         self.imp
             .validate_shader(shader_content, file_path, params, include_callback)
     }

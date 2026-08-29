@@ -6,6 +6,7 @@ use crate::{
     position::{ShaderFileRange, ShaderPosition},
     shader::{GlslSpirvVersion, GlslTargetClient, ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
+    validator::validator::CompilationResult,
 };
 use glslang::{
     error::GlslangError,
@@ -261,7 +262,7 @@ impl ValidatorImpl for Glslang {
         file_path: &Path,
         params: &ShaderParams,
         include_callback: &mut dyn FnMut(&Path) -> Option<String>,
-    ) -> Result<ShaderDiagnosticList, ShaderError> {
+    ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
         let file_name = self.get_file_name(file_path);
 
         // Ensure we have a newline character at the end to avoid issues with offset.
@@ -409,34 +410,51 @@ impl ValidatorImpl for Glslang {
             Ok(value) => value,
             Err(error) => match error {
                 Err(error) => return Err(error),
-                Ok(diag) => return Ok(diag),
+                Ok(diag) => return Ok((CompilationResult::None, diag)),
             },
         };
-        let _shader = match glslang::Shader::new(&self.compiler, input)
+        let shader = match glslang::Shader::new(&self.compiler, input)
             .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
             Err(error) => match error {
                 Err(error) => return Err(error),
-                Ok(diag) => return Ok(diag),
+                Ok(diag) => return Ok((CompilationResult::None, diag)),
             },
         };
-        // Linking require main entry point.
-        // For now, glslang is expecting main entry point, no way to change this via C api.
-        /*if params.entry_point.is_some() {
-            let _spirv = match shader
-                .compile()
-                .map_err(|e| self.from_glslang_error(e, file_path, &params, offset_first_line))
-            {
-                Ok(value) => value,
-                Err(error) => match error {
-                    Err(error) => return Err(error),
-                    Ok(diag) => return Ok(diag),
-                },
-            };
-        }*/
-
-        Ok(ShaderDiagnosticList::empty()) // No error detected.
+        // For now, glslang is expecting main entry point, no way to change this via C api yet.
+        // Linking require a valid entry point, so skipping it for validation.
+        let compilation_result = if let Some(entry_point) = &params.compilation.entry_point {
+            // For now, only compile main entry point as we cannot compile any other without changes to GLSLang
+            if entry_point == "main" {
+                let mut spirv = match shader.compile().map_err(|e| {
+                    self.from_glslang_error(e, file_path, &params, preamble_line_offset)
+                }) {
+                    Ok(value) => value,
+                    Err(error) => match error {
+                        Err(error) => return Err(error),
+                        Ok(diag) => return Ok((CompilationResult::None, diag)),
+                    },
+                };
+                // Safe because u32 multiple of u8
+                let compilation_result = if !spirv.is_empty() {
+                    let ptr = spirv.as_mut_ptr() as *mut u8;
+                    let length = spirv.len() * std::mem::size_of::<u32>();
+                    std::mem::forget(spirv);
+                    CompilationResult::Spirv(unsafe {
+                        Vec::<u8>::from_raw_parts(ptr, length, length)
+                    })
+                } else {
+                    CompilationResult::None
+                };
+                compilation_result
+            } else {
+                CompilationResult::None
+            }
+        } else {
+            CompilationResult::None // No compilation.
+        };
+        Ok((compilation_result, ShaderDiagnosticList::empty())) // No error detected.
     }
     fn support(&self, shader_stage: ShaderStage) -> bool {
         if self.hlsl {

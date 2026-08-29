@@ -20,8 +20,8 @@ use super::shader_module::ShaderModule;
 /// shader_module_parser.update_module_partial(
 ///     &mut shader_module,
 ///     &ShaderRange::new(
-///         ShaderPosition::new(3, 4),
-///         ShaderPosition::new(3, 4)
+///         ShaderPosition::new(2, 4),
+///         ShaderPosition::new(2, 4)
 ///     ),
 ///     &String::from("inserted text")
 /// ).unwrap();

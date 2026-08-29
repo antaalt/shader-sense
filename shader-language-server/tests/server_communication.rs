@@ -24,6 +24,10 @@ use lsp_types::{
     DocumentDiagnosticReportResult, Hover, HoverParams, RelatedFullDocumentDiagnosticReport,
     SemanticTokensParams, SemanticTokensResult, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
+use shader_language_server::server::provider::compilation::CompilationRequest;
+use shader_language_server::server::provider::compilation::{
+    CompilationRequestParams, CompilationType,
+};
 use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
@@ -613,6 +617,132 @@ fn test_semantic_tokens() {
             } else {
                 assert!(false);
             }
+        },
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_compilation_glsl_spirv() {
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/glsl/ok.frag.glsl"),
+        ShadingLanguage::Glsl,
+    );
+    server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
+        shader_variant: Some(ShaderVariant {
+            url: file.url.clone(),
+            shading_language: ShadingLanguage::Glsl,
+            entry_point: "main".into(),
+            stage: Some(ShaderStage::Fragment),
+            defines: HashMap::new(),
+            includes: Vec::new(),
+        }),
+    });
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentDiagnosticRequest>(
+        &DocumentDiagnosticParams {
+            text_document: file.identifier(),
+            identifier: None,
+            previous_result_id: None,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+        |report| {
+            let report = get_diagnostic_report(report.unwrap());
+            assert!(
+                report.full_document_diagnostic_report.items.is_empty(),
+                "Should not have any error with file, got {:#?}",
+                report.full_document_diagnostic_report.items
+            );
+        },
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            compilation_type: None,
+        },
+        |result| {
+            let compilation = result.unwrap().unwrap();
+            assert!(
+                compilation.compilation_type == CompilationType::Spirv,
+                "Invalid compilation type: {:?}",
+                compilation.compilation_type
+            );
+            assert!(
+                compilation.data.len() == 360,
+                "Invalid compilation length: {}",
+                compilation.data.len()
+            );
+        },
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_compilation_hlsl_dxil() {
+    let mut server =
+        TestServer::desktop(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new(
+        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
+        ShadingLanguage::Hlsl,
+    );
+    server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
+        shader_variant: Some(ShaderVariant {
+            url: file.url.clone(),
+            shading_language: ShadingLanguage::Hlsl,
+            entry_point: "fs_main".into(),
+            stage: Some(ShaderStage::Fragment),
+            defines: HashMap::new(),
+            includes: Vec::new(),
+        }),
+    });
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentDiagnosticRequest>(
+        &DocumentDiagnosticParams {
+            text_document: file.identifier(),
+            identifier: None,
+            previous_result_id: None,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        },
+        |report| {
+            let report = get_diagnostic_report(report.unwrap());
+            assert!(
+                report.full_document_diagnostic_report.items.is_empty(),
+                "Should not have any error with file, got {:#?}",
+                report.full_document_diagnostic_report.items
+            );
+        },
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            compilation_type: None,
+        },
+        |result| {
+            let compilation = result.unwrap().unwrap();
+            assert!(
+                compilation.compilation_type == CompilationType::Dxil,
+                "Invalid compilation type: {:?}",
+                compilation.compilation_type
+            );
+            assert!(
+                compilation.data.len() == 2672,
+                "Invalid compilation length: {}",
+                compilation.data.len()
+            );
         },
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {

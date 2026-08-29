@@ -49,9 +49,9 @@ mod tests {
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostics)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostics);
+                assert!(diagnostics.is_empty())
             }
             Err(err) => panic!("{}", err),
         }
@@ -74,9 +74,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -99,9 +99,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -124,9 +124,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -149,9 +149,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -168,8 +168,8 @@ mod tests {
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                let diags = result.diagnostics;
+            Ok((_blob, diagnostic_list)) => {
+                let diags = diagnostic_list.diagnostics;
                 println!("Diagnostic should not be empty: {:#?}", diags);
                 assert!(diags[0].range.file_path.exists());
                 assert_eq!(diags[0].error, String::from(" '#include' : Could not process include directive for header name: ./level1.glsl\n"));
@@ -189,9 +189,9 @@ mod tests {
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should not be empty: {:#?}", result);
-                assert!(!result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should not be empty: {:#?}", diagnostic_list);
+                assert!(!diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -220,9 +220,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -251,9 +251,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -269,7 +269,7 @@ mod tests {
             file_path,
             &ShaderParams {
                 compilation: ShaderCompilationParams {
-                    entry_point: None,
+                    entry_point: Some("main".into()), // TODO: should not require this and induce main as entry point if not set for compile
                     shader_stage: Some(ShaderStage::Vertex),
                     glsl: GlslCompilationParams {
                         client: GlslTargetClient::Vulkan1_3,
@@ -282,9 +282,20 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((blob, diagnostic_list)) => {
+                assert!(
+                    diagnostic_list.is_empty(),
+                    "Diagnostic should be empty: {:#?}",
+                    diagnostic_list
+                );
+                assert!(
+                    match &blob {
+                        CompilationResult::Spirv(blob) => !blob.is_empty(),
+                        _ => false, // Only expect SpirV
+                    },
+                    "Blob should not be empty: {:?}",
+                    blob
+                );
             }
             Err(err) => panic!("{}", err),
         };
@@ -313,9 +324,12 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                assert!(
+                    diagnostic_list.is_empty(),
+                    "Diagnostic should be empty: {:#?}",
+                    diagnostic_list
+                );
             }
             Err(err) => panic!("{}", err),
         };
@@ -344,9 +358,12 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                assert!(
+                    diagnostic_list.is_empty(),
+                    "Diagnostic should be empty: {:#?}",
+                    diagnostic_list
+                );
             }
             Err(err) => panic!("{}", err),
         };
@@ -363,9 +380,23 @@ mod tests {
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((blob, diagnostic_list)) => {
+                assert!(
+                    diagnostic_list.is_empty(),
+                    "Diagnostic should be empty: {:#?}",
+                    diagnostic_list
+                );
+                assert!(
+                    match &blob {
+                        #[cfg(not(target_os = "wasi"))]
+                        CompilationResult::Dxil(blob) => !blob.is_empty(),
+                        #[cfg(target_os = "wasi")]
+                        CompilationResult::None => true, // No compilation result on wasi.
+                        _ => false, // Only expect Dxil
+                    },
+                    "Blob should not be empty: {:?}",
+                    blob
+                );
             }
             Err(err) => panic!("{}", err),
         };
@@ -388,9 +419,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -413,9 +444,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -443,9 +474,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -468,9 +499,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -499,9 +530,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -531,9 +562,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should not be empty: {:#?}", result);
-                assert!(!result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should not be empty: {:#?}", diagnostic_list);
+                assert!(!diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -553,9 +584,9 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
             Err(err) => panic!("{}", err),
         };
@@ -597,12 +628,13 @@ mod tests {
                 },
                 &mut default_include_callback,
             ) {
-                Ok(result) => {
-                    println!(
+                Ok((_blob, diagnostic_list)) => {
+                    assert!(
+                        diagnostic_list.is_empty(),
                         "Diagnostic should be empty for stage {:?}: {:#?}",
-                        shader_stage, result
-                    );
-                    assert!(result.is_empty())
+                        shader_stage,
+                        diagnostic_list
+                    )
                 }
                 Err(err) => panic!("{}", err),
             };
@@ -648,12 +680,12 @@ mod tests {
                     },
                     &mut default_include_callback,
                 ) {
-                    Ok(result) => {
+                    Ok((_blob, diagnostic_list)) => {
                         println!(
                             "Diagnostic should be empty for stage {:?}: {:#?}",
-                            shader_stage, result
+                            shader_stage, diagnostic_list
                         );
-                        assert!(result.is_empty())
+                        assert!(diagnostic_list.is_empty())
                     }
                     Err(err) => panic!("{}", err),
                 };
@@ -691,12 +723,12 @@ mod tests {
                 },
                 &mut default_include_callback,
             ) {
-                Ok(result) => {
+                Ok((_blob, diagnostic_list)) => {
                     println!(
                         "Diagnostic should be empty for stage {:?}: {:#?}",
-                        shader_stage, result
+                        shader_stage, diagnostic_list
                     );
-                    assert!(result.is_empty())
+                    assert!(diagnostic_list.is_empty())
                 }
                 Err(err) => panic!("{}", err),
             };
@@ -714,10 +746,26 @@ mod tests {
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
-            Ok(result) => {
-                println!("Diagnostic should be empty: {:#?}", result);
-                assert!(result.is_empty())
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
             }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn wgsl_spirv_conversion() {
+        let file_path = Path::new("./test/wgsl/ok.wgsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let spirv = match naga::Naga::wgsl_to_spirv(&shader_content) {
+            Ok(spirv) => spirv,
+            Err(err) => panic!("{}", err),
+        };
+        assert!(!spirv.is_empty());
+        match naga::Naga::spirv_to_wgsl(&spirv) {
+            // Generated wgsl is not the same as the input one, but should hold the same entry point.
+            Ok(wgsl) => assert!(wgsl.contains("vs_main"), "Unexpected wgsl output: {}", wgsl),
             Err(err) => panic!("{}", err),
         };
     }

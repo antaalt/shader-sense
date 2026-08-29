@@ -18,7 +18,7 @@ fn validate_file<T: ShadingLanguageTag>(shader_path: &Path, shader_content: &str
         &ShaderParams::default(),
         &mut |path: &Path| Some(std::fs::read_to_string(path).unwrap()),
     ) {
-        Ok(diagnostic_list) => println!(
+        Ok((_blob, diagnostic_list)) => println!(
             "Validated file and return following diagnostics: {:#?}",
             diagnostic_list
         ),

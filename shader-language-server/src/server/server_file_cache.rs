@@ -120,7 +120,7 @@ use shader_sense::{
         symbol_list::ShaderSymbolListRef,
         symbol_provider::SymbolProvider,
     },
-    validator::validator::ValidatorImpl,
+    validator::validator::{CompilationResult, ValidatorImpl},
 };
 
 use super::{server_config::ServerConfig, shader_variant::ShaderVariant};
@@ -130,6 +130,7 @@ pub struct ServerFileCacheData {
     pub symbol_cache: ShaderSymbols, // Store symbols to avoid computing them at every change.
     pub intrinsics: ShaderSymbolListRef<'static>, // Cached intrinsics to not recompute them everytime
     pub diagnostic_cache: ShaderDiagnosticList,   // Cached diagnostic
+    pub compilation_cache: CompilationResult,     // Cached compilation
 }
 
 #[derive(Debug, Clone)]
@@ -373,12 +374,12 @@ impl ServerLanguageFileCache {
             (ShaderSymbols::default(), ShaderDiagnosticList::default())
         };
         // Get diagnostics
-        let diagnostics = if config.get_validate() {
+        let (compilation, diagnostics) = if config.get_validate() {
             profile_scope!("Validating file {}", uri);
             let shading_language = self.files.get(uri).unwrap().shading_language;
             let shader_module = Rc::clone(&self.files.get(uri).unwrap().shader_module);
 
-            let mut diagnostic_list = {
+            let (compilation, mut diagnostic_list) = {
                 // TODO: should print warning if validation is too long.
                 profile_scope!("Raw validation");
                 let variant_shader_module = match &variant {
@@ -422,13 +423,13 @@ impl ServerLanguageFileCache {
                     },
                 ) {
                     Ok(diagnostics) => diagnostics,
-                    Err(err) => ShaderDiagnosticList { diagnostics: vec![
+                    Err(err) => (CompilationResult::None, ShaderDiagnosticList { diagnostics: vec![
                         ShaderDiagnostic {
                             severity: ShaderDiagnosticSeverity::Error,
                             error: format!("Failed to validate shader: {}", err),
                             range: ShaderFileRange::zero(file_path.clone())
                         }
-                    ]},
+                    ]}),
                 };
                 diagnostics
             };
@@ -490,9 +491,9 @@ impl ServerLanguageFileCache {
                     .diagnostics
                     .append(&mut ascended_diagnostics);
             }
-            diagnostic_list
+            (compilation, diagnostic_list)
         } else {
-            ShaderDiagnosticList::default()
+            (CompilationResult::None, ShaderDiagnosticList::default())
         };
 
         symbols
@@ -506,6 +507,7 @@ impl ServerLanguageFileCache {
             symbol_cache: symbols,
             intrinsics,
             diagnostic_cache: diagnostics,
+            compilation_cache: compilation,
         });
         Ok(())
     }
@@ -594,6 +596,7 @@ impl ServerLanguageFileCache {
                                             symbol_cache,
                                             intrinsics,
                                             diagnostic_cache,
+                                            compilation_cache: CompilationResult::None, // No compilation for deps
                                         },
                                     );
                                 }
