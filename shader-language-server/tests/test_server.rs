@@ -131,6 +131,8 @@ impl TestServer {
         let serialized_config = serde_json::to_string(&config).unwrap();
         let child = Command::new("wasmtime")
             .args([
+                "-wasm",
+                "shared-memory=y",
                 "--wasi",
                 "threads=y",
                 "--dir",
