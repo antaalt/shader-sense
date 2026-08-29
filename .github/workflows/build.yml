@@ -113,8 +113,9 @@ jobs:
         run: |
           wget https://wasmtime.dev/install.sh 
           chmod +x ./install.sh
-          sudo ./install.sh --version v46.0.3
+          ./install.sh --version v46.0.3
           source ~/.bashrc
+          wasmtime --version
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
         run: cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
         env: # Somehow this VM has clang14 by default, which is not supported...
