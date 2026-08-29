@@ -36,17 +36,19 @@ use lsp_types::request::{
     WorkspaceSymbolRequest,
 };
 use lsp_types::{
-    CancelParams, CompletionOptionsCompletionItem, CompletionResponse,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentSymbolOptions, DocumentSymbolResponse, FoldingRangeProviderCapability,
-    HoverProviderCapability, OneOf, ProgressParams, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SetTraceParams, SignatureHelpOptions, TextDocumentSyncKind, Url,
-    WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
-    WorkDoneProgressOptions, WorkDoneProgressReport, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities, WorkspaceSymbolOptions, WorkspaceSymbolResponse,
+    CallHierarchyIncomingCall, CancelParams, CompletionOptionsCompletionItem, CompletionResponse,
+    DiagnosticOptions, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentSymbolOptions, DocumentSymbolResponse,
+    FoldingRangeProviderCapability, HoverProviderCapability, OneOf, ProgressParams,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SetTraceParams, SignatureHelpOptions,
+    TextDocumentSyncKind, Url, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
+    WorkDoneProgressReport, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    WorkspaceSymbolOptions, WorkspaceSymbolResponse,
 };
+use serde::{Deserialize, Serialize};
 use shader_sense::shader::ShadingLanguage;
 
 use lsp_server::{ErrorCode, Message};
@@ -153,6 +155,14 @@ impl ServerLanguage {
             text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
                 TextDocumentSyncKind::INCREMENTAL,
             )),
+            diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
+                DiagnosticOptions {
+                    identifier: Some(env!("CARGO_PKG_NAME").into()),
+                    inter_file_dependencies: true,
+                    workspace_diagnostics: false, // TODO: workspace diag
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                },
+            )),
             completion_provider: Some(lsp_types::CompletionOptions {
                 resolve_provider: None, // For more detailed data
                 completion_item: Some(CompletionOptionsCompletionItem {
@@ -173,9 +183,10 @@ impl ServerLanguage {
             type_definition_provider: Some(lsp_types::TypeDefinitionProviderCapability::Simple(
                 false, // Disable as definition_provider is doing it.
             )),
+            implementation_provider: None, // TODO: Could add this.
             folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Right(DocumentSymbolOptions {
-                label: Some("shader-validator".into()),
+                label: Some(env!("CARGO_PKG_NAME").into()),
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: None,
                 },
@@ -207,6 +218,7 @@ impl ServerLanguage {
             ),
             document_formatting_provider: Some(OneOf::Left(is_clang_format_available)),
             document_range_formatting_provider: Some(OneOf::Left(is_clang_format_available)),
+            document_on_type_formatting_provider: None, // Would require to have an improved formatting system.
             workspace: Some(WorkspaceServerCapabilities {
                 workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                     supported: Some(true),
@@ -214,9 +226,31 @@ impl ServerLanguage {
                 }),
                 ..Default::default()
             }),
-            ..Default::default()
+            call_hierarchy_provider: None, // TODO: includetree ?
+            position_encoding: None,
+            selection_range_provider: None,
+            references_provider: None,
+            document_highlight_provider: None,
+            code_action_provider: None,
+            code_lens_provider: None,
+            rename_provider: None, // TODO: could implement ? Might not be stable enough for that...
+            document_link_provider: None,
+            color_provider: None,
+            declaration_provider: None,
+            execute_command_provider: None,
+            moniker_provider: None, // TODO: inspect LSIF
+            linked_editing_range_provider: None,
+            inline_value_provider: None,
+            experimental: None,
         })?;
         let client_initialization_params = self.connection.initialize(server_capabilities)?;
+        if let Some(client_info) = client_initialization_params.client_info {
+            info!(
+                "Client is {} at version {}",
+                client_info.name,
+                client_info.version.unwrap_or("unknown".into())
+            );
+        }
         // Store workspace folder
         if let Some(workspace_folders) = client_initialization_params.workspace_folders {
             self.watched_files.workspace_folder = workspace_folders
