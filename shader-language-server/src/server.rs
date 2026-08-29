@@ -36,19 +36,17 @@ use lsp_types::request::{
     WorkspaceSymbolRequest,
 };
 use lsp_types::{
-    CallHierarchyIncomingCall, CancelParams, CompletionOptionsCompletionItem, CompletionResponse,
-    DiagnosticOptions, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentSymbolOptions, DocumentSymbolResponse,
-    FoldingRangeProviderCapability, HoverProviderCapability, OneOf, ProgressParams,
-    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, SetTraceParams, SignatureHelpOptions,
-    TextDocumentSyncKind, Url, WorkDoneProgress, WorkDoneProgressBegin,
-    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
-    WorkDoneProgressReport, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
-    WorkspaceSymbolOptions, WorkspaceSymbolResponse,
+    CancelParams, CompletionOptionsCompletionItem, CompletionResponse, DiagnosticOptions,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    DocumentSymbolOptions, DocumentSymbolResponse, FoldingRangeProviderCapability,
+    HoverProviderCapability, OneOf, ProgressParams, SemanticTokenType, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, SetTraceParams, SignatureHelpOptions, TextDocumentSyncKind, Url,
+    WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
+    WorkDoneProgressOptions, WorkDoneProgressReport, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities, WorkspaceSymbolOptions, WorkspaceSymbolResponse,
 };
-use serde::{Deserialize, Serialize};
 use shader_sense::shader::ShadingLanguage;
 
 use lsp_server::{ErrorCode, Message};
