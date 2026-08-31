@@ -488,7 +488,8 @@ impl ServerLanguage {
         let config = ConfigurationParams {
             items: vec![lsp_types::ConfigurationItem {
                 scope_uri: None,
-                section: Some("shader-validator".to_owned()),
+                // Get section name from client name for config.
+                section: Some(self.client_info_name.clone()),
             }],
         };
         self.connection.send_request::<WorkspaceConfiguration>(

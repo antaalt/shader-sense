@@ -11,7 +11,7 @@ use shader_sense::shader_error::ShaderDiagnosticSeverity;
 
 use crate::server::common::{shader_range_to_lsp_range, ServerLanguageError};
 
-use crate::server::ServerLanguage;
+use crate::server::{ServerLanguage, PACKAGE_NAME};
 
 impl ServerLanguage {
     pub fn publish_diagnostic(&mut self, uri: &Url, version: Option<i32>) {
@@ -118,7 +118,7 @@ impl ServerLanguage {
                         } else {
                             diagnostic.error.clone()
                         },
-                        source: Some("shader-validator".to_string()),
+                        source: Some(PACKAGE_NAME.to_string()),
                         ..Default::default()
                     };
                     match diagnostics.get_mut(&uri) {
@@ -162,7 +162,7 @@ impl ServerLanguage {
                     range: shader_range_to_lsp_range(&region.range),
                     severity: Some(DiagnosticSeverity::HINT),
                     message: "Code disabled by currently used macros".into(),
-                    source: Some("shader-validator".to_string()),
+                    source: Some(PACKAGE_NAME.to_string()),
                     tags: Some(vec![DiagnosticTag::UNNECESSARY]),
                     ..Default::default()
                 })
@@ -184,7 +184,7 @@ impl ServerLanguage {
                                 range: shader_range_to_lsp_range(&region.range),
                                 severity: Some(DiagnosticSeverity::HINT),
                                 message: "Code disabled by currently used macros".into(),
-                                source: Some("shader-validator".to_string()),
+                                source: Some(PACKAGE_NAME.to_string()),
                                 tags: Some(vec![DiagnosticTag::UNNECESSARY]),
                                 ..Default::default()
                             })
@@ -214,7 +214,7 @@ impl ServerLanguage {
                                 range: shader_range_to_lsp_range(&d.range.range),
                                 severity: Some(Self::get_lsp_severity(&d.severity)),
                                 message: d.error.clone(),
-                                source: Some("shader-validator".to_string()),
+                                source: Some(PACKAGE_NAME.to_string()),
                                 ..Default::default()
                             }),
                     );

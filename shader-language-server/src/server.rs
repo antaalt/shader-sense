@@ -72,7 +72,10 @@ pub struct ServerLanguage {
     watched_files: ServerLanguageFileCache,
     language_data: HashMap<ShadingLanguage, ServerLanguageData>,
     regex_cache: LruCache<String, regex::Regex>, // For semantic token provider who create regex on the fly
+    client_info_name: String,
 }
+
+pub const PACKAGE_NAME: &str = "shader-language-server";
 
 fn clean_url(url: &Url) -> Url {
     // Workaround issue with url encoded as &3a that break key comparison.
@@ -146,6 +149,8 @@ impl ServerLanguage {
             // Else when recomputing a file, we will recreate all regex and reinsert
             // them instead of reading from cache. So we update it size at runtime.
             regex_cache: LruCache::new(NonZero::new(50).unwrap()),
+            // Main client of this extension. Specify via initialize params if otherwise.
+            client_info_name: "shader-validator".into(),
         })
     }
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
@@ -156,7 +161,7 @@ impl ServerLanguage {
             )),
             diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
                 DiagnosticOptions {
-                    identifier: Some(env!("CARGO_PKG_NAME").replace("_", "-")),
+                    identifier: Some(PACKAGE_NAME.to_string()),
                     inter_file_dependencies: true,
                     workspace_diagnostics: false, // TODO: workspace diag
                     work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -185,7 +190,7 @@ impl ServerLanguage {
             implementation_provider: None, // TODO: Could add this.
             folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Right(DocumentSymbolOptions {
-                label: Some(env!("CARGO_PKG_NAME").replace("_", "-")),
+                label: Some(PACKAGE_NAME.to_string()),
                 work_done_progress_options: WorkDoneProgressOptions {
                     work_done_progress: None,
                 },
@@ -249,6 +254,7 @@ impl ServerLanguage {
                 client_info.name,
                 client_info.version.unwrap_or("unknown".into())
             );
+            self.client_info_name = client_info.name
         }
         // Store workspace folder
         if let Some(workspace_folders) = client_initialization_params.workspace_folders {
