@@ -4,7 +4,7 @@ use std::{
     env,
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
+    path::PathBuf,
     process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
 };
 
@@ -34,15 +34,31 @@ pub fn use_wasi_server() -> bool {
     }
 }
 
+pub fn workspace_path(file_path: &str) -> PathBuf {
+    assert!(!file_path.contains('\\'), "Use only forward slash.");
+    if use_wasi_server() {
+        PathBuf::from(format!("{}/{}", WASI_TEST_FOLDER_MOUNT, file_path))
+    } else {
+        native_path(file_path)
+    }
+}
+pub fn native_path(file_path: &str) -> PathBuf {
+    canonicalize(&PathBuf::from(format!(
+        "{}/{}",
+        TEST_FOLDER_PATH, file_path
+    )))
+    .unwrap()
+}
+
 pub struct TestFile {
     pub url: Url,
     pub shading_language: ShadingLanguage,
     pub content: String,
 }
 impl TestFile {
-    pub fn new(relative_path: &Path, shading_language: ShadingLanguage) -> Self {
-        let file_path = canonicalize(relative_path).unwrap();
-        let content = std::fs::read_to_string(&file_path).unwrap();
+    pub fn new(file_path: &str, shading_language: ShadingLanguage) -> Self {
+        let native_path = native_path(file_path);
+        let content = std::fs::read_to_string(&native_path).unwrap();
         let uri = Self::uri_converter(&file_path);
         Self {
             url: uri,
@@ -51,31 +67,15 @@ impl TestFile {
         }
     }
     /// Convert an absolute host uri to an uri the server can resolve.
-    ///
-    /// The WASI server is sandboxed and only sees the test folder, preopened at
-    /// [`WASI_TEST_FOLDER_MOUNT`], so the host path is made relative to the test folder and
-    /// remapped to this mount point. This mimics what the client does with its uri converters.
-    /// The native server sees the host filesystem, so its uri are left untouched.
-    fn uri_converter(file_path: &Path) -> Url {
-        if !use_wasi_server() {
-            return Url::from_file_path(file_path).unwrap();
+    fn uri_converter(file_path: &str) -> Url {
+        if use_wasi_server() {
+            // Uri only use forward slash as separator, whatever the host.
+            let mut url = Url::parse("file:///").unwrap();
+            url.set_path(&format!("{}/{}", WASI_TEST_FOLDER_MOUNT, file_path));
+            url
+        } else {
+            return Url::from_file_path(native_path(file_path)).unwrap();
         }
-        let test_folder = canonicalize(Path::new(TEST_FOLDER_PATH)).unwrap();
-        let relative_path = file_path.strip_prefix(&test_folder).unwrap_or_else(|_| {
-            panic!(
-                "File {} is outside of test folder {}, so it is not visible by the WASI server",
-                file_path.display(),
-                test_folder.display()
-            )
-        });
-        // Uri only use forward slash as separator, whatever the host.
-        let mut url = Url::parse("file:///").unwrap();
-        url.set_path(&format!(
-            "{}/{}",
-            WASI_TEST_FOLDER_MOUNT,
-            relative_path.to_string_lossy().replace('\\', "/")
-        ));
-        url
     }
     pub fn item(&self) -> TextDocumentItem {
         TextDocumentItem {

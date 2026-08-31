@@ -2,7 +2,7 @@
 // WASI cannot spawn a server so test on pc with WASMTIME runner instead.
 #![cfg(not(target_os = "wasi"))]
 
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use lsp_types::{
     notification::{DidCloseTextDocument, DidOpenTextDocument},
@@ -19,7 +19,8 @@ use shader_language_server::server::{
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 
 use crate::test_server::{
-    get_all_diagnostics, get_error_diagnostics, has_any_document_symbol, TestFile, TestServer,
+    get_all_diagnostics, get_error_diagnostics, has_any_document_symbol, workspace_path, TestFile,
+    TestServer,
 };
 
 mod test_server;
@@ -28,16 +29,13 @@ mod test_server;
 fn test_glsl_relative_preamble() {
     let config: ServerSerializedConfig = serde_json::from_value(json!({
         "glsl": {
-            "preamble": "../shader-sense/test/glsl/helpers/preamble.glsl"
+            "preamble": workspace_path("glsl/helpers/preamble.glsl")
         }
     }))
     .unwrap();
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/dependent-include.frag.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/dependent-include.frag.glsl", ShadingLanguage::Glsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -72,10 +70,7 @@ fn test_validate() {
     .unwrap();
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/error-parsing.frag.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/error-parsing.frag.glsl", ShadingLanguage::Glsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -110,10 +105,7 @@ fn test_symbols() {
     .unwrap();
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -143,10 +135,7 @@ fn test_partial_config_update() {
         "validate": true,
     }));
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -176,10 +165,7 @@ fn test_stage_define() {
     .unwrap();
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/variants.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -222,7 +208,7 @@ fn test_stage_define() {
 fn test_config_override() {
     // Set some value to something else
     let config: ServerSerializedConfig = serde_json::from_value(json!({
-        "configOverride": "../shader-sense/test/config-override.json",
+        "configOverride": workspace_path("config-override.json"),
         "stageDefine": {
             "fragment": {
                 "VARIANT_DEFINE": "0" // Ensure we override this with override config
@@ -232,10 +218,7 @@ fn test_config_override() {
     .unwrap();
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/variants.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
     println!("Opening file {}", file.url);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {

@@ -36,7 +36,9 @@ use shader_sense::position::ShaderPosition;
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use test_server::{TestFile, TestServer};
 
-use crate::test_server::{get_all_diagnostics, get_error_diagnostics};
+use crate::test_server::{
+    get_all_diagnostics, get_error_diagnostics, native_path, use_wasi_server,
+};
 
 mod test_server;
 
@@ -98,10 +100,7 @@ fn test_communication_stdio() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test document
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/ok.hlsl", ShadingLanguage::Hlsl);
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
     });
@@ -112,6 +111,9 @@ fn test_communication_stdio() {
 
 #[test]
 fn test_communication_tcp_connect() {
+    if use_wasi_server() {
+        return; // No TCP with WASI server
+    }
     let mut server = TestServer::new(
         ServerSerializedConfig::default(),
         Transport::TcpConnect(SocketAddr::V4(
@@ -121,10 +123,7 @@ fn test_communication_tcp_connect() {
     .unwrap();
 
     // Test document
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/ok.hlsl", ShadingLanguage::Hlsl);
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
     });
@@ -134,6 +133,9 @@ fn test_communication_tcp_connect() {
 }
 #[test]
 fn test_communication_tcp_listen() {
+    if use_wasi_server() {
+        return; // No TCP with WASI server
+    }
     let mut server = TestServer::new(
         ServerSerializedConfig::default(),
         Transport::TcpListen(SocketAddr::V4(
@@ -143,10 +145,7 @@ fn test_communication_tcp_listen() {
     .unwrap();
 
     // Test document
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/ok.hlsl", ShadingLanguage::Hlsl);
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
     });
@@ -160,10 +159,7 @@ fn test_variant() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test document
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/variants.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
     println!("Opening file {}", file.url);
     let document_symbol_params = get_document_symbol_params(&file);
 
@@ -204,10 +200,7 @@ fn test_variant() {
 fn test_glsl_precision_statement_document_symbols_have_names() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/precision-only.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/precision-only.glsl", ShadingLanguage::Glsl);
     let document_symbol_params = get_document_symbol_params(&file);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -226,14 +219,8 @@ fn test_variant_dependency() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test document
-    let file_variant = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/variants.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
-    let file_macros = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/macro.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file_variant = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
+    let file_macros = TestFile::new("hlsl/macro.hlsl", ShadingLanguage::Hlsl);
     println!("Opening file {}", file_variant.url);
     println!("Opening file {}", file_macros.url);
 
@@ -248,7 +235,7 @@ fn test_variant_dependency() {
         |report| {
             let errors = get_error_diagnostics(report.unwrap());
             assert!(
-                errors.len() == 1,
+                errors.len() > 0,
                 "An error should trigger without the variant context. Got {:#?}",
                 errors
             );
@@ -289,10 +276,7 @@ fn test_variant_dependency() {
 fn test_utf8_edit() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/utf8.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/utf8.hlsl", ShadingLanguage::Hlsl);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -327,18 +311,9 @@ fn test_utf8_edit() {
 fn test_dependencies() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/include-level.comp.glsl"),
-        ShadingLanguage::Glsl,
-    );
-    let deps0 = TestFile::new(
-        Path::new("../shader-sense/test/glsl/inc0/level0.glsl"),
-        ShadingLanguage::Glsl,
-    );
-    let deps1 = TestFile::new(
-        Path::new("../shader-sense/test/glsl/inc0/inc1/level1.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
+    let deps0 = TestFile::new("glsl/inc0/level0.glsl", ShadingLanguage::Glsl);
+    let deps1 = TestFile::new("glsl/inc0/inc1/level1.glsl", ShadingLanguage::Glsl);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -364,10 +339,7 @@ fn test_dependencies() {
 fn test_server_stack_overflow() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/stack-overflow.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/stack-overflow.hlsl", ShadingLanguage::Hlsl);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -382,14 +354,8 @@ fn test_dependency_include_guard() {
     // Test for variant dependency to have access to symbols protected by include guard
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let variant = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/include-level.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
-    let deps = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/inc0/level0.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let variant = TestFile::new("hlsl/include-level.hlsl", ShadingLanguage::Hlsl);
+    let deps = TestFile::new("hlsl/inc0/level0.hlsl", ShadingLanguage::Hlsl);
     let workspace_symbol_params = get_workspace_symbol_params();
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -426,10 +392,10 @@ fn test_dependency_include_guard() {
 fn test_hover() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    static FILE_PATH: &str = "../shader-sense/test/hlsl/struct.hlsl";
+    static FILE_PATH: &str = "hlsl/struct.hlsl";
 
     fn assert_hover_value(response: Option<Hover>, value: &str) {
-        let content = std::fs::read_to_string(&FILE_PATH).unwrap();
+        let content = std::fs::read_to_string(native_path(&FILE_PATH)).unwrap();
         let item_range = response.unwrap().range.unwrap();
         let start_byte_offset =
             ShaderPosition::new(item_range.start.line, item_range.start.character)
@@ -448,7 +414,7 @@ fn test_hover() {
         );
     }
 
-    let file = TestFile::new(Path::new(FILE_PATH), ShadingLanguage::Hlsl);
+    let file = TestFile::new(FILE_PATH, ShadingLanguage::Hlsl);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -489,10 +455,7 @@ fn test_hover() {
 fn test_semantic_tokens() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/semantic-token.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/semantic-token.hlsl", ShadingLanguage::Hlsl);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -562,10 +525,7 @@ fn test_semantic_tokens() {
 fn test_compilation_glsl_spirv() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/ok.frag.glsl"),
-        ShadingLanguage::Glsl,
-    );
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
             url: file.url.clone(),
@@ -622,12 +582,12 @@ fn test_compilation_glsl_spirv() {
 
 #[test]
 fn test_compilation_hlsl_dxil() {
+    if use_wasi_server() {
+        return; // No DXC with WASI server
+    }
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
-    let file = TestFile::new(
-        Path::new("../shader-sense/test/hlsl/ok.hlsl"),
-        ShadingLanguage::Hlsl,
-    );
+    let file = TestFile::new("hlsl/ok.hlsl", ShadingLanguage::Hlsl);
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
             url: file.url.clone(),

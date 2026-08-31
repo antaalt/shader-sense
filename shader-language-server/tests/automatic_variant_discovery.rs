@@ -27,11 +27,11 @@ fn test_automatic_variant_discovery_use_includer_context() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     let file = TestFile::new(
-        Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
+        "glsl/auto-variant/auto-variant.comp.glsl",
         ShadingLanguage::Glsl,
     );
     let deps = TestFile::new(
-        Path::new("../shader-sense/test/glsl/auto-variant/workgroup-layout.glsl"),
+        "glsl/auto-variant/workgroup-layout.glsl",
         ShadingLanguage::Glsl,
     );
 
@@ -83,15 +83,15 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let invalid_main = TestFile::new(
-        Path::new("../shader-sense/test/glsl/auto-variant/a-auto-variant.frag.glsl"),
+        "glsl/auto-variant/a-auto-variant.frag.glsl",
         ShadingLanguage::Glsl,
     );
     let selected_variant = TestFile::new(
-        Path::new("../shader-sense/test/glsl/auto-variant/auto-variant.comp.glsl"),
+        "glsl/auto-variant/auto-variant.comp.glsl",
         ShadingLanguage::Glsl,
     );
     let deps = TestFile::new(
-        Path::new("../shader-sense/test/glsl/auto-variant/workgroup-layout.glsl"),
+        "glsl/auto-variant/workgroup-layout.glsl",
         ShadingLanguage::Glsl,
     );
 
