@@ -115,6 +115,17 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
         }),
     });
     server.send_request::<DocumentDiagnosticRequest>(
+        &selected_variant.document_diagnostic_params(),
+        |report| {
+            let errors = get_error_diagnostics(report.unwrap());
+            assert!(
+                errors.is_empty(),
+                "Main file should have no diagnostics, got: {:?}",
+                errors
+            );
+        },
+    );
+    server.send_request::<DocumentDiagnosticRequest>(
         &deps.document_diagnostic_params(),
         |report| {
             let errors = get_error_diagnostics(report.unwrap());

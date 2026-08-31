@@ -21,6 +21,19 @@ use serde_json::Value;
 use shader_language_server::server::{server_config::ServerSerializedConfig, Transport};
 use shader_sense::{include::canonicalize, shader::ShadingLanguage};
 
+/// Test folder path, relative to the crate folder.
+const TEST_FOLDER_PATH: &str = "../shader-sense/test";
+/// Mount point of the test folder within the WASI server sandbox.
+const WASI_TEST_FOLDER_MOUNT: &str = "/test";
+
+/// Check if test should run the WASI server instead of the native one.
+pub fn use_wasi_server() -> bool {
+    match std::env::var("USE_WASI_SERVER") {
+        Ok(use_wasi_server) => use_wasi_server.parse().unwrap(),
+        Err(_) => false,
+    }
+}
+
 pub struct TestFile {
     pub url: Url,
     pub shading_language: ShadingLanguage,
@@ -30,12 +43,39 @@ impl TestFile {
     pub fn new(relative_path: &Path, shading_language: ShadingLanguage) -> Self {
         let file_path = canonicalize(relative_path).unwrap();
         let content = std::fs::read_to_string(&file_path).unwrap();
-        let uri = Url::from_file_path(&file_path).unwrap();
+        let uri = Self::uri_converter(&file_path);
         Self {
             url: uri,
             shading_language: shading_language,
             content: content,
         }
+    }
+    /// Convert an absolute host uri to an uri the server can resolve.
+    ///
+    /// The WASI server is sandboxed and only sees the test folder, preopened at
+    /// [`WASI_TEST_FOLDER_MOUNT`], so the host path is made relative to the test folder and
+    /// remapped to this mount point. This mimics what the client does with its uri converters.
+    /// The native server sees the host filesystem, so its uri are left untouched.
+    fn uri_converter(file_path: &Path) -> Url {
+        if !use_wasi_server() {
+            return Url::from_file_path(file_path).unwrap();
+        }
+        let test_folder = canonicalize(Path::new(TEST_FOLDER_PATH)).unwrap();
+        let relative_path = file_path.strip_prefix(&test_folder).unwrap_or_else(|_| {
+            panic!(
+                "File {} is outside of test folder {}, so it is not visible by the WASI server",
+                file_path.display(),
+                test_folder.display()
+            )
+        });
+        // Uri only use forward slash as separator, whatever the host.
+        let mut url = Url::parse("file:///").unwrap();
+        url.set_path(&format!(
+            "{}/{}",
+            WASI_TEST_FOLDER_MOUNT,
+            relative_path.to_string_lossy().replace('\\', "/")
+        ));
+        url
     }
     pub fn item(&self) -> TextDocumentItem {
         TextDocumentItem {
@@ -182,11 +222,7 @@ pub struct TestServer {
 impl TestServer {
     pub fn new(config: ServerSerializedConfig, transport: Transport) -> Option<TestServer> {
         // Run the WASI server if required by env.
-        let use_wasi_server = match std::env::var("USE_WASI_SERVER") {
-            Ok(use_wasi_server) => use_wasi_server.parse().unwrap(),
-            Err(_) => false,
-        };
-        if use_wasi_server {
+        if use_wasi_server() {
             TestServer::wasi(config, transport)
         } else {
             TestServer::native(config, transport)
@@ -205,7 +241,7 @@ impl TestServer {
             "wasm"
         )))
         .unwrap();
-        let test_folder = canonicalize(Path::new("../shader-sense/test")).unwrap();
+        let test_folder = canonicalize(Path::new(TEST_FOLDER_PATH)).unwrap();
         println!("Wasi server path: {}", server_path.display());
         println!("Test folder: {}", test_folder.display());
         // If wasm is not built, simply skip the test.
@@ -223,7 +259,11 @@ impl TestServer {
                 "--wasi",
                 "threads=y",
                 "--dir",
-                format!("{}::/test", test_folder.display()).as_str(),
+                format!("{}::{}", test_folder.display(), WASI_TEST_FOLDER_MOUNT).as_str(),
+                "--env",
+                format!("{}={}", "RUST_LOG", "shader_language_server=trace").as_str(),
+                "--env",
+                format!("{}={}", "RUST_BACKTRACE", "full").as_str(),
                 format!("{}", server_path.display()).as_str(),
                 "--config",
                 &serialized_config,
@@ -231,8 +271,6 @@ impl TestServer {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .env("RUST_BACKTRACE", "full")
-            .env("RUST_LOG", "shader_language_server=trace")
             .spawn()
             .unwrap();
         Some(Self::from_child(child, Transport::Stdio))
@@ -247,7 +285,7 @@ impl TestServer {
             std::env::consts::EXE_SUFFIX
         )))
         .unwrap();
-        let test_folder = canonicalize(Path::new("../shader-sense/test")).unwrap();
+        let test_folder = canonicalize(Path::new(TEST_FOLDER_PATH)).unwrap();
         println!("Native server path: {}", server_path.display());
         println!("Test folder: {}", test_folder.display());
         // If server is not built, simply skip the test.

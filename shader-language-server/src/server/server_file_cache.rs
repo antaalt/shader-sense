@@ -222,6 +222,7 @@ impl ServerLanguageFileCache {
                 includes: Vec::new(),
             })
         } else {
+            info!("No first main file for {}.", included_file_uri);
             None
         }
     }
@@ -890,6 +891,8 @@ impl ServerLanguageFileCache {
                             }
                         }
                     }
+                } else {
+                    info!("Did not found any automatic variant for {}", remaining_file);
                 }
             }
         }
