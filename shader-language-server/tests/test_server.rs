@@ -11,8 +11,11 @@ use std::{
 use lsp_types::{
     notification::{DidChangeConfiguration, Exit, Initialized},
     request::{Initialize, Request, Shutdown, WorkDoneProgressCreate, WorkspaceConfiguration},
-    DidChangeConfigurationParams, InitializeParams, InitializedParams, Position,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
+    Diagnostic, DiagnosticSeverity, DidChangeConfigurationParams, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, DocumentSymbolParams,
+    DocumentSymbolResponse, InitializeParams, InitializedParams, PartialResultParams, Position,
+    RelatedFullDocumentDiagnosticReport, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use serde_json::Value;
 use shader_language_server::server::{server_config::ServerSerializedConfig, Transport};
@@ -56,6 +59,76 @@ impl TestFile {
                 character: character,
             },
         }
+    }
+    #[allow(dead_code)]
+    pub fn document_diagnostic_params(&self) -> DocumentDiagnosticParams {
+        DocumentDiagnosticParams {
+            text_document: self.identifier(),
+            identifier: None,
+            previous_result_id: None,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        }
+    }
+    #[allow(dead_code)]
+    pub fn document_symbol_params(&self) -> DocumentSymbolParams {
+        DocumentSymbolParams {
+            text_document: self.identifier(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        }
+    }
+}
+
+pub fn get_diagnostic_report(
+    result: DocumentDiagnosticReportResult,
+) -> RelatedFullDocumentDiagnosticReport {
+    if let DocumentDiagnosticReportResult::Report(report) = result {
+        if let DocumentDiagnosticReport::Full(report) = report {
+            report
+        } else {
+            unreachable!("Should not be reached");
+        }
+    } else {
+        unreachable!("Should not be reached");
+    }
+}
+
+#[allow(dead_code)]
+pub fn has_any_diagnostic(result: DocumentDiagnosticReportResult) -> bool {
+    let diagnostics = get_diagnostic_report(result);
+    !diagnostics.full_document_diagnostic_report.items.is_empty()
+}
+
+#[allow(dead_code)]
+pub fn get_all_diagnostics(result: DocumentDiagnosticReportResult) -> Vec<Diagnostic> {
+    let diagnostics = get_diagnostic_report(result);
+    diagnostics
+        .full_document_diagnostic_report
+        .items
+        .into_iter()
+        .collect()
+}
+
+pub fn get_error_diagnostics(result: DocumentDiagnosticReportResult) -> Vec<Diagnostic> {
+    let diagnostics = get_diagnostic_report(result);
+    diagnostics
+        .full_document_diagnostic_report
+        .items
+        .into_iter()
+        .filter(|d| match &d.severity {
+            Some(severity) => *severity == DiagnosticSeverity::ERROR,
+            None => false,
+        })
+        .collect()
+}
+
+#[allow(dead_code)]
+pub fn has_any_document_symbol(response: Option<DocumentSymbolResponse>) -> bool {
+    let symbols = response.unwrap();
+    match symbols {
+        DocumentSymbolResponse::Nested(document_symbol) => !document_symbol.is_empty(),
+        DocumentSymbolResponse::Flat(document_symbol) => !document_symbol.is_empty(),
     }
 }
 

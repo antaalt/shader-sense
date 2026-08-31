@@ -20,9 +20,8 @@ use lsp_types::{
     TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use lsp_types::{
-    DiagnosticSeverity, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, Hover, HoverParams, RelatedFullDocumentDiagnosticReport,
-    SemanticTokensParams, SemanticTokensResult, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    DocumentDiagnosticParams, Hover, HoverParams, SemanticTokensParams, SemanticTokensResult,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use shader_language_server::server::provider::compilation::CompilationRequest;
 use shader_language_server::server::provider::compilation::{
@@ -36,6 +35,8 @@ use shader_language_server::server::Transport;
 use shader_sense::position::ShaderPosition;
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use test_server::{TestFile, TestServer};
+
+use crate::test_server::{get_all_diagnostics, get_error_diagnostics};
 
 mod test_server;
 
@@ -90,19 +91,6 @@ fn assert_no_empty_document_symbol_name(response: Option<DocumentSymbolResponse>
         "Document symbols must not contain empty names. Offending details: {:#?}",
         empty_names
     );
-}
-fn get_diagnostic_report(
-    result: DocumentDiagnosticReportResult,
-) -> RelatedFullDocumentDiagnosticReport {
-    if let DocumentDiagnosticReportResult::Report(report) = result {
-        if let DocumentDiagnosticReport::Full(report) = report {
-            report
-        } else {
-            unreachable!("Should not be reached");
-        }
-    } else {
-        unreachable!("Should not be reached");
-    }
 }
 
 #[test]
@@ -256,24 +244,9 @@ fn test_variant_dependency() {
         text_document: file_macros.item(),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: file_macros.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &file_macros.document_diagnostic_params(),
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
-            let errors: Vec<&lsp_types::Diagnostic> = report
-                .full_document_diagnostic_report
-                .items
-                .iter()
-                .filter(|d| match &d.severity {
-                    Some(severity) => *severity == DiagnosticSeverity::ERROR,
-                    None => false,
-                })
-                .collect();
+            let errors = get_error_diagnostics(report.unwrap());
             assert!(
                 errors.len() == 1,
                 "An error should trigger without the variant context. Got {:#?}",
@@ -292,24 +265,9 @@ fn test_variant_dependency() {
         }),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: file_macros.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &file_macros.document_diagnostic_params(),
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
-            let errors: Vec<&lsp_types::Diagnostic> = report
-                .full_document_diagnostic_report
-                .items
-                .iter()
-                .filter(|d| match &d.severity {
-                    Some(severity) => *severity == DiagnosticSeverity::ERROR,
-                    None => false,
-                })
-                .collect();
+            let errors = get_error_diagnostics(report.unwrap());
             assert!(
                 errors.is_empty(),
                 "Macro should be imported through variant. Got {:#?}",
@@ -630,11 +588,11 @@ fn test_compilation_glsl_spirv() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
+            let report = get_all_diagnostics(report.unwrap());
             assert!(
-                report.full_document_diagnostic_report.items.is_empty(),
+                report.is_empty(),
                 "Should not have any error with file, got {:#?}",
-                report.full_document_diagnostic_report.items
+                report
             );
         },
     );
@@ -692,11 +650,11 @@ fn test_compilation_hlsl_dxil() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
+            let report = get_all_diagnostics(report.unwrap());
             assert!(
-                report.full_document_diagnostic_report.items.is_empty(),
+                report.is_empty(),
                 "Should not have any error with file, got {:#?}",
-                report.full_document_diagnostic_report.items
+                report
             );
         },
     );

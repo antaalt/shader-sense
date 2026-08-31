@@ -7,9 +7,7 @@ use std::{collections::HashMap, path::Path};
 use lsp_types::request::DocumentDiagnosticRequest;
 use lsp_types::{
     notification::{DidCloseTextDocument, DidOpenTextDocument},
-    DiagnosticSeverity, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    PartialResultParams, RelatedFullDocumentDiagnosticReport, WorkDoneProgressParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
 use serde_json::json;
 use shader_language_server::server::server_config::ServerSerializedConfig;
@@ -20,21 +18,9 @@ use shader_language_server::server::Transport;
 use shader_sense::shader::ShadingLanguage;
 use test_server::{TestFile, TestServer};
 
-mod test_server;
+use crate::test_server::get_error_diagnostics;
 
-fn get_diagnostic_report(
-    result: DocumentDiagnosticReportResult,
-) -> RelatedFullDocumentDiagnosticReport {
-    if let DocumentDiagnosticReportResult::Report(report) = result {
-        if let DocumentDiagnosticReport::Full(report) = report {
-            report
-        } else {
-            unreachable!("Should not be reached");
-        }
-    } else {
-        unreachable!("Should not be reached");
-    }
-}
+mod test_server;
 
 #[test]
 fn test_automatic_variant_discovery_use_includer_context() {
@@ -56,24 +42,9 @@ fn test_automatic_variant_discovery_use_includer_context() {
         text_document: deps.item(),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: deps.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &deps.document_diagnostic_params(),
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
-            let errors: Vec<&lsp_types::Diagnostic> = report
-                .full_document_diagnostic_report
-                .items
-                .iter()
-                .filter(|d| match &d.severity {
-                    Some(severity) => *severity == DiagnosticSeverity::ERROR,
-                    None => false,
-                })
-                .collect();
+            let errors = get_error_diagnostics(report.unwrap());
             assert!(
                 !errors.is_empty(),
                 "Dependency-context diagnostics should stay disabled by default. Got {:#?}",
@@ -85,24 +56,9 @@ fn test_automatic_variant_discovery_use_includer_context() {
         "automaticVariantDiscovery": true,
     }));
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: deps.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &deps.document_diagnostic_params(),
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
-            let errors: Vec<&lsp_types::Diagnostic> = report
-                .full_document_diagnostic_report
-                .items
-                .iter()
-                .filter(|d| match &d.severity {
-                    Some(severity) => *severity == DiagnosticSeverity::ERROR,
-                    None => false,
-                })
-                .collect();
+            let errors = get_error_diagnostics(report.unwrap());
             assert!(
                 errors.is_empty(),
                 "Include file should inherit diagnostics context from its main shader. Got {:#?}",
@@ -159,24 +115,9 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
         }),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: deps.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &deps.document_diagnostic_params(),
         |report| {
-            let report = get_diagnostic_report(report.unwrap());
-            let errors: Vec<&lsp_types::Diagnostic> = report
-                .full_document_diagnostic_report
-                .items
-                .iter()
-                .filter(|d| match &d.severity {
-                    Some(severity) => *severity == DiagnosticSeverity::ERROR,
-                    None => false,
-                })
-                .collect();
+            let errors = get_error_diagnostics(report.unwrap());
             assert!(
                 errors.is_empty(),
                 "Selected variant should take precedence over auto-selected includers. Got {:#?}",
