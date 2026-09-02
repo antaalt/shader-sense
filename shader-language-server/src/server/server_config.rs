@@ -498,8 +498,7 @@ impl ServerLanguage {
         let config = ConfigurationParams {
             items: vec![lsp_types::ConfigurationItem {
                 scope_uri: None,
-                // Get section name from client name for config.
-                section: Some(self.client_info_name.clone()),
+                section: Some(Self::CONFIGURATION_SECTION.into()),
             }],
         };
         self.connection.send_request::<WorkspaceConfiguration>(
