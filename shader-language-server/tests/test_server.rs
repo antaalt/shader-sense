@@ -479,15 +479,23 @@ impl TestServer {
         self.send_notification::<DidChangeConfiguration>(&DidChangeConfigurationParams {
             settings: Value::Null, // Unused
         });
-        self.expect_request::<WorkspaceConfiguration>(vec![json]);
+        self.expect_request::<WorkspaceConfiguration, _>(|params| {
+            assert!(params.items.len() == 1);
+            assert!(params.items[0].section.as_ref().unwrap() == "shader-validator");
+            vec![json]
+        });
     }
-    fn expect_request<T: lsp_types::request::Request>(&mut self, response: T::Result) {
+    fn expect_request<T: lsp_types::request::Request, F: FnOnce(T::Params) -> T::Result>(
+        &mut self,
+        callback: F,
+    ) {
         let message = lsp_server::Message::read(&mut self.connection.read()).unwrap();
         println!("Received message: {:?}", message);
         match message.unwrap() {
             lsp_server::Message::Request(request) => {
                 if request.method.as_str() == T::METHOD {
-                    self.send_response::<T>(request.id, response);
+                    let params = serde_json::from_value::<T::Params>(request.params).unwrap();
+                    self.send_response::<T>(request.id, callback(params));
                 } else {
                     panic!(
                         "Expected request {}, received request {}",
