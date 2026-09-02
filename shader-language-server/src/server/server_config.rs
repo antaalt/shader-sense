@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use log::{info, warn};
+use log::{error, info, warn};
 use lsp_types::{request::WorkspaceConfiguration, ConfigurationParams, Url};
 use serde::{Deserialize, Serialize};
 
@@ -397,7 +397,17 @@ impl ServerConfig {
         let glsl = if let Some(preamble_path) = &self.glsl.preamble_path {
             let mut glsl = self.glsl.clone();
             // TODO: preamble content can be outdated if not saved.
-            glsl.preamble_content = std::fs::read_to_string(preamble_path).ok();
+            glsl.preamble_content = match std::fs::read_to_string(preamble_path) {
+                Ok(content) => Some(content),
+                Err(err) => {
+                    error!(
+                        "Failed to load preamble at {}: {}",
+                        preamble_path.display(),
+                        err
+                    );
+                    None
+                }
+            };
             glsl
         } else {
             self.glsl.clone()
