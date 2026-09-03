@@ -412,6 +412,16 @@ impl TestServer {
         params: &T::Params,
         callback: fn(Option<T::Result>),
     ) {
+        self.send_request_with_error::<T>(params, callback, |error| {
+            assert!(false, "Got error {:?}", error);
+        })
+    }
+    pub fn send_request_with_error<T: lsp_types::request::Request>(
+        &mut self,
+        params: &T::Params,
+        callback: fn(Option<T::Result>),
+        error_callback: fn(lsp_server::ResponseError),
+    ) {
         let request = lsp_server::Message::Request(lsp_server::Request::new(
             lsp_server::RequestId::from(self.request_id),
             T::METHOD.into(),
@@ -433,6 +443,10 @@ impl TestServer {
                                 callback(Some(response));
                             }
                             None => callback(None),
+                        }
+                        match response.error {
+                            Some(error) => error_callback(error),
+                            None => {}
                         }
                         break;
                     }

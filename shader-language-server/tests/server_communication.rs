@@ -6,9 +6,9 @@ use core::panic;
 use std::collections::HashMap;
 use std::iter::zip;
 use std::net::{SocketAddr, SocketAddrV4};
-use std::path::Path;
 use std::str::FromStr;
 
+use lsp_server::ErrorCode;
 use lsp_types::request::{
     DocumentDiagnosticRequest, HoverRequest, SemanticTokensFullRequest, WorkspaceSymbolRequest,
 };
@@ -637,6 +637,57 @@ fn test_compilation_hlsl_dxil() {
             );
         },
     );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_invalid_method() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    struct UnhandledMethod;
+    impl lsp_types::request::Request for UnhandledMethod {
+        type Params = ();
+        type Result = ();
+        const METHOD: &'static str = "unhandledMethod";
+    }
+    server.send_request_with_error::<UnhandledMethod>(
+        &(),
+        |result| assert!(result.is_none()),
+        |error| assert!(error.code == ErrorCode::MethodNotFound as i32),
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_disabling_variant() {
+    // Updating variant is done synchronously, so check it does not break async updates
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
+        shader_variant: Some(ShaderVariant {
+            url: file.url.clone(),
+            shading_language: ShadingLanguage::Glsl,
+            entry_point: "main".into(),
+            stage: Some(ShaderStage::Fragment),
+            defines: HashMap::new(),
+            includes: Vec::new(),
+        }),
+    });
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
+        shader_variant: None,
+    });
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
     });

@@ -1240,7 +1240,17 @@ impl ServerLanguageFileCache {
     // Dependency removal are handled by remove_variant & remove_file.
     pub fn remove_variant_file(&mut self, uri: &Url) -> Result<Vec<Url>, ShaderError> {
         let used_as_deps = self.is_used_as_dependency(uri).is_some();
-        let mut dangling_files = self.get_all_included_files(uri);
+        // Sometimes, this can be called when data is not yet set as we are running sync code within async.
+        // Should still be safe as we avoid useless request, but need to check before accessing.
+        let mut dangling_files = if let Some(file) = self.files.get(&uri) {
+            if let Some(_) = file.data {
+                self.get_all_included_files(uri)
+            } else {
+                HashSet::new()
+            }
+        } else {
+            HashSet::new()
+        };
         match self.files.get_mut(&uri) {
             Some(cached_file) => {
                 if used_as_deps || cached_file.is_main_file() {
