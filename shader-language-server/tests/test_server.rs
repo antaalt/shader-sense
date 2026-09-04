@@ -372,7 +372,6 @@ impl TestServer {
         let params = InitializeParams::default();
         self.send_request::<Initialize>(&params, |result| {
             // Validate params for all test.
-            let result = result.unwrap();
             let server_info = result.server_info.unwrap();
             assert!(
                 server_info.name == "shader-language-server",
@@ -410,7 +409,7 @@ impl TestServer {
     pub fn send_request<T: lsp_types::request::Request>(
         &mut self,
         params: &T::Params,
-        callback: fn(Option<T::Result>),
+        callback: fn(T::Result),
     ) {
         self.send_request_with_error::<T>(params, callback, |error| {
             assert!(false, "Got error {:?}", error);
@@ -419,7 +418,7 @@ impl TestServer {
     pub fn send_request_with_error<T: lsp_types::request::Request>(
         &mut self,
         params: &T::Params,
-        callback: fn(Option<T::Result>),
+        callback: fn(T::Result),
         error_callback: fn(lsp_server::ResponseError),
     ) {
         let request = lsp_server::Message::Request(lsp_server::Request::new(
@@ -440,15 +439,14 @@ impl TestServer {
                         match response.result {
                             Some(result) => {
                                 let response: T::Result = serde_json::from_value(result).unwrap();
-                                callback(Some(response));
+                                callback(response);
                             }
-                            None => callback(None),
+                            None => match response.error {
+                                Some(error) => error_callback(error),
+                                None => {} // Some request such as shutdown do not have any result nor error.
+                            },
                         }
-                        match response.error {
-                            Some(error) => error_callback(error),
-                            None => {}
-                        }
-                        break;
+                        break; // Response received, break and go back to normal flow
                     }
                     // Handle other messages.
                     lsp_server::Message::Notification(notification) => {

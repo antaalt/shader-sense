@@ -50,7 +50,7 @@ fn test_glsl_relative_preamble() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_all_diagnostics(report.unwrap());
+            let report = get_all_diagnostics(report);
             assert!(
                 report.is_empty(),
                 "Should not have any error with preamble file, got {:#?}",
@@ -85,7 +85,7 @@ fn test_validate() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_all_diagnostics(report.unwrap());
+            let report = get_all_diagnostics(report);
             assert!(
                 report.is_empty(),
                 "Should not have any error as validate is disabled, got {:#?}",
@@ -113,7 +113,7 @@ fn test_symbols() {
     });
     server.send_request::<DocumentSymbolRequest>(&file.document_symbol_params(), |response| {
         assert!(
-            !has_any_document_symbol(response.unwrap()),
+            !has_any_document_symbol(response),
             "Should not have any symbols"
         );
     });
@@ -143,7 +143,7 @@ fn test_partial_config_update() {
     });
     server.send_request::<DocumentSymbolRequest>(&file.document_symbol_params(), |response| {
         assert!(
-            !has_any_document_symbol(response.unwrap()),
+            !has_any_document_symbol(response),
             "Should not have any symbols"
         );
     });
@@ -191,7 +191,7 @@ fn test_stage_define() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Should not have any error, got {:#?}",
@@ -244,7 +244,7 @@ fn test_config_override() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Should not have any error, got {:#?}",

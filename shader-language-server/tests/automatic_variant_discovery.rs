@@ -2,7 +2,7 @@
 // WASI cannot spawn a server so test on pc with WASMTIME runner instead.
 #![cfg(not(target_os = "wasi"))]
 
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use lsp_types::request::DocumentDiagnosticRequest;
 use lsp_types::{
@@ -44,7 +44,7 @@ fn test_automatic_variant_discovery_use_includer_context() {
     server.send_request::<DocumentDiagnosticRequest>(
         &deps.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 !errors.is_empty(),
                 "Dependency-context diagnostics should stay disabled by default. Got {:#?}",
@@ -58,7 +58,7 @@ fn test_automatic_variant_discovery_use_includer_context() {
     server.send_request::<DocumentDiagnosticRequest>(
         &deps.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Include file should inherit diagnostics context from its main shader. Got {:#?}",
@@ -117,7 +117,7 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
     server.send_request::<DocumentDiagnosticRequest>(
         &selected_variant.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Main file should have no diagnostics, got: {:?}",
@@ -128,7 +128,7 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
     server.send_request::<DocumentDiagnosticRequest>(
         &deps.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Selected variant should take precedence over auto-selected includers. Got {:#?}",

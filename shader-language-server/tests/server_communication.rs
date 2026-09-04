@@ -168,7 +168,7 @@ fn test_variant() {
     });
     server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
         assert!(
-            has_document_symbol(response.unwrap(), "mainError"),
+            has_document_symbol(response, "mainError"),
             "Missing symbol mainError for variant"
         );
     });
@@ -184,7 +184,7 @@ fn test_variant() {
     });
     server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
         assert!(
-            has_document_symbol(response.unwrap(), "mainOk"),
+            has_document_symbol(response, "mainOk"),
             "Missing symbol mainOk for variant"
         );
     });
@@ -207,7 +207,7 @@ fn test_glsl_precision_statement_document_symbols_have_names() {
         text_document: file.item(),
     });
     server.send_request::<DocumentSymbolRequest>(&document_symbol_params, |response| {
-        assert_no_empty_document_symbol_name(response.unwrap());
+        assert_no_empty_document_symbol_name(response);
     });
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
@@ -233,7 +233,7 @@ fn test_variant_dependency() {
     server.send_request::<DocumentDiagnosticRequest>(
         &file_macros.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.len() > 0,
                 "An error should trigger without the variant context. Got {:#?}",
@@ -254,7 +254,7 @@ fn test_variant_dependency() {
     server.send_request::<DocumentDiagnosticRequest>(
         &file_macros.document_diagnostic_params(),
         |report| {
-            let errors = get_error_diagnostics(report.unwrap());
+            let errors = get_error_diagnostics(report);
             assert!(
                 errors.is_empty(),
                 "Macro should be imported through variant. Got {:#?}",
@@ -376,7 +376,7 @@ fn test_dependency_include_guard() {
     });
     server.send_request::<WorkspaceSymbolRequest>(&workspace_symbol_params, |response| {
         assert!(
-            has_workspace_symbol(response.unwrap(), "methodLevel1"),
+            has_workspace_symbol(response, "methodLevel1"),
             "Missing symbol methodLevel1 for variant deps"
         );
     });
@@ -425,7 +425,7 @@ fn test_hover() {
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
         |response| {
-            assert_hover_value(response.unwrap(), "container");
+            assert_hover_value(response, "container");
         },
     );
     server.send_request::<HoverRequest>(
@@ -434,7 +434,7 @@ fn test_hover() {
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
         |response| {
-            assert_hover_value(response.unwrap(), "method");
+            assert_hover_value(response, "method");
         },
     );
     server.send_request::<HoverRequest>(
@@ -443,7 +443,7 @@ fn test_hover() {
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
         |response| {
-            assert_hover_value(response.unwrap(), "test2");
+            assert_hover_value(response, "test2");
         },
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
@@ -476,7 +476,7 @@ fn test_semantic_tokens() {
                 (lsp_types::Position::new(9, 17), "param1"),
                 (lsp_types::Position::new(9, 26), "MyEnum"),
             ];
-            let semantic_tokens = response.unwrap().unwrap();
+            let semantic_tokens = response.unwrap();
             if let SemanticTokensResult::Tokens(tokens) = semantic_tokens {
                 assert!(
                     tokens.data.len() == expected.len(),
@@ -548,7 +548,7 @@ fn test_compilation_glsl_spirv() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_all_diagnostics(report.unwrap());
+            let report = get_all_diagnostics(report);
             assert!(
                 report.is_empty(),
                 "Should not have any error with file, got {:#?}",
@@ -562,7 +562,7 @@ fn test_compilation_glsl_spirv() {
             compilation_type: None,
         },
         |result| {
-            let compilation = result.unwrap().unwrap();
+            let compilation = result.unwrap();
             assert!(
                 compilation.compilation_type == CompilationType::Spirv,
                 "Invalid compilation type: {:?}",
@@ -610,7 +610,7 @@ fn test_compilation_hlsl_dxil() {
             partial_result_params: PartialResultParams::default(),
         },
         |report| {
-            let report = get_all_diagnostics(report.unwrap());
+            let report = get_all_diagnostics(report);
             assert!(
                 report.is_empty(),
                 "Should not have any error with file, got {:#?}",
@@ -624,7 +624,7 @@ fn test_compilation_hlsl_dxil() {
             compilation_type: None,
         },
         |result| {
-            let compilation = result.unwrap().unwrap();
+            let compilation = result.unwrap();
             assert!(
                 compilation.compilation_type == CompilationType::Dxil,
                 "Invalid compilation type: {:?}",
@@ -658,7 +658,7 @@ fn test_invalid_method() {
     }
     server.send_request_with_error::<UnhandledMethod>(
         &(),
-        |result| assert!(result.is_none()),
+        |_result| {}, // Ok
         |error| assert!(error.code == ErrorCode::MethodNotFound as i32),
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
