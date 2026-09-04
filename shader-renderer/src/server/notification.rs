@@ -70,8 +70,8 @@ pub struct ResizeTargetNotification {}
 
 #[derive(Serialize, Deserialize)]
 pub struct ResizeTargetNotificationParams {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Notification for ResizeTargetNotification {
@@ -93,8 +93,8 @@ pub struct UpdateShaderNotification {}
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdateShaderNotificationParams {
-    shader_stage: ShaderStage,
-    shader: Option<Shader>, // set or unset
+    pub shader_stage: ShaderStage,
+    pub shader: Option<Shader>, // set or unset
 }
 
 impl Notification for UpdateShaderNotification {
