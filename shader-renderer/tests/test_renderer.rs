@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::SystemTime;
 
 use image::{ImageBuffer, RgbaImage};
 use shader_renderer::renderer::{self};
@@ -34,7 +35,12 @@ fn load_spirv(file: &TestFile, shader_stage: ShaderStage) -> Vec<u32> {
         path
     };
     // Check if cached or generate and cache.
-    if std::fs::exists(&spirv_path).unwrap() {
+    fn get_time(path: &Path) -> SystemTime {
+        std::fs::metadata(&path).unwrap().modified().unwrap()
+    }
+    // Check file was updated.
+    let modification_time = get_time(&file.file_path);
+    if std::fs::exists(&spirv_path).unwrap() && modification_time < get_time(&spirv_path) {
         println!("Loading spirv from cache at {}", spirv_path.display());
         let bytes = std::fs::read(spirv_path).unwrap();
         spirv8_to_32(bytes)
@@ -112,9 +118,9 @@ fn test_graphic_pipeline() {
     );
     server.send_request::<server::request::RenderRequest>(&(), |result| {
         assert_eq!(result.data.len(), (WIDTH * HEIGHT * 4) as usize);
-        assert_eq!(result.data[0], 0);
-        assert_eq!(result.data[1], 0);
-        assert_eq!(result.data[2], 0); // TODO: write somehow is failing
+        assert_eq!(result.data[0], 255);
+        assert_eq!(result.data[1], 255);
+        assert_eq!(result.data[2], 0);
         assert_eq!(result.data[3], 255);
         log::info!("Result: {:?}", result.data.len());
         let img: RgbaImage = ImageBuffer::from_raw(WIDTH, HEIGHT, result.data).unwrap();
