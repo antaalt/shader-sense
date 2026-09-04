@@ -28,10 +28,10 @@ pub enum ShaderSource {
 #[derive(Serialize, Deserialize)]
 // Send shader path to server, along variant info
 pub struct Shader {
-    shading_language: ShadingLanguage,
-    stage: ShaderStage,
-    entry_point: String,
-    source: ShaderSource,
+    pub shading_language: ShadingLanguage,
+    pub stage: ShaderStage,
+    pub entry_point: String,
+    pub source: ShaderSource,
 }
 
 impl Shader {
@@ -115,6 +115,7 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     active_shaders: HashMap<ShaderStage, Shader>,
+    default_shaders: HashMap<ShaderStage, ShaderModule>,
     headless_surface: wgpu::Texture,
     headless_surface_view: wgpu::TextureView,
     read_back_buffer: wgpu::Buffer,
@@ -225,6 +226,7 @@ impl Renderer {
 
         let (headless_surface, headless_surface_view, read_back_buffer) =
             Self::create_target(&device, width, height);
+        let default_shaders = Self::load_default_shaders(&device);
         Self {
             width,
             height,
@@ -233,6 +235,7 @@ impl Renderer {
             device,
             queue,
             active_shaders: HashMap::new(),
+            default_shaders,
             headless_surface,
             headless_surface_view,
             read_back_buffer,
@@ -240,6 +243,18 @@ impl Renderer {
             compute_pipeline: None,
             bind_group: None,
         }
+    }
+    fn load_default_shaders(device: &wgpu::Device) -> HashMap<ShaderStage, ShaderModule> {
+        HashMap::from([
+            (ShaderStage::Vertex, device.create_shader_module(ShaderModuleDescriptor {
+                label: Some("DefaultVertexShader"),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("default_shaders/vertex.wgsl")))
+            })),
+            (ShaderStage::Fragment, device.create_shader_module(ShaderModuleDescriptor {
+                label: Some("DefaultFragmentShader"),
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("default_shaders/fragment.wgsl")))
+            })),
+        ])
     }
     pub fn resize(&mut self, width: u32, height: u32) {
         if self.width == width && self.height == height {
@@ -404,16 +419,24 @@ impl Renderer {
                     vertex.entry_point.clone(),
                 )
             } else {
-                return Err(RendererError::InternalError("No vertex shader set".into()));
+                info!("Using default vertex shader");
+                (
+                    self.default_shaders.get(&ShaderStage::Vertex).unwrap().clone(),
+                    "main".into(),
+                )
             };
-        let fragment_shader =
+        let(fragment_shader, fragment_entry_point) =
             if let Some(fragment) = self.active_shaders.get(&ShaderStage::Fragment) {
-                Some((
+                (
                     self.create_shader_module(fragment)?,
                     fragment.entry_point.clone(),
-                ))
+                )
             } else {
-                None
+                info!("Using default fragment shader");
+                (
+                    self.default_shaders.get(&ShaderStage::Fragment).unwrap().clone(),
+                    "main".into(),
+                )
             };
         let color_target_state = vec![Some(ColorTargetState {
             format: Self::SURFACE_FORMAT,
@@ -446,17 +469,15 @@ impl Renderer {
                     },
                     depth_stencil: None,
                     multisample: MultisampleState::default(),
-                    fragment: fragment_shader.as_ref().map(
-                        |(fragment_shader, fragment_entry_point)| wgpu::FragmentState {
-                            module: fragment_shader,
-                            entry_point: Some(fragment_entry_point),
-                            compilation_options: PipelineCompilationOptions {
-                                constants: &[],
-                                zero_initialize_workgroup_memory: false,
-                            },
-                            targets: &color_target_state,
+                    fragment: Some(wgpu::FragmentState {
+                        module: &fragment_shader,
+                        entry_point: Some(&fragment_entry_point),
+                        compilation_options: PipelineCompilationOptions {
+                            constants: &[],
+                            zero_initialize_workgroup_memory: false,
                         },
-                    ),
+                        targets: &color_target_state,
+                    }),
                     multiview_mask: None,
                     cache: None,
                 })

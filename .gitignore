@@ -24,3 +24,6 @@ shader-sense/test/local/
 
 # Output
 shader-intrinsic-parser/*.json
+
+# Shader generation
+*.spv
