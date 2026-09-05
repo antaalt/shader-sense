@@ -91,48 +91,6 @@ impl Notification for ResizeTargetNotification {
     }
 }
 
-pub struct UpdateShaderNotification {}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateShaderNotificationParams {
-    pub shader_stage: ShaderStage,
-    pub shader: Option<Shader>, // set or unset
-}
-
-impl Notification for UpdateShaderNotification {
-    type Params = UpdateShaderNotificationParams;
-
-    const METHOD: &'static str = "renderer/updateShader";
-
-    fn handle_notification(
-        renderer: &mut Renderer,
-        params: Self::Params,
-    ) -> Result<(), ServerError> {
-        if let Some(shader) = params.shader {
-            // The stage is carried by both the params & the shader, so reject a shader
-            // that would not end up bound to the slot the client asked for.
-            if shader.stage() != params.shader_stage {
-                return Err(ServerError::InternalError(format!(
-                    "Shader stage {:?} does not match the updated stage {:?}",
-                    shader.stage(),
-                    params.shader_stage
-                )));
-            }
-            info!(
-                "Set shader stage {:?} with entry point {} as {:?}",
-                shader.stage(),
-                shader.entry_point(),
-                shader.shading_language()
-            );
-            renderer.set_shader(shader)?;
-        } else {
-            renderer.remove_shader(params.shader_stage);
-        }
-        Ok(())
-    }
-}
-
 pub struct ExitNotification {}
 
 impl Notification for ExitNotification {

@@ -1,6 +1,11 @@
+use log::info;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use shader_sense::shader::ShaderStage;
 
-use crate::{renderer::Renderer, server::error::ServerError};
+use crate::{
+    renderer::{shader::Shader, Renderer},
+    server::error::ServerError,
+};
 
 pub trait Request {
     type Params: DeserializeOwned + Serialize + Send + Sync + 'static;
@@ -76,5 +81,47 @@ impl Request for RenderRequest {
     fn handle_request(renderer: &mut Renderer, _: ()) -> Result<RenderRequestResult, ServerError> {
         let data = renderer.render()?;
         Ok(RenderRequestResult { data })
+    }
+}
+
+pub struct UpdateShaderRequest {}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateShaderRequestParams {
+    pub shader_stage: ShaderStage,
+    pub shader: Option<Shader>, // set or unset
+}
+
+impl Request for UpdateShaderRequest {
+    type Params = UpdateShaderRequestParams;
+    type Result = (); // Nothing to return except a potential compilation error
+    const METHOD: &'static str = "renderer/updateShader";
+
+    fn handle_request(
+        renderer: &mut Renderer,
+        params: Self::Params,
+    ) -> Result<Self::Result, ServerError> {
+        if let Some(shader) = params.shader {
+            // The stage is carried by both the params & the shader, so reject a shader
+            // that would not end up bound to the slot the client asked for.
+            if shader.stage() != params.shader_stage {
+                return Err(ServerError::InternalError(format!(
+                    "Shader stage {:?} does not match the updated stage {:?}",
+                    shader.stage(),
+                    params.shader_stage
+                )));
+            }
+            info!(
+                "Set shader stage {:?} with entry point {} as {:?}",
+                shader.stage(),
+                shader.entry_point(),
+                shader.shading_language()
+            );
+            renderer.set_shader(shader)?;
+        } else {
+            renderer.remove_shader(params.shader_stage);
+        }
+        Ok(())
     }
 }

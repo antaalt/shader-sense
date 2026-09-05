@@ -10,9 +10,9 @@ use crate::{
         error::ServerError,
         notification::{
             dispatch_notification, ErrorNotification, ErrorNotificationParams, ExitNotification,
-            ResizeTargetNotification, UpdateShaderNotification,
+            ResizeTargetNotification,
         },
-        request::{dispatch_request, RenderRequest, ShutdownRequest},
+        request::{dispatch_request, RenderRequest, ShutdownRequest, UpdateShaderRequest},
     },
 };
 
@@ -119,7 +119,12 @@ impl Server {
             "Received request #{} {} with data {}",
             request_id, request.method, request.params
         );
-        dispatch_request!(self, request_id, request, [ShutdownRequest, RenderRequest,])
+        dispatch_request!(
+            self,
+            request_id,
+            request,
+            [ShutdownRequest, RenderRequest, UpdateShaderRequest]
+        )
     }
     pub fn on_notification(
         &mut self,
@@ -135,8 +140,7 @@ impl Server {
             [
                 ExitNotification,
                 ErrorNotification,
-                ResizeTargetNotification,
-                UpdateShaderNotification
+                ResizeTargetNotification
             ]
         )
     }

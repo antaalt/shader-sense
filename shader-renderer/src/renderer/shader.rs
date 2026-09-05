@@ -82,7 +82,9 @@ impl Shader {
             )
             .unwrap();
         match compilation {
-            CompilationResult::None => Err(RendererError::InternalError("".into())),
+            CompilationResult::None => Err(RendererError::InternalError(
+                "Shader compilation failed.".into(),
+            )),
             CompilationResult::Spirv(spirv) => {
                 Ok(ShaderCompilation::Spirv(Self::cast_vec8_to_32(spirv)))
             }

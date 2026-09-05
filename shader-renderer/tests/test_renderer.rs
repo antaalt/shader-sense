@@ -4,7 +4,8 @@ use std::path::Path;
 use image::{ImageBuffer, RgbaImage};
 use shader_renderer::renderer::{self};
 use shader_renderer::server::notification::ResizeTargetNotificationParams;
-use shader_renderer::server::{self, notification::UpdateShaderNotificationParams};
+use shader_renderer::server::request::UpdateShaderRequestParams;
+use shader_renderer::server::{self};
 use shader_sense::shader::{ShaderStage, ShadingLanguage};
 
 use crate::test_server::{TestFile, TestServer};
@@ -31,8 +32,8 @@ fn test_graphic_pipeline() {
             height: HEIGHT,
         },
     );
-    server.send_notification::<server::notification::UpdateShaderNotification>(
-        &UpdateShaderNotificationParams {
+    server.send_request::<server::request::UpdateShaderRequest>(
+        &UpdateShaderRequestParams {
             shader_stage: ShaderStage::Vertex,
             shader: Some(renderer::shader::Shader {
                 shading_language: ShadingLanguage::Glsl,
@@ -44,10 +45,10 @@ fn test_graphic_pipeline() {
                 includes: Vec::new(),
             }),
         },
+        |_| {},
     );
-    // TODO: set dummy shaders that are always present if we remove them.
-    server.send_notification::<server::notification::UpdateShaderNotification>(
-        &UpdateShaderNotificationParams {
+    server.send_request::<server::request::UpdateShaderRequest>(
+        &UpdateShaderRequestParams {
             shader_stage: ShaderStage::Fragment,
             shader: Some(renderer::shader::Shader {
                 shading_language: ShadingLanguage::Glsl,
@@ -59,6 +60,7 @@ fn test_graphic_pipeline() {
                 includes: Vec::new(),
             }),
         },
+        |_| {},
     );
     server.send_request::<server::request::RenderRequest>(&(), |result| {
         assert_eq!(result.data.len(), (WIDTH * HEIGHT * 4) as usize);
