@@ -115,12 +115,20 @@ impl Server {
         request_id: RequestId,
         request: lsp_server::Request,
     ) -> Result<(), ServerError> {
+        info!(
+            "Received request #{} {} with data {}",
+            request_id, request.method, request.params
+        );
         dispatch_request!(self, request_id, request, [ShutdownRequest, RenderRequest,])
     }
     pub fn on_notification(
         &mut self,
         notification: lsp_server::Notification,
     ) -> Result<(), ServerError> {
+        info!(
+            "Received notification {} with data {}",
+            notification.method, notification.params
+        );
         dispatch_notification!(
             self,
             notification,
@@ -134,6 +142,10 @@ impl Server {
     }
     pub fn on_response(&mut self, response: lsp_server::Response) -> Result<(), ServerError> {
         // Here the callback return a delayed update
+        info!(
+            "Received response to request #{} with result {:?}",
+            response.id, response.result
+        );
         match self.connection.remove_callback(&response.id) {
             Some(callback) => match response.result {
                 Some(result) => callback(self, result),

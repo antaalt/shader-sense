@@ -62,6 +62,7 @@ impl Request for ShutdownRequest {
 pub enum RenderRequest {}
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenderRequestResult {
     #[serde(with = "base64_bytes")]
     pub data: Vec<u8>, // For now, base64 encoded raw image. Should use shared memory instead.

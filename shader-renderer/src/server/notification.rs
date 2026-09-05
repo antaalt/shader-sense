@@ -3,7 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use shader_sense::shader::ShaderStage;
 
 use crate::{
-    renderer::{Renderer, Shader, ShaderSource},
+    renderer::{shader::Shader, Renderer},
     server::error::ServerError,
 };
 
@@ -46,6 +46,7 @@ pub(crate) use dispatch_notification;
 pub struct ErrorNotification {}
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ErrorNotificationParams {
     pub message: String,
 }
@@ -69,6 +70,7 @@ impl Notification for ErrorNotification {
 pub struct ResizeTargetNotification {}
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResizeTargetNotificationParams {
     pub width: u32,
     pub height: u32,
@@ -92,6 +94,7 @@ impl Notification for ResizeTargetNotification {
 pub struct UpdateShaderNotification {}
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateShaderNotificationParams {
     pub shader_stage: ShaderStage,
     pub shader: Option<Shader>, // set or unset
@@ -117,17 +120,12 @@ impl Notification for UpdateShaderNotification {
                 )));
             }
             info!(
-                "Set shader stage {:?} with entry point {} as {}",
+                "Set shader stage {:?} with entry point {} as {:?}",
                 shader.stage(),
                 shader.entry_point(),
-                match shader.source() {
-                    ShaderSource::Spirv(_) => "Spirv",
-                    ShaderSource::Dxil(_) => "Dxil",
-                    ShaderSource::Wgsl(_) => "Wgsl",
-                    ShaderSource::Glsl(_) => "Glsl",
-                }
+                shader.shading_language()
             );
-            renderer.set_shader(shader);
+            renderer.set_shader(shader)?;
         } else {
             renderer.remove_shader(params.shader_stage);
         }

@@ -1,50 +1,20 @@
 use std::{collections::HashMap, num::NonZeroU64, time::Duration};
 
 use log::{error, info, warn};
-use serde::{Deserialize, Serialize};
-use shader_sense::shader::{ShaderStage, ShadingLanguage};
+use shader_sense::shader::ShaderStage;
 use wgpu::{
-    wgt::{BufferDescriptor, CreateShaderModuleDescriptorPassthrough, TextureDescriptor},
+    wgt::{BufferDescriptor, TextureDescriptor},
     Backends, BufferBinding, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePipeline,
     ExperimentalFeatures, Extent3d, InstanceFlags, MeshPipelineDescriptor, MultisampleState,
-    Operations, Origin3d, PassthroughShaderEntryPoint, PipelineCompilationOptions, PrimitiveState,
-    PrimitiveTopology, RenderPassColorAttachment, RenderPipeline, ShaderModule,
-    ShaderModuleDescriptor, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase,
-    VertexState,
+    Operations, Origin3d, PipelineCompilationOptions, PrimitiveState, PrimitiveTopology,
+    RenderPassColorAttachment, RenderPipeline, ShaderModule, ShaderModuleDescriptor,
+    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase, VertexState,
 };
 
-use crate::renderer::error::RendererError;
+use crate::renderer::{error::RendererError, shader::Shader};
 
 pub mod error;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ShaderSource {
-    Spirv(Vec<u32>),
-    Dxil(Vec<u8>),
-    Wgsl(String),
-    Glsl(String),
-}
-
-#[derive(Serialize, Deserialize)]
-// Send shader path to server, along variant info
-pub struct Shader {
-    pub shading_language: ShadingLanguage,
-    pub stage: ShaderStage,
-    pub entry_point: String,
-    pub source: ShaderSource,
-}
-
-impl Shader {
-    pub fn stage(&self) -> ShaderStage {
-        self.stage
-    }
-    pub fn source(&self) -> &ShaderSource {
-        &self.source
-    }
-    pub fn entry_point(&self) -> &str {
-        &self.entry_point
-    }
-}
+pub mod shader;
 
 pub struct BindGroupLayoutEntry {}
 
@@ -72,7 +42,7 @@ impl BindGroupSlot {
                 .bind_group_layout
                 .entries
                 .iter()
-                .map(|e| wgpu::BindGroupLayoutEntry {
+                .map(|_| wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
@@ -107,6 +77,11 @@ impl BindGroupSlot {
     }
 }
 
+struct ShaderCompilationResult {
+    module: ShaderModule,
+    entry_point: String,
+}
+
 pub struct Renderer {
     width: u32,
     height: u32,
@@ -114,8 +89,8 @@ pub struct Renderer {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    active_shaders: HashMap<ShaderStage, Shader>,
-    default_shaders: HashMap<ShaderStage, ShaderModule>,
+    active_shaders: HashMap<ShaderStage, ShaderCompilationResult>,
+    default_shaders: HashMap<ShaderStage, ShaderCompilationResult>,
     headless_surface: wgpu::Texture,
     headless_surface_view: wgpu::TextureView,
     read_back_buffer: wgpu::Buffer,
@@ -244,16 +219,34 @@ impl Renderer {
             bind_group: None,
         }
     }
-    fn load_default_shaders(device: &wgpu::Device) -> HashMap<ShaderStage, ShaderModule> {
+    fn load_default_shaders(
+        device: &wgpu::Device,
+    ) -> HashMap<ShaderStage, ShaderCompilationResult> {
         HashMap::from([
-            (ShaderStage::Vertex, device.create_shader_module(ShaderModuleDescriptor {
-                label: Some("DefaultVertexShader"),
-                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("default_shaders/vertex.wgsl")))
-            })),
-            (ShaderStage::Fragment, device.create_shader_module(ShaderModuleDescriptor {
-                label: Some("DefaultFragmentShader"),
-                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("default_shaders/fragment.wgsl")))
-            })),
+            (
+                ShaderStage::Vertex,
+                ShaderCompilationResult {
+                    module: device.create_shader_module(ShaderModuleDescriptor {
+                        label: Some("DefaultVertexShader"),
+                        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                            "default_shaders/vertex.wgsl"
+                        ))),
+                    }),
+                    entry_point: "main".into(),
+                },
+            ),
+            (
+                ShaderStage::Fragment,
+                ShaderCompilationResult {
+                    module: device.create_shader_module(ShaderModuleDescriptor {
+                        label: Some("DefaultFragmentShader"),
+                        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                            "default_shaders/fragment.wgsl"
+                        ))),
+                    }),
+                    entry_point: "main".into(),
+                },
+            ),
         ])
     }
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -275,13 +268,20 @@ impl Renderer {
             self.invalidate_pipelines();
         }
     }
-    pub fn set_shader(&mut self, shader: Shader) {
+    pub fn set_shader(&mut self, shader: Shader) -> Result<(), RendererError> {
         // TODO: need to reflect shader and create bind group here. Or pass reflection result as JSON.
         // Would be nice to pass reflection result as client NEEDS them to map everything.
         // But it could be generated here via spirv tools (and naga and what about dxil ??)
         // and returned via a response.
-        self.active_shaders.insert(shader.stage, shader);
+        self.active_shaders.insert(
+            shader.stage,
+            ShaderCompilationResult {
+                module: shader.create_shader_module(self)?,
+                entry_point: shader.entry_point,
+            },
+        );
         self.invalidate_pipelines();
+        Ok(())
     }
     /// Drop the pipelines so that they are recreated with the current shaders on next use.
     ///
@@ -313,68 +313,6 @@ impl Renderer {
             }
             None => Ok(value),
         }
-    }
-    pub fn create_shader_module(&self, shader: &Shader) -> Result<ShaderModule, RendererError> {
-        if matches!(shader.source, ShaderSource::Dxil(_) | ShaderSource::Glsl(_))
-            && !self
-                .device
-                .features()
-                .contains(wgpu::Features::PASSTHROUGH_SHADERS)
-        {
-            return Err(RendererError::InternalError(format!(
-                "Device does not support passthrough shaders, required for {:?} sources. Compile the shader to SPIRV or WGSL instead.",
-                shader.shading_language
-            )));
-        }
-        info!(
-            "Creating shader module for {:?} stage with entry point {}",
-            shader.stage, shader.entry_point
-        );
-        self.catch_validation_error(
-            &format!("create the {:?} shader module", shader.stage),
-            |renderer| match &shader.source {
-                // Ensure validation
-                ShaderSource::Spirv(_) | ShaderSource::Wgsl(_) => renderer
-                    .device
-                    .create_shader_module(ShaderModuleDescriptor {
-                        label: Some(&shader.stage.to_string()),
-                        source: match &shader.source {
-                            ShaderSource::Spirv(spirv) => {
-                                wgpu::ShaderSource::SpirV(std::borrow::Cow::Borrowed(spirv))
-                            }
-                            ShaderSource::Wgsl(wgsl) => {
-                                wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(wgsl))
-                            }
-                            _ => unreachable!(),
-                        },
-                    }),
-                // Unsafe.
-                ShaderSource::Dxil(_) | ShaderSource::Glsl(_) => unsafe {
-                    renderer.device.create_shader_module_passthrough(
-                        CreateShaderModuleDescriptorPassthrough {
-                            label: Some(&shader.stage.to_string()),
-                            entry_points: std::borrow::Cow::Borrowed(&[
-                                PassthroughShaderEntryPoint {
-                                    name: std::borrow::Cow::Borrowed(&shader.entry_point),
-                                    workgroup_size: (1, 1, 1), // Only for metal
-                                },
-                            ]),
-                            dxil: if let ShaderSource::Dxil(dxil) = &shader.source {
-                                Some(std::borrow::Cow::Borrowed(dxil))
-                            } else {
-                                None
-                            },
-                            glsl: if let ShaderSource::Glsl(glsl) = &shader.source {
-                                Some(std::borrow::Cow::Borrowed(glsl))
-                            } else {
-                                None
-                            },
-                            ..Default::default()
-                        },
-                    )
-                },
-            },
-        )
     }
     /// Get the graphic pipeline for the currently bound shaders, creating it if needed.
     fn ensure_graphic_pipeline(&mut self) -> Result<&RenderPipeline, RendererError> {
@@ -414,28 +352,30 @@ impl Renderer {
             });
         let (vertex_shader, vertex_entry_point) =
             if let Some(vertex) = self.active_shaders.get(&ShaderStage::Vertex) {
-                (
-                    self.create_shader_module(vertex)?,
-                    vertex.entry_point.clone(),
-                )
+                (vertex.module.clone(), vertex.entry_point.clone())
             } else {
                 info!("Using default vertex shader");
+                let vertex_shader = self
+                    .default_shaders
+                    .get(&ShaderStage::Vertex)
+                    .expect("No default vertex shader");
                 (
-                    self.default_shaders.get(&ShaderStage::Vertex).unwrap().clone(),
-                    "main".into(),
+                    vertex_shader.module.clone(),
+                    vertex_shader.entry_point.clone(),
                 )
             };
-        let(fragment_shader, fragment_entry_point) =
+        let (fragment_shader, fragment_entry_point) =
             if let Some(fragment) = self.active_shaders.get(&ShaderStage::Fragment) {
-                (
-                    self.create_shader_module(fragment)?,
-                    fragment.entry_point.clone(),
-                )
+                (fragment.module.clone(), fragment.entry_point.clone())
             } else {
                 info!("Using default fragment shader");
+                let fragment_shader = self
+                    .default_shaders
+                    .get(&ShaderStage::Fragment)
+                    .expect("No default fragment shader");
                 (
-                    self.default_shaders.get(&ShaderStage::Fragment).unwrap().clone(),
-                    "main".into(),
+                    fragment_shader.module.clone(),
+                    fragment_shader.entry_point.clone(),
                 )
             };
         let color_target_state = vec![Some(ColorTargetState {
@@ -521,14 +461,13 @@ impl Renderer {
             });
         match self.active_shaders.get(&ShaderStage::Compute) {
             Some(compute_shader) => {
-                let compute_module = self.create_shader_module(compute_shader)?;
                 self.catch_validation_error("create the compute pipeline", |renderer| {
                     renderer
                         .device
                         .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                             label: None,
                             layout: Some(&pipeline_layout),
-                            module: &compute_module,
+                            module: &compute_shader.module,
                             entry_point: Some(&compute_shader.entry_point),
                             compilation_options: wgpu::PipelineCompilationOptions::default(),
                             cache: None,
