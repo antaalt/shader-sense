@@ -6,7 +6,10 @@ use shader_sense::{
     shader::{
         ShaderCompilationParams, ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
     },
-    validator::validator::{default_include_callback, CompilationResult, Validator},
+    validator::{
+        naga::Naga,
+        validator::{default_include_callback, CompilationResult, Validator},
+    },
 };
 use wgpu::{
     wgt::CreateShaderModuleDescriptorPassthrough, PassthroughShaderEntryPoint, ShaderModule,
@@ -62,7 +65,7 @@ impl Shader {
 
     fn compile_shader(&self) -> Result<ShaderCompilation, RendererError> {
         let validator = Validator::glsl();
-        let (compilation, _diagnostics) = validator
+        let (compilation, diagnostics) = validator
             .validate_shader(
                 &self.content,
                 &self.file_path,
@@ -82,10 +85,23 @@ impl Shader {
             )
             .unwrap();
         match compilation {
-            CompilationResult::None => Err(RendererError::InternalError(
-                "Shader compilation failed.".into(),
-            )),
+            CompilationResult::None => Err(RendererError::InternalError(format!(
+                "Shader compilation failed: {}",
+                diagnostics
+                    .diagnostics
+                    .iter()
+                    .map(|d| format!(
+                        "{}:{}:{}: {}",
+                        d.severity.to_string(),
+                        d.range.range.start.line,
+                        d.range.range.start.pos,
+                        d.error
+                    ))
+                    .collect::<Vec<String>>()
+                    .join("\n- ")
+            ))),
             CompilationResult::Spirv(spirv) => {
+                Naga::validate_spirv(&spirv).map_err(|e| RendererError::ShaderError(e))?;
                 Ok(ShaderCompilation::Spirv(Self::cast_vec8_to_32(spirv)))
             }
             CompilationResult::Dxil(dxil) => Ok(ShaderCompilation::Dxil(dxil)),

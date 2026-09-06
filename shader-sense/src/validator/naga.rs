@@ -42,6 +42,15 @@ impl Naga {
             }
         }
     }
+    /// Check SPIRV is compatible with Naga.
+    pub fn validate_spirv(spirv: &[u8]) -> Result<(), ShaderError> {
+        let _module =
+            naga::front::spv::parse_u8_slice(spirv, &naga::front::spv::Options::default())
+                .map_err(|e| {
+                    ShaderError::InternalErr(format!("Failed to validate SPIR-V: {:?}", e))
+                })?;
+        Ok(())
+    }
     /// Convert a SPIR-V binary module to its WGSL representation.
     pub fn spirv_to_wgsl(spirv: &[u8]) -> Result<String, ShaderError> {
         // TODO: Option should change depending on target spirv version (adjust_coordinate_space which is > SPV1.0).

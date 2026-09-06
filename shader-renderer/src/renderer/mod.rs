@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU64, time::Duration};
+use std::{collections::HashMap, num::NonZeroU64, sync::Arc, time::Duration};
 
 use log::{error, info, warn};
 use shader_sense::shader::ShaderStage;
@@ -8,7 +8,8 @@ use wgpu::{
     ExperimentalFeatures, Extent3d, InstanceFlags, MeshPipelineDescriptor, MultisampleState,
     Operations, Origin3d, PipelineCompilationOptions, PrimitiveState, PrimitiveTopology,
     RenderPassColorAttachment, RenderPipeline, ShaderModule, ShaderModuleDescriptor,
-    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase, VertexState,
+    TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfoBase, UncapturedErrorHandler,
+    VertexState,
 };
 
 use crate::renderer::{error::RendererError, shader::Shader};
@@ -198,6 +199,19 @@ impl Renderer {
             experimental_features: ExperimentalFeatures::disabled(),
         }))
         .expect("Failed to create device");
+
+        // Handle errors
+        device.on_uncaptured_error(Arc::new(|error| match error {
+            wgpu::Error::OutOfMemory { source } => error!("{}", source.to_string()),
+            wgpu::Error::Validation {
+                source,
+                description,
+            } => error!("{}:{}", source.to_string(), description),
+            wgpu::Error::Internal {
+                source,
+                description,
+            } => error!("{}:{}", source.to_string(), description),
+        }));
 
         let (headless_surface, headless_surface_view, read_back_buffer) =
             Self::create_target(&device, width, height);
