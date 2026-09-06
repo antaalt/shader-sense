@@ -101,7 +101,9 @@ impl Shader {
                     .join("\n- ")
             ))),
             CompilationResult::Spirv(spirv) => {
-                Naga::validate_spirv(&spirv).map_err(|e| RendererError::ShaderError(e))?;
+                // Dont validate SPIRV as Naga does not support everything that SPIRV does
+                // Ex with combined image sampler: https://github.com/gfx-rs/wgpu/issues/4342
+                //Naga::validate_spirv(&spirv).map_err(|e| RendererError::ShaderError(e))?;
                 Ok(ShaderCompilation::Spirv(Self::cast_vec8_to_32(spirv)))
             }
             CompilationResult::Dxil(dxil) => Ok(ShaderCompilation::Dxil(dxil)),
@@ -113,14 +115,14 @@ impl Shader {
         let compilation = self.compile_shader()?;
         if matches!(
             compilation,
-            ShaderCompilation::Dxil(_) | ShaderCompilation::Glsl(_)
+            ShaderCompilation::Dxil(_) | ShaderCompilation::Glsl(_) | ShaderCompilation::Spirv(_)
         ) && !renderer
             .device
             .features()
             .contains(wgpu::Features::PASSTHROUGH_SHADERS)
         {
             return Err(RendererError::InternalError(format!(
-                "Device does not support passthrough shaders, required for {:?} sources. Compile the shader to SPIRV or WGSL instead.",
+                "Device does not support passthrough shaders, required for {:?} sources. Compile the shader to WGSL instead.",
                 self.shading_language
             )));
         }
@@ -132,14 +134,12 @@ impl Shader {
             &format!("create the {:?} shader module", self.stage),
             |renderer| match &compilation {
                 // Ensure validation
-                ShaderCompilation::Spirv(_) | ShaderCompilation::Wgsl(_) => renderer
+                ShaderCompilation::Wgsl(_) => renderer
                     .device
                     .create_shader_module(ShaderModuleDescriptor {
                         label: Some(&self.stage.to_string()),
                         source: match &compilation {
-                            ShaderCompilation::Spirv(spirv) => {
-                                wgpu::ShaderSource::SpirV(std::borrow::Cow::Borrowed(spirv))
-                            }
+                            // Dont validate SPIRV here as Naga does not support all features.
                             ShaderCompilation::Wgsl(wgsl) => {
                                 wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(wgsl))
                             }
@@ -147,7 +147,7 @@ impl Shader {
                         },
                     }),
                 // Unsafe.
-                ShaderCompilation::Dxil(_) | ShaderCompilation::Glsl(_) => unsafe {
+                ShaderCompilation::Spirv(_) | ShaderCompilation::Dxil(_) | ShaderCompilation::Glsl(_) => unsafe {
                     renderer.device.create_shader_module_passthrough(
                         CreateShaderModuleDescriptorPassthrough {
                             label: Some(&self.stage.to_string()),
@@ -164,6 +164,11 @@ impl Shader {
                             },
                             glsl: if let ShaderCompilation::Glsl(glsl) = &compilation {
                                 Some(std::borrow::Cow::Borrowed(glsl))
+                            } else {
+                                None
+                            },
+                            spirv: if let ShaderCompilation::Spirv(spirv) = &compilation {
+                                Some(std::borrow::Cow::Borrowed(spirv))
                             } else {
                                 None
                             },
