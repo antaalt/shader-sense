@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.5.0] - 2026-09-07
+
+### Added
+
+- Server now send back server info with initialization params.
+- Correctly setup shader name with request.
+- New custom request `textDocument/compilationResult`. This let user request shader compilation result directly from server. 
+- Add a message when failing to load a preamble file.
+- Improved test and ci.
+
+### Fixed
+
+- Crash when removing variant as soon as we set it. Cache was not yet generated and variant then failed to compile.
+
 ## [1.4.3] - 2026-08-14
 
 ### Added
@@ -483,14 +497,15 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.4.3...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/antaalt/shader-sense/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/antaalt/shader-sense/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/antaalt/shader-sense/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/antaalt/shader-sense/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/antaalt/shader-sense/compare/v1.3.2...v1.4.0
-[1.3.2]: https://github.com/antaalt/shader-validator/compare/v1.3.1...v1.3.2
-[1.3.1]: https://github.com/antaalt/shader-validator/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/antaalt/shader-validator/compare/v1.2.2...v1.3.0
+[1.3.2]: https://github.com/antaalt/shader-sense/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/antaalt/shader-sense/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/antaalt/shader-sense/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/antaalt/shader-sense/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/antaalt/shader-sense/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/antaalt/shader-sense/compare/v1.1.0...v1.2.0
