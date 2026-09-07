@@ -1,11 +1,13 @@
 [package]
 name = "shader-intrinsics-parser"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
 publish = false
 
 [dependencies]
-shader-sense = { version = "1.4.2", path = "../shader-sense" }
+shader-sense.workspace = true
 regex = "1.10.6"
 scraper = "0.20.0"
 serde = { version = "1.0.208", features = ["derive"] }

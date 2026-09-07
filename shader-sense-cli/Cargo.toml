@@ -1,13 +1,13 @@
 [package]
 name = "shader-sense-cli"
 description = "Command line interface for shader validation and symbol inspection"
+version = "0.6.3"
 repository = "https://github.com/antaalt/shader-sense"
 keywords = ["shader", "validate", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
-version = "0.6.3"
-edition = "2021"
-license-file = "../LICENSE"
+edition.workspace = true
+license-file.workspace = true
 
 [dependencies]
 colored = "3.0.0"
-shader-sense = { version = "1.4.3", path = "../shader-sense" }
+shader-sense.workspace = true

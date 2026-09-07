@@ -1,14 +1,14 @@
 [package]
 name = "shader-sense"
 description = "Library for runtime shader validation and symbol inspection"
+readme = "../README.md"
 repository = "https://github.com/antaalt/shader-sense"
 keywords = ["shader", "validate", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
-version = "1.4.3"
-edition = "2021"
-license-file = "../LICENSE"
-readme = "../README.md"
-rust-version = "1.89" # Minimal version required for wasm C ABI https://github.com/wasm-bindgen/wasm-bindgen/issues/3454
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 glslang = "0.6.1"

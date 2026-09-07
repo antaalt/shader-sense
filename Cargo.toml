@@ -22,3 +22,15 @@ debug = true
 # https://github.com/Traverse-Research/hassle-rs/issues/85
 hassle-rs = { git="https://github.com/antaalt/hassle-rs.git", branch="fix-crash-empty-blob" }
 tree-sitter-wgsl-bevy = { git = "https://github.com/antaalt/tree-sitter-wgsl-bevy", branch = "fix-compil-clang" }
+
+
+[workspace.package]
+version = "1.4.3" # shader-sense version
+edition = "2021"
+license-file = "./LICENSE"
+repository = "https://github.com/antaalt/shader-sense"
+authors = ["antaalt"]
+rust-version = "1.89" # Minimal version required for wasm C ABI https://github.com/wasm-bindgen/wasm-bindgen/issues/3454
+
+[workspace.dependencies]
+shader-sense = { version = "1.4.3", path = "./shader-sense" }
