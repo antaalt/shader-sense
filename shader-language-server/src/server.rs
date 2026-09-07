@@ -914,14 +914,6 @@ impl ServerLanguage {
                     self.debug(&params)
                 );
 
-                // Skip non file uri.
-                if uri.scheme() != "file" {
-                    // Invalid Params
-                    return Err(ServerLanguageError::InvalidParams(format!(
-                        "Trying to watch file with unsupported scheme : {}",
-                        uri.scheme()
-                    )));
-                }
                 let shading_language = ShadingLanguage::from_str(&params.text_document.language_id)
                     .map_err(|_| {
                         ServerLanguageError::InvalidParams(format!(
