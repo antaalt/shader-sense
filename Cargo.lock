@@ -1261,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense"
-version = "1.4.3"
+version = "1.5.0"
 dependencies = [
  "glslang",
  "hassle-rs",
@@ -1279,7 +1279,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense-cli"
-version = "0.6.3"
+version = "0.7.0"
 dependencies = [
  "colored",
  "shader-sense",
@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.4.3"
+version = "1.5.0"
 dependencies = [
  "base64-bytes",
  "cfg-if",
