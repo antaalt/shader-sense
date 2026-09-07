@@ -438,6 +438,10 @@ impl TestServer {
                     lsp_server::Message::Response(response) => {
                         match response.result {
                             Some(result) => {
+                                assert!(
+                                    response.error.is_none(),
+                                    "Got both result and error back..."
+                                );
                                 let response: T::Result = serde_json::from_value(result).unwrap();
                                 callback(response);
                             }
