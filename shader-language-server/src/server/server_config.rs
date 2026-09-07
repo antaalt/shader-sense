@@ -144,13 +144,15 @@ impl ServerSerializedConfig {
         if let Some(glsl) = &self.glsl {
             // Validate preamble path.
             if let Some(preamble) = &glsl.preamble {
-                let preamble_path = Self::verify_user_path(preamble);
-                if let Ok(exist) = std::fs::exists(preamble_path) {
-                    if !exist {
+                if !preamble.is_empty() {
+                    let preamble_path = Self::verify_user_path(preamble);
+                    if let Ok(exist) = std::fs::exists(preamble_path) {
+                        if !exist {
+                            errors.push(format!("Preamble file at {:#?} not found", preamble));
+                        }
+                    } else {
                         errors.push(format!("Preamble file at {:#?} not found", preamble));
                     }
-                } else {
-                    errors.push(format!("Preamble file at {:#?} not found", preamble));
                 }
             }
             if let Some(target_client) = &glsl.target_client {
@@ -174,19 +176,21 @@ impl ServerSerializedConfig {
             }
         }
         if let Some(config_override) = &self.config_override {
-            let config_override_path = Self::verify_user_path(config_override);
-            if let Ok(exist) = std::fs::exists(config_override_path) {
-                if !exist {
+            if !config_override.is_empty() {
+                let config_override_path = Self::verify_user_path(config_override);
+                if let Ok(exist) = std::fs::exists(config_override_path) {
+                    if !exist {
+                        errors.push(format!(
+                            "Config override file at {:#?} not found",
+                            config_override
+                        ));
+                    }
+                } else {
                     errors.push(format!(
                         "Config override file at {:#?} not found",
                         config_override
                     ));
                 }
-            } else {
-                errors.push(format!(
-                    "Config override file at {:#?} not found",
-                    config_override
-                ));
             }
         }
         if let Some(includes) = &self.includes {
