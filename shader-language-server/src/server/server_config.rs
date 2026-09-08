@@ -12,9 +12,9 @@ use serde_json::Value;
 use shader_sense::{
     include::canonicalize,
     shader::{
-        GlslCompilationParams, GlslSpirvVersion, GlslTargetClient, HlslCompilationParams,
-        HlslShaderModel, HlslVersion, ShaderCompilationParams, ShaderContextParams, ShaderParams,
-        ShaderStage, ShadingLanguage, WgslCompilationParams,
+        GlslCompilationParams, GlslProfile, GlslProfileVersion, GlslSpirvVersion, GlslTargetClient,
+        HlslCompilationParams, HlslShaderModel, HlslVersion, ShaderCompilationParams,
+        ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage, WgslCompilationParams,
     },
     shader_error::ShaderDiagnosticSeverity,
 };
@@ -38,12 +38,32 @@ pub struct ServerHlslConfig {
     pub spirv: Option<bool>,
 }
 
+/// Serialized version & profile override for glsl. Both fields are optional so that
+/// the user can leave them unset to rely on the #version directive of the shader.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerGlslVersionConfig {
+    pub version: Option<u32>,
+    pub profile: Option<GlslProfile>,
+}
+
+impl ServerGlslVersionConfig {
+    // A profile alone means nothing, only override the version if one is set.
+    fn to_profile_version(&self) -> Option<GlslProfileVersion> {
+        self.version.map(|version| GlslProfileVersion {
+            version,
+            profile: self.profile.unwrap_or_default(),
+        })
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerGlslConfig {
     pub target_client: Option<GlslTargetClient>,
     pub spirv_version: Option<GlslSpirvVersion>,
     pub preamble: Option<String>, // Path to a preamble file per language.
+    pub version: Option<ServerGlslVersionConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -174,6 +194,13 @@ impl ServerSerializedConfig {
                     _ => {}
                 }
             }
+            if let Some(version) = &glsl.version {
+                if version.version.is_none() && version.profile.is_some() {
+                    errors.push(format!(
+                        "A GLSL profile is set without any version, it will be ignored."
+                    ));
+                }
+            }
         }
         if let Some(config_override) = &self.config_override {
             if !config_override.is_empty() {
@@ -279,6 +306,10 @@ impl ServerSerializedConfig {
                         .map(|p| Self::verify_user_path(&p))
                         .or(previous_config.glsl.preamble_path.clone()),
                     preamble_content: None, // Loaded later to be up to date
+                    version: glsl
+                        .version
+                        .and_then(|version| version.to_profile_version())
+                        .or(previous_config.glsl.version),
                 })
                 .unwrap_or(previous_config.glsl),
             wgsl: WgslCompilationParams {},
@@ -548,10 +579,15 @@ mod tests {
     use std::{collections::HashMap, path::PathBuf};
 
     use lsp_types::Url;
-    use shader_sense::shader::{GlslSpirvVersion, GlslTargetClient, ShaderStage, ShadingLanguage};
+    use shader_sense::shader::{
+        GlslProfile, GlslProfileVersion, GlslSpirvVersion, GlslTargetClient, ShaderStage,
+        ShadingLanguage,
+    };
 
     use crate::server::{
-        server_config::{ServerConfig, ServerGlslConfig, ServerSerializedConfig},
+        server_config::{
+            ServerConfig, ServerGlslConfig, ServerGlslVersionConfig, ServerSerializedConfig,
+        },
         shader_variant::ShaderVariant,
     };
 
@@ -681,6 +717,65 @@ mod tests {
     }
 
     #[test]
+    fn test_glsl_version_config() {
+        // Vscode always sends the keys, with null when the user did not set them.
+        let cfg: ServerSerializedConfig = serde_json::from_str(
+            r#"{
+            "glsl": {
+                "version": { "version": null, "profile": null }
+            }
+        }"#,
+        )
+        .unwrap();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
+        assert!(cfg.glsl.version.is_none());
+        // A profile alone does not override anything.
+        let cfg: ServerSerializedConfig = serde_json::from_str(
+            r#"{
+            "glsl": {
+                "version": { "profile": "Es" }
+            }
+        }"#,
+        )
+        .unwrap();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
+        assert!(cfg.glsl.version.is_none());
+        // A version without profile default to Core.
+        let cfg: ServerSerializedConfig = serde_json::from_str(
+            r#"{
+            "glsl": {
+                "version": { "version": 450, "profile": null }
+            }
+        }"#,
+        )
+        .unwrap();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
+        assert!(
+            cfg.glsl.version
+                == Some(GlslProfileVersion {
+                    version: 450,
+                    profile: GlslProfile::Core
+                })
+        );
+        let cfg: ServerSerializedConfig = serde_json::from_str(
+            r#"{
+            "glsl": {
+                "version": { "version": 320, "profile": "Es" }
+            }
+        }"#,
+        )
+        .unwrap();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
+        assert!(
+            cfg.glsl.version
+                == Some(GlslProfileVersion {
+                    version: 320,
+                    profile: GlslProfile::Es
+                })
+        );
+    }
+
+    #[test]
     fn test_config_validation() {
         let invalid_config = ServerSerializedConfig {
             glsl: Some(ServerGlslConfig {
@@ -702,5 +797,17 @@ mod tests {
         };
         let result = valid_config.validate();
         assert!(result.is_ok());
+        let invalid_config = ServerSerializedConfig {
+            glsl: Some(ServerGlslConfig {
+                version: Some(ServerGlslVersionConfig {
+                    version: None,
+                    profile: Some(GlslProfile::Es),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let result = invalid_config.validate();
+        assert!(result.is_err());
     }
 }

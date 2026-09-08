@@ -378,6 +378,24 @@ pub enum GlslSpirvVersion {
     #[default]
     SPIRV1_6,
 }
+
+/// Glsl profile to force
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GlslProfile {
+    None,
+    #[default]
+    Core,
+    Compatibility,
+    Es,
+}
+
+/// Glsl profile and version to force
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GlslProfileVersion {
+    pub version: u32,
+    pub profile: GlslProfile,
+}
+
 /// Glsl compilation parameters for glslang.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct GlslCompilationParams {
@@ -385,6 +403,7 @@ pub struct GlslCompilationParams {
     pub spirv: GlslSpirvVersion,
     pub preamble_path: Option<PathBuf>,
     pub preamble_content: Option<String>,
+    pub version: Option<GlslProfileVersion>,
 }
 
 /// Wgsl compilation parameters for naga.

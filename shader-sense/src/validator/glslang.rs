@@ -4,7 +4,7 @@ use super::validator::ValidatorImpl;
 use crate::{
     include::IncludeHandler,
     position::{ShaderFileRange, ShaderPosition},
-    shader::{GlslSpirvVersion, GlslTargetClient, ShaderParams, ShaderStage},
+    shader::{GlslProfile, GlslSpirvVersion, GlslTargetClient, ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
     validator::validator::CompilationResult,
 };
@@ -393,13 +393,25 @@ impl ValidatorImpl for Glslang {
                     } else {
                         glslang::ShaderMessage::DEFAULT
                     },
-                // Could expose these, but it still need to be written in code:
+                // Version recap
                 // - 100 : es (WebGL 1.0)
                 // - 300 : es (WebGL 2.0)
                 // - 110 : core (Desktop OpenGL 2.0)
                 // - 150 : core (Desktop OpenGL 3.2)
                 // - 450 : core (Desktop OpenGL 4.5)
-                //version_profile: Some((100, glslang::GlslProfile::None)),
+                version_profile: if let Some(version) = params.compilation.glsl.version {
+                    Some((
+                        version.version as i32,
+                        match version.profile {
+                            GlslProfile::None => glslang::GlslProfile::None,
+                            GlslProfile::Core => glslang::GlslProfile::Core,
+                            GlslProfile::Compatibility => glslang::GlslProfile::Compatibility,
+                            GlslProfile::Es => glslang::GlslProfile::ES,
+                        },
+                    ))
+                } else {
+                    None
+                },
                 ..Default::default()
             },
             Some(&defines),

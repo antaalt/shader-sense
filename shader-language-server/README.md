@@ -86,6 +86,10 @@ interface ServerConfig {
         targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null, // Target client to use. Default to Vulkan1_3.
         spirvVersion: 'None' | 'SPIRV1_0' | 'SPIRV1_1' | 'SPIRV1_2' | 'SPIRV1_3' | 'SPIRV1_4' | 'SPIRV1_5' | 'SPIRV1_6' | null, // Spirv version to target. Default to SPIRV1_6.
         preamble: string?, // Path to a file which content will be added at start of every GLSL files. Default empty.
+        version: {
+            version: number?, // GLSL version to force for GLSL shaders. Default to null, meaning the #version directive is used.
+            profile: 'None' | 'Core' | 'Compatibility' | 'Es' | null, // Profile to force for GLSL shaders. Ignored if no version set. Default to Core.
+        }?
     }?, // Glsl specific configuration
     wgsl: {} // Wgsl specific configuration
 }

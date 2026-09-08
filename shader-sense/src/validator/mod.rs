@@ -11,8 +11,8 @@ mod tests {
     use std::{collections::HashMap, path::Path};
 
     use crate::shader::{
-        GlslCompilationParams, GlslSpirvVersion, GlslTargetClient, ShaderCompilationParams,
-        ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
+        GlslCompilationParams, GlslProfile, GlslProfileVersion, GlslSpirvVersion, GlslTargetClient,
+        ShaderCompilationParams, ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
     };
 
     use super::validator::*;
@@ -358,6 +358,54 @@ mod tests {
             },
             &mut default_include_callback,
         ) {
+            Ok((_blob, diagnostic_list)) => {
+                assert!(
+                    diagnostic_list.is_empty(),
+                    "Diagnostic should be empty: {:#?}",
+                    diagnostic_list
+                );
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn glsl_version_profile() {
+        let validator = create_test_validator(ShadingLanguage::Glsl);
+        let file_path = Path::new("./test/glsl/target-client/vulkan.vert.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let validate_with_profile = |profile: GlslProfileVersion| {
+            validator.validate_shader(
+                &shader_content,
+                file_path,
+                &ShaderParams {
+                    compilation: ShaderCompilationParams {
+                        entry_point: Some("main".into()), // TODO: should not require this and induce main as entry point if not set for compile
+                        shader_stage: Some(ShaderStage::Vertex),
+                        glsl: GlslCompilationParams {
+                            client: GlslTargetClient::Vulkan1_3,
+                            spirv: GlslSpirvVersion::SPIRV1_6,
+                            version: Some(profile),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                    context: ShaderContextParams::default(),
+                },
+                &mut default_include_callback,
+            )
+        };
+        match validate_with_profile(GlslProfileVersion {
+            version: 100,
+            profile: GlslProfile::Core,
+        }) {
+            Ok(_) => panic!("Validation should fail"),
+            Err(_err) => {} // Expected error InvalidProfile as InternalError
+        };
+        match validate_with_profile(GlslProfileVersion {
+            version: 460,
+            profile: GlslProfile::Core,
+        }) {
             Ok((_blob, diagnostic_list)) => {
                 assert!(
                     diagnostic_list.is_empty(),
