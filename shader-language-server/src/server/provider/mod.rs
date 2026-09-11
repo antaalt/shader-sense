@@ -1,5 +1,6 @@
 pub mod compilation;
 mod completion;
+mod dependecy;
 mod diagnostic;
 mod document_symbol;
 mod folding_range;

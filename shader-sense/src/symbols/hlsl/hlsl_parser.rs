@@ -472,6 +472,7 @@ mod hlsl_parser_tests {
     use tree_sitter::{Query, QueryCursor, StreamingIterator};
 
     use crate::{
+        include::canonicalize,
         position::{ShaderPosition, ShaderRange},
         shader::ShadingLanguage,
         symbols::{
@@ -525,7 +526,7 @@ mod hlsl_parser_tests {
                 ShaderSymbolData::Types { constructors: c1 },
                 ShaderSymbolData::Types { constructors: c2 },
             ) => {
-                assert!(c1.len() == c2.len(), "Invalid constructors");
+                assert_eq!(c1.len(), c2.len(), "Invalid constructors");
             }
             (
                 ShaderSymbolData::Struct {
@@ -539,9 +540,9 @@ mod hlsl_parser_tests {
                     methods: me2,
                 },
             ) => {
-                assert!(c1.len() == c2.len(), "Invalid constructors");
-                assert!(m1.len() == m2.len(), "Invalid members");
-                assert!(me1.len() == me2.len(), "Invalid methods");
+                assert_eq!(c1.len(), c2.len(), "Invalid constructors");
+                assert_eq!(m1.len(), m2.len(), "Invalid members");
+                assert_eq!(me1.len(), me2.len(), "Invalid methods");
             }
             (
                 ShaderSymbolData::Constants {
@@ -559,7 +560,7 @@ mod hlsl_parser_tests {
                 ShaderSymbolData::Functions { signatures: s1 },
                 ShaderSymbolData::Functions { signatures: s2 },
             ) => {
-                assert!(s1.len() == s2.len(), "Invalid functions");
+                assert_eq!(s1.len(), s2.len(), "Invalid functions");
             }
             (ShaderSymbolData::Keyword {}, ShaderSymbolData::Keyword {}) => {}
             (
@@ -600,41 +601,39 @@ mod hlsl_parser_tests {
                     parameters: p2,
                 },
             ) => {
-                assert!(v1 == v2, "Mismatching macro");
-                assert!(p1 == p2, "Mismatching macro parameters");
+                assert_eq!(v1, v2, "Mismatching macro");
+                assert_eq!(p1, p2, "Mismatching macro parameters");
             }
             (ShaderSymbolData::Enum { values: v1 }, ShaderSymbolData::Enum { values: v2 }) => {
-                assert!(v1.len() == v2.len(), "Invalid enum");
+                assert_eq!(v1.len(), v2.len(), "Invalid enum");
             }
             _ => panic!("data mismatch"),
         }
         match (&symbol.mode, &symbol_expected.mode) {
             (ShaderSymbolMode::Intrinsic(intrinsic0), ShaderSymbolMode::Intrinsic(intrinsic1)) => {
-                assert!(
-                    intrinsic0.description == intrinsic1.description,
+                assert_eq!(
+                    intrinsic0.description, intrinsic1.description,
                     "Mismatching description"
                 );
-                assert!(intrinsic0.link == intrinsic1.link, "Mismatching link");
+                assert_eq!(intrinsic0.link, intrinsic1.link, "Mismatching link");
             }
             (ShaderSymbolMode::Runtime(runtime0), ShaderSymbolMode::Runtime(runtime1)) => {
-                assert!(
-                    runtime0.file_path == runtime1.file_path,
+                assert_eq!(
+                    runtime0.file_path, runtime1.file_path,
                     "Mismatching file_path"
                 );
-                assert!(
-                    runtime0.range == runtime1.range,
+                assert_eq!(
+                    runtime0.range, runtime1.range,
                     "Mismatching range ({:?} vs {:?})",
-                    runtime0.range,
-                    runtime1.range
+                    runtime0.range, runtime1.range
                 );
-                assert!(
-                    runtime0.scope == runtime1.scope,
+                assert_eq!(
+                    runtime0.scope, runtime1.scope,
                     "Mismatching scope ({:?} vs {:?})",
-                    runtime0.scope,
-                    runtime1.scope
+                    runtime0.scope, runtime1.scope
                 );
-                assert!(
-                    runtime0.scope_stack == runtime1.scope_stack,
+                assert_eq!(
+                    runtime0.scope_stack, runtime1.scope_stack,
                     "Mismatching scope_stack"
                 );
             }
@@ -707,7 +706,7 @@ mod hlsl_parser_tests {
                     }],
                 },
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
-                    path.into(),
+                    canonicalize(path).unwrap(),
                     ShaderRange::new(ShaderPosition::new(1, 19), ShaderPosition::new(1, 29)),
                     None,
                     vec![],
@@ -758,7 +757,7 @@ mod hlsl_parser_tests {
                     }],
                 },
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
-                    path.into(),
+                    canonicalize(path).unwrap(),
                     ShaderRange::new(ShaderPosition::new(1, 17), ShaderPosition::new(1, 25)),
                     Some(ShaderScope::new(
                         ShaderPosition::new(1, 49),
@@ -807,7 +806,7 @@ mod hlsl_parser_tests {
                     ],
                 },
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
-                    path.into(),
+                    canonicalize(path).unwrap(),
                     ShaderRange::new(ShaderPosition::new(1, 23), ShaderPosition::new(1, 36)),
                     Some(ShaderScope::new(
                         ShaderPosition::new(1, 37),

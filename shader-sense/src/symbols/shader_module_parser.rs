@@ -3,7 +3,10 @@ use std::path::Path;
 
 use tree_sitter::InputEdit;
 
-use crate::{position::ShaderRange, shader::ShadingLanguage, shader_error::ShaderError};
+use crate::{
+    include::canonicalize, position::ShaderRange, shader::ShadingLanguage,
+    shader_error::ShaderError,
+};
 
 use super::shader_module::ShaderModule;
 
@@ -63,7 +66,7 @@ impl ShaderModuleParser {
     ) -> Result<ShaderModule, ShaderError> {
         match self.tree_sitter_parser.parse(shader_content, None) {
             Some(tree) => Ok(ShaderModule {
-                file_path: file_path.into(),
+                file_path: canonicalize(&file_path)?,
                 content: shader_content.into(),
                 tree,
             }),

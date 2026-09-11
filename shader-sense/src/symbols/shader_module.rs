@@ -5,9 +5,11 @@ use std::{
     rc::Rc,
 };
 
+use serde::{Deserialize, Serialize};
 use tree_sitter::{Tree, TreeCursor};
 
 use crate::{
+    include::canonicalize,
     shader::ShaderContextParams,
     symbols::symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
 };
@@ -29,12 +31,22 @@ pub type ShaderModuleHandle = Rc<RefCell<ShaderModule>>;
 
 #[derive(Debug, Default, Clone)]
 pub struct ShaderSymbols {
+    pub(super) file_path: PathBuf,
     pub(super) preprocessor: ShaderPreprocessor,
     pub(super) symbol_list: ShaderSymbolList,
 }
+
+#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShaderDependencyNode {
+    pub path: PathBuf,
+    pub includes: Vec<ShaderDependencyNode>,
+}
+
 impl ShaderSymbols {
     pub fn new(file_path: &Path, shader_params: ShaderContextParams) -> Self {
         Self {
+            file_path: canonicalize(file_path).unwrap(),
             preprocessor: ShaderPreprocessor::new(ShaderPreprocessorContext::main(
                 file_path,
                 shader_params,
@@ -49,7 +61,7 @@ impl ShaderSymbols {
                 include.cache.is_some(),
                 "Include {} do not have cache, but is being queried.\n{}",
                 include.get_relative_path(),
-                self.dump_dependency_tree(&PathBuf::from("oui"))
+                self.get_dependency_tree().dump()
             );
             symbols.append(include.get_cache().get_all_symbols());
         }
@@ -134,47 +146,59 @@ impl ShaderSymbols {
         self.find_include(&mut |e| *e.get_absolute_path() == *dependency_to_find_path)
             .is_some()
     }
-    fn dump_dependency_node(
-        &self,
-        include: &ShaderPreprocessorInclude,
-        header: String,
-        is_last: bool,
-    ) -> String {
+    pub fn get_dependency_tree(&self) -> ShaderDependencyNode {
+        fn get_dependency_node(include: &ShaderPreprocessorInclude) -> ShaderDependencyNode {
+            ShaderDependencyNode {
+                path: include.get_absolute_path().into(),
+                includes: match &include.cache {
+                    Some(cache) => cache
+                        .preprocessor
+                        .includes
+                        .iter()
+                        .map(|i| get_dependency_node(i))
+                        .collect(),
+                    None => vec![],
+                },
+            }
+        }
+        ShaderDependencyNode {
+            path: self.file_path.clone(),
+            includes: self
+                .preprocessor
+                .includes
+                .iter()
+                .map(|i| get_dependency_node(i))
+                .collect(),
+        }
+    }
+}
+
+impl ShaderDependencyNode {
+    fn dump_node(&self, header: String, is_last: bool) -> String {
         let mut dependency_tree = format!(
-            "{}{} {} ({})\n",
+            "{}{} {}\n",
             header,
             if is_last { "└─" } else { "├─" },
-            include.get_absolute_path().display(),
-            match &include.cache {
-                Some(cache) => format!("Mode: {:?}", cache.preprocessor.mode),
-                None => "Missing cache".into(),
-            }
+            self.path.display()
         );
         let childs_header = format!("{}{}", header, if is_last { "  " } else { "|  " });
-        let mut deps_iter = match &include.cache {
-            Some(data) => data.preprocessor.includes.iter().peekable(),
-            None => {
-                return dependency_tree;
-            }
-        };
+        let mut deps_iter = self.includes.iter().peekable();
         while let Some(included_include) = deps_iter.next() {
             dependency_tree.push_str(
-                self.dump_dependency_node(
-                    included_include,
-                    childs_header.clone(),
-                    deps_iter.peek().is_none(),
-                )
-                .as_str(),
+                included_include
+                    .dump_node(childs_header.clone(), deps_iter.peek().is_none())
+                    .as_str(),
             );
         }
         dependency_tree
     }
-    pub fn dump_dependency_tree(&self, absolute_path: &PathBuf) -> String {
-        let mut dependency_tree = format!("{}\n", absolute_path.display());
-        let mut deps_iter = self.preprocessor.includes.iter().peekable();
+    pub fn dump(&self) -> String {
+        let mut dependency_tree = format!("{}\n", self.path.display());
+        let mut deps_iter = self.includes.iter().peekable();
         while let Some(include) = deps_iter.next() {
             dependency_tree.push_str(
-                self.dump_dependency_node(include, "   ".into(), deps_iter.peek().is_none())
+                include
+                    .dump_node("   ".into(), deps_iter.peek().is_none())
                     .as_str(),
             );
         }

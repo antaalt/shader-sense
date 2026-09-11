@@ -10,6 +10,7 @@ pub mod validator;
 mod tests {
     use std::{collections::HashMap, path::Path};
 
+    use crate::include::canonicalize;
     use crate::shader::{
         GlslCompilationParams, GlslProfile, GlslProfileVersion, GlslSpirvVersion, GlslTargetClient,
         ShaderCompilationParams, ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
@@ -160,11 +161,11 @@ mod tests {
     #[test]
     fn glsl_error_parsing() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("./test/glsl/error-parsing.frag.glsl");
-        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let file_path = canonicalize(Path::new("./test/glsl/error-parsing.frag.glsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
-            file_path,
+            &file_path,
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
@@ -181,11 +182,11 @@ mod tests {
     #[test]
     fn glsl_no_preamble() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("./test/glsl/dependent-include.frag.glsl");
-        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let file_path = canonicalize(Path::new("./test/glsl/dependent-include.frag.glsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
-            file_path,
+            &file_path,
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {

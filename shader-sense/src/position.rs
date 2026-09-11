@@ -3,6 +3,8 @@ use std::{cmp::Ordering, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::include::canonicalize;
+
 /// Position in a single file with line and character
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderPosition {
@@ -177,6 +179,11 @@ impl PartialEq for ShaderFilePosition {
 impl ShaderFilePosition {
     /// Create a [`ShaderFilePosition`] from a [`ShaderPosition`] and a [`PathBuf`]
     pub fn from(file_path: PathBuf, position: ShaderPosition) -> Self {
+        debug_assert_eq!(
+            canonicalize(&file_path).unwrap(),
+            file_path,
+            "canonicalize the path before usage to enforce consistency."
+        );
         Self {
             file_path,
             position,
@@ -184,6 +191,11 @@ impl ShaderFilePosition {
     }
     /// Create a [`ShaderFilePosition`] from line and pos
     pub fn new(file_path: PathBuf, line: u32, pos: u32) -> Self {
+        debug_assert_eq!(
+            canonicalize(&file_path).unwrap(),
+            file_path,
+            "canonicalize the path before usage to enforce consistency."
+        );
         Self {
             file_path,
             position: ShaderPosition::new(line, pos),
@@ -191,6 +203,11 @@ impl ShaderFilePosition {
     }
     /// Create the zero position for this file
     pub fn zero(file_path: PathBuf) -> Self {
+        debug_assert_eq!(
+            canonicalize(&file_path).unwrap(),
+            file_path,
+            "canonicalize the path before usage to enforce consistency."
+        );
         Self {
             file_path,
             position: ShaderPosition::zero(),
@@ -291,10 +308,20 @@ pub struct ShaderFileRange {
 impl ShaderFileRange {
     /// Create a new range from a [`ShaderRange`] and a [`PathBuf`]
     pub fn from(file_path: PathBuf, range: ShaderRange) -> Self {
+        debug_assert_eq!(
+            canonicalize(&file_path).unwrap(),
+            file_path,
+            "canonicalize the path before usage to enforce consistency."
+        );
         Self { file_path, range }
     }
     /// Create a new range from two [`ShaderPosition`] and a [`PathBuf`]
     pub fn new(file_path: PathBuf, start: ShaderPosition, end: ShaderPosition) -> Self {
+        debug_assert_eq!(
+            canonicalize(&file_path).unwrap(),
+            file_path,
+            "canonicalize the path before usage to enforce consistency."
+        );
         Self {
             file_path,
             range: ShaderRange::new(start, end),

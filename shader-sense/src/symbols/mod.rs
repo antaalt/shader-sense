@@ -22,7 +22,7 @@ mod tests {
     use regex::Regex;
 
     use crate::{
-        include::IncludeHandler,
+        include::{canonicalize, IncludeHandler},
         position::{ShaderFilePosition, ShaderFileRange, ShaderPosition},
         shader::{
             GlslShadingLanguageTag, HlslShadingLanguageTag, ShaderCompilationParams, ShaderParams,
@@ -218,15 +218,15 @@ mod tests {
     }
     #[test]
     fn symbol_scope_glsl_ok() {
-        let file_path = Path::new("./test/glsl/scopes.frag.glsl");
-        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let file_path = canonicalize(Path::new("./test/glsl/scopes.frag.glsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
         let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Glsl);
         let preprocessed_symbol_list = get_all_preprocessed_symbols::<GlslShadingLanguageTag>(
             &mut shader_module_parser,
             &symbol_provider,
-            file_path,
+            &file_path,
             &shader_content,
         )
         .unwrap();
@@ -375,9 +375,9 @@ mod tests {
     }
     #[test]
     fn test_end_range() {
-        let file_path = Path::new("./test/hlsl/utf8.hlsl");
-        let shader_content = std::fs::read_to_string(file_path).unwrap();
-        let range = ShaderFileRange::whole(file_path.into(), &shader_content);
+        let file_path = canonicalize(&Path::new("./test/hlsl/utf8.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let range = ShaderFileRange::whole(file_path.clone(), &shader_content);
         println!("File range: {:#?}", range);
         let end_byte_offset = range.range.end.to_byte_offset(&shader_content).unwrap();
         assert!(end_byte_offset == shader_content.len());
@@ -451,5 +451,46 @@ mod tests {
             .iter()
             .find(|t| t.label == "TestMacro")
             .is_some());
+    }
+
+    #[test]
+    fn test_dependency_tree() {
+        let file_path = Path::new("./test/glsl/include-level.comp.glsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Glsl);
+        let shader_module = shader_module_parser
+            .create_module(file_path, &shader_content)
+            .unwrap();
+        let symbols = symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams {
+                    compilation: ShaderCompilationParams {
+                        experimental_macro_expansion: true,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                &mut default_include_callback::<GlslShadingLanguageTag>,
+                None,
+            )
+            .unwrap();
+        let dependency_tree = symbols.get_dependency_tree();
+        assert_eq!(dependency_tree.path, canonicalize(&file_path).unwrap());
+        assert!(dependency_tree.includes.len() == 1);
+        let dependency_tree = &dependency_tree.includes[0];
+        assert_eq!(
+            dependency_tree.path,
+            canonicalize(&Path::new("./test/glsl/inc0/level0.glsl")).unwrap()
+        );
+        assert!(dependency_tree.includes.len() == 1);
+        let dependency_tree = &dependency_tree.includes[0];
+        assert_eq!(
+            dependency_tree.path,
+            canonicalize(&Path::new("./test/glsl/inc0/inc1/level1.glsl")).unwrap()
+        );
+        assert!(dependency_tree.includes.len() == 0);
     }
 }

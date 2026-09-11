@@ -218,6 +218,7 @@ impl SymbolProvider {
             );
         }
         Ok(ShaderSymbols {
+            file_path: shader_module.file_path.clone(),
             preprocessor,
             symbol_list,
         })

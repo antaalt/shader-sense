@@ -508,21 +508,8 @@ impl ServerLanguage {
                     async_request.params.text_document.uri,
                     self.debug(&async_request.params)
                 );
-                let cached_file =
-                    self.get_cachable_file(&async_request.params.text_document.uri)?;
-                let deps_tree = cached_file
-                    .data
-                    .as_ref()
-                    .unwrap()
-                    .symbol_cache
-                    .dump_dependency_tree(
-                        &async_request
-                            .params
-                            .text_document
-                            .uri
-                            .to_file_path()
-                            .unwrap(),
-                    );
+                let deps_tree =
+                    self.recolt_dependency_dump(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<DumpDependencyRequest>(
                     async_request.req_id.clone(),
                     Some(deps_tree),
@@ -534,9 +521,7 @@ impl ServerLanguage {
                     async_request.params.text_document.uri,
                     self.debug(&async_request.params)
                 );
-                let cached_file =
-                    self.get_cachable_file(&async_request.params.text_document.uri)?;
-                let ast = RefCell::borrow(&cached_file.shader_module).dump_ast();
+                let ast = self.recolt_ast_dump(&async_request.params.text_document.uri)?;
                 self.connection
                     .send_response::<DumpAstRequest>(async_request.req_id.clone(), Some(ast));
             }
