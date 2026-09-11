@@ -176,7 +176,7 @@ pub fn main() {
                 }
             }
             arg => {
-                warn!("Argument {} unknown", arg);
+                warn!("Argument {:?} unknown", arg);
             }
         }
     }

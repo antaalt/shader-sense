@@ -1342,7 +1342,7 @@ impl ServerLanguageFileCache {
                     if !cached_file.is_variant_file {
                         cached_file.data = None;
                     }
-                    debug_assert!(cached_file.is_main_file);
+                    debug_assert!(cached_file.is_main_file, "File {} is not a main file", uri);
                     cached_file.is_main_file = false;
                     info!(
                         "Converted {:#?} main file to {} at {}. {} files in cache.",
