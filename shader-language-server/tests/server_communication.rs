@@ -6,6 +6,7 @@ use core::panic;
 use std::collections::HashMap;
 use std::iter::zip;
 use std::net::{SocketAddr, SocketAddrV4};
+use std::path::Path;
 use std::str::FromStr;
 
 use lsp_server::ErrorCode;
@@ -27,6 +28,9 @@ use shader_language_server::server::provider::compilation::CompilationRequest;
 use shader_language_server::server::provider::compilation::{
     CompilationRequestParams, CompilationType,
 };
+use shader_language_server::server::provider::dependecy::{
+    DependencyTreeParams, DependencyTreeRequest,
+};
 use shader_language_server::server::server_config::ServerSerializedConfig;
 use shader_language_server::server::shader_variant::{
     DidChangeShaderVariant, DidChangeShaderVariantParams, ShaderVariant,
@@ -37,7 +41,7 @@ use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use test_server::{TestFile, TestServer};
 
 use crate::test_server::{
-    get_all_diagnostics, get_error_diagnostics, native_path, use_wasi_server,
+    get_all_diagnostics, get_error_diagnostics, native_path, use_wasi_server, workspace_path,
 };
 
 mod test_server;
@@ -688,6 +692,44 @@ fn test_disabling_variant() {
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: None,
     });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_dependency_tree() {
+    // Updating variant is done synchronously, so check it does not break async updates
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DependencyTreeRequest>(
+        &DependencyTreeParams {
+            text_document: file.identifier(),
+        },
+        |dependency_tree| {
+            assert_eq!(
+                dependency_tree.path,
+                workspace_path("glsl/include-level.comp.glsl")
+            );
+            assert!(dependency_tree.includes.len() == 1);
+            let dependency_tree = &dependency_tree.includes[0];
+            assert_eq!(
+                dependency_tree.path,
+                workspace_path("glsl/inc0/level0.glsl")
+            );
+            assert!(dependency_tree.includes.len() == 1);
+            let dependency_tree = &dependency_tree.includes[0];
+            assert_eq!(
+                dependency_tree.path,
+                workspace_path("glsl/inc0/inc1/level1.glsl")
+            );
+            assert!(dependency_tree.includes.len() == 0);
+        },
+    );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
     });

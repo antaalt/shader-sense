@@ -61,6 +61,7 @@ use crate::profile_scope;
 use crate::server::async_message::{AsyncCacheRequest, AsyncMessage, AsyncRequest};
 use crate::server::common::{lsp_range_to_shader_range, ServerLanguageError};
 use crate::server::provider::compilation::CompilationRequest;
+use crate::server::provider::dependecy::DependencyTreeRequest;
 use crate::server::server_config::{ServerTrace, ServerTraceLevel};
 use crate::server::server_file_cache::ServerFileCache;
 
@@ -502,6 +503,19 @@ impl ServerLanguage {
                     compilation_request_result,
                 );
             }
+            AsyncMessage::DependencyTreeRequest(async_request) => {
+                profile_scope!(
+                    "Received dependecy tree request for file {}: {}",
+                    async_request.params.text_document.uri,
+                    self.debug(&async_request.params)
+                );
+                let deps_tree =
+                    self.recolt_dependency_tree(&async_request.params.text_document.uri)?;
+                self.connection.send_response::<DependencyTreeRequest>(
+                    async_request.req_id.clone(),
+                    deps_tree,
+                );
+            }
             AsyncMessage::DumpDependencyRequest(async_request) => {
                 profile_scope!(
                     "Received dump dependency request for file {}: {}",
@@ -838,6 +852,13 @@ impl ServerLanguage {
                     req.id,
                     serde_json::from_value(req.params)?,
                 )),
+                CompilationRequest::METHOD => AsyncMessage::CompilationRequest(AsyncRequest::new(
+                    req.id,
+                    serde_json::from_value(req.params)?,
+                )),
+                DependencyTreeRequest::METHOD => AsyncMessage::DependencyTreeRequest(
+                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
+                ),
                 // Debug request
                 DumpAstRequest::METHOD => AsyncMessage::DumpAstRequest(AsyncRequest::new(
                     req.id,
@@ -846,10 +867,6 @@ impl ServerLanguage {
                 DumpDependencyRequest::METHOD => AsyncMessage::DumpDependencyRequest(
                     AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
                 ),
-                CompilationRequest::METHOD => AsyncMessage::CompilationRequest(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
                 _ => {
                     warn!("Received unhandled request: {:#?}", req);
                     return Err(ServerLanguageError::MethodNotFound(req.method));

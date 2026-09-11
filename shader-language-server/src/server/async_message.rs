@@ -15,7 +15,10 @@ use shader_sense::shader::ShadingLanguage;
 use crate::server::{
     clean_url,
     debug::{DumpAstParams, DumpAstRequest, DumpDependencyParams, DumpDependencyRequest},
-    provider::compilation::{CompilationRequest, CompilationRequestParams},
+    provider::{
+        compilation::{CompilationRequest, CompilationRequestParams},
+        dependecy::{DependencyTreeParams, DependencyTreeRequest},
+    },
 };
 
 pub struct AsyncRequest<R: Request> {
@@ -49,6 +52,7 @@ pub enum AsyncMessage {
     GotoDefinition(AsyncRequest<GotoDefinition>),
     DocumentDiagnosticRequest(AsyncRequest<DocumentDiagnosticRequest>),
     CompilationRequest(AsyncRequest<CompilationRequest>),
+    DependencyTreeRequest(AsyncRequest<DependencyTreeRequest>),
     // Debug
     DumpDependencyRequest(AsyncRequest<DumpDependencyRequest>),
     DumpAstRequest(AsyncRequest<DumpAstRequest>),
@@ -87,6 +91,7 @@ impl AsyncMessage {
             AsyncMessage::GotoDefinition(async_request) => &async_request.req_id,
             AsyncMessage::DocumentDiagnosticRequest(async_request) => &async_request.req_id,
             AsyncMessage::CompilationRequest(async_request) => &async_request.req_id,
+            AsyncMessage::DependencyTreeRequest(async_request) => &async_request.req_id,
             AsyncMessage::DumpDependencyRequest(async_request) => &async_request.req_id,
             AsyncMessage::DumpAstRequest(async_request) => &async_request.req_id,
             // These variants do not have a RequestId
@@ -111,6 +116,7 @@ impl AsyncMessage {
             AsyncMessage::GotoDefinition(_) => GotoDefinition::METHOD,
             AsyncMessage::DocumentDiagnosticRequest(_) => DocumentDiagnosticRequest::METHOD,
             AsyncMessage::CompilationRequest(_) => CompilationRequest::METHOD,
+            AsyncMessage::DependencyTreeRequest(_) => DependencyTreeRequest::METHOD,
             AsyncMessage::DumpDependencyRequest(_) => DumpDependencyRequest::METHOD,
             AsyncMessage::DumpAstRequest(_) => DumpAstRequest::METHOD,
             // These variants do not have a method
@@ -177,6 +183,9 @@ impl AsyncMessage {
                 Some(&async_request.params.text_document.uri)
             }
             AsyncMessage::CompilationRequest(async_request) => {
+                Some(&async_request.params.text_document.uri)
+            }
+            AsyncMessage::DependencyTreeRequest(async_request) => {
                 Some(&async_request.params.text_document.uri)
             }
             // These variants do not have a uri
@@ -265,6 +274,11 @@ impl ParamsDeserialization for DocumentDiagnosticParams {
     }
 }
 impl ParamsDeserialization for CompilationRequestParams {
+    fn clean(&mut self) {
+        self.text_document.uri = clean_url(&self.text_document.uri)
+    }
+}
+impl ParamsDeserialization for DependencyTreeParams {
     fn clean(&mut self) {
         self.text_document.uri = clean_url(&self.text_document.uri)
     }

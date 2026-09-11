@@ -16,7 +16,7 @@ pub struct DependencyTreeParams {
 
 impl Request for DependencyTreeRequest {
     type Params = DependencyTreeParams;
-    type Result = Option<ShaderDependencyNode>;
+    type Result = ShaderDependencyNode;
     const METHOD: &'static str = "textDocument/dependencyTree";
 }
 
