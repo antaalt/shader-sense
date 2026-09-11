@@ -158,6 +158,20 @@ interface CompilationRequestResult {
 }
 ```
 
+### Dependency tree request commands
+
+This command allow client to expose the dependency tree of a file that is computed by shader-sense. The DumpDependencyParams simply format this output to a string.
+
+```typescript
+interface DependencyTreeRequestParams {
+    uri: string
+}
+interface DependencyTreeRequestResult {
+    path: string, // Path of parent
+    include: DependencyTreeRequestResult[] // Include in the parent file.
+}
+```
+
 ### Debug commands:
 
 The server offer some specific debug request to help inspect the current state of the server.
