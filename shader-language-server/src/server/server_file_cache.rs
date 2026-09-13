@@ -101,7 +101,6 @@ use crate::{
     profile_scope,
     server::{
         async_message::AsyncCacheRequest,
-        clean_url,
         common::{lsp_range_to_shader_range, read_string_lossy},
         server_language_data::ServerLanguageData,
     },
@@ -995,7 +994,6 @@ impl ServerLanguageFileCache {
         lang: ShadingLanguage,
         shader_module_parser: &mut ShaderModuleParser,
     ) -> Result<(), ShaderError> {
-        assert!(*uri == clean_url(&uri));
         let file_path = uri.to_file_path().unwrap();
         // Check if watched file already watched as deps or variant.
         match self.files.get_mut(&uri) {
@@ -1041,7 +1039,6 @@ impl ServerLanguageFileCache {
         text: &str,
         shader_module_parser: &mut ShaderModuleParser,
     ) -> Result<(), ShaderError> {
-        assert!(*uri == clean_url(&uri));
         let file_path = uri.to_file_path().unwrap();
 
         // Check if watched file already watched as deps
@@ -1112,7 +1109,6 @@ impl ServerLanguageFileCache {
         lang: ShadingLanguage,
         shader_module_parser: &mut ShaderModuleParser,
     ) -> Result<&ServerFileCache, ShaderError> {
-        assert!(*uri == clean_url(&uri));
         let file_path = uri.to_file_path().unwrap();
         // If file is not watched, add it as deps.
         match self.files.get(&uri) {
@@ -1202,7 +1198,6 @@ impl ServerLanguageFileCache {
         Ok(())
     }
     pub fn get_file(&self, uri: &Url) -> Option<&ServerFileCache> {
-        assert!(*uri == clean_url(&uri));
         match self.files.get(uri) {
             Some(cached_file) => Some(&cached_file),
             None => None,

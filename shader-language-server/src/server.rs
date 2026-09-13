@@ -37,15 +37,14 @@ use lsp_types::request::{
 };
 use lsp_types::{
     CancelParams, CompletionOptionsCompletionItem, CompletionResponse, DiagnosticOptions,
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentSymbolOptions, DocumentSymbolResponse, FoldingRangeProviderCapability,
-    HoverProviderCapability, OneOf, ProgressParams, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SetTraceParams, SignatureHelpOptions, TextDocumentSyncKind, Url,
-    WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
-    WorkDoneProgressOptions, WorkDoneProgressReport, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities, WorkspaceSymbolOptions, WorkspaceSymbolResponse,
+    DidChangeConfigurationParams, DidChangeWorkspaceFoldersParams, DocumentSymbolOptions,
+    DocumentSymbolResponse, FoldingRangeProviderCapability, HoverProviderCapability, OneOf,
+    ProgressParams, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities, SetTraceParams,
+    SignatureHelpOptions, TextDocumentSyncKind, Url, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
+    WorkDoneProgressReport, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    WorkspaceSymbolOptions, WorkspaceSymbolResponse,
 };
 use shader_sense::shader::ShadingLanguage;
 
@@ -58,7 +57,9 @@ use server_language_data::ServerLanguageData;
 use shader_variant::DidChangeShaderVariant;
 
 use crate::profile_scope;
-use crate::server::async_message::{AsyncCacheRequest, AsyncMessage, AsyncRequest};
+use crate::server::async_message::{
+    parse_notification_params, AsyncCacheRequest, AsyncMessage, AsyncRequest,
+};
 use crate::server::common::{lsp_range_to_shader_range, ServerLanguageError};
 use crate::server::provider::compilation::CompilationRequest;
 use crate::server::provider::dependecy::DependencyTreeRequest;
@@ -75,21 +76,28 @@ pub struct ServerLanguage {
     regex_cache: LruCache<String, regex::Regex>, // For semantic token provider who create regex on the fly
 }
 
-fn clean_url(url: &Url) -> Url {
+fn clean_url(url: &mut Url) -> Result<(), ServerLanguageError> {
     // Workaround issue with url encoded as &3a that break key comparison.
     // Clean it by converting back & forth.
     #[cfg(not(target_os = "wasi"))]
     {
-        Url::from_file_path(
-            url.to_file_path()
-                .expect(format!("Failed to convert {} to a valid path.", url).as_str()),
-        )
-        .unwrap()
+        assert!(
+            url.scheme() == "file",
+            "Cannot clean an url with non file scheme"
+        );
+        Url::from_file_path(url.to_file_path().map_err(|_| {
+            ServerLanguageError::InternalError(format!(
+                "Failed to convert {} to a valid path.",
+                url
+            ))
+        })?)
+        .map_err(|_| ServerLanguageError::InternalError(format!("Failed to clean url {}.", url)))?;
+        Ok(())
     }
     // This method of cleaning URL fail on WASI due to path format. Removing it.
     #[cfg(target_os = "wasi")]
     {
-        url.clone()
+        Ok(url.clone())
     }
 }
 fn shader_error_to_lsp_error(error: &ServerLanguageError) -> ErrorCode {
@@ -808,77 +816,53 @@ impl ServerLanguage {
     ) -> Result<AsyncMessage, ServerLanguageError> {
         // Simply parse the request and delay them.
         let req_id = req.id.clone();
-        let async_request =
-            match req.method.as_str() {
-                DocumentDiagnosticRequest::METHOD => AsyncMessage::DocumentDiagnosticRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                GotoDefinition::METHOD => AsyncMessage::GotoDefinition(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                Completion::METHOD => AsyncMessage::Completion(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                SignatureHelpRequest::METHOD => AsyncMessage::SignatureHelpRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                HoverRequest::METHOD => AsyncMessage::HoverRequest(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                InlayHintRequest::METHOD => AsyncMessage::InlayHintRequest(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                FoldingRangeRequest::METHOD => AsyncMessage::FoldingRangeRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                WorkspaceSymbolRequest::METHOD => AsyncMessage::WorkspaceSymbolRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                DocumentSymbolRequest::METHOD => AsyncMessage::DocumentSymbolRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                SemanticTokensFullRequest::METHOD => AsyncMessage::SemanticTokensFullRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                Formatting::METHOD => AsyncMessage::Formatting(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                RangeFormatting::METHOD => AsyncMessage::RangeFormatting(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                CompilationRequest::METHOD => AsyncMessage::CompilationRequest(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                DependencyTreeRequest::METHOD => AsyncMessage::DependencyTreeRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                // Debug request
-                DumpAstRequest::METHOD => AsyncMessage::DumpAstRequest(AsyncRequest::new(
-                    req.id,
-                    serde_json::from_value(req.params)?,
-                )),
-                DumpDependencyRequest::METHOD => AsyncMessage::DumpDependencyRequest(
-                    AsyncRequest::new(req.id, serde_json::from_value(req.params)?),
-                ),
-                _ => {
-                    warn!("Received unhandled request: {:#?}", req);
-                    return Err(ServerLanguageError::MethodNotFound(req.method));
-                }
-            };
+        let req_method = req.method.clone();
+        let async_request = match req.method.as_str() {
+            DocumentDiagnosticRequest::METHOD => {
+                AsyncMessage::DocumentDiagnosticRequest(AsyncRequest::new(req)?)
+            }
+            GotoDefinition::METHOD => AsyncMessage::GotoDefinition(AsyncRequest::new(req)?),
+            Completion::METHOD => AsyncMessage::Completion(AsyncRequest::new(req)?),
+            SignatureHelpRequest::METHOD => {
+                AsyncMessage::SignatureHelpRequest(AsyncRequest::new(req)?)
+            }
+            HoverRequest::METHOD => AsyncMessage::HoverRequest(AsyncRequest::new(req)?),
+            InlayHintRequest::METHOD => AsyncMessage::InlayHintRequest(AsyncRequest::new(req)?),
+            FoldingRangeRequest::METHOD => {
+                AsyncMessage::FoldingRangeRequest(AsyncRequest::new(req)?)
+            }
+            WorkspaceSymbolRequest::METHOD => {
+                AsyncMessage::WorkspaceSymbolRequest(AsyncRequest::new(req)?)
+            }
+            DocumentSymbolRequest::METHOD => {
+                AsyncMessage::DocumentSymbolRequest(AsyncRequest::new(req)?)
+            }
+            SemanticTokensFullRequest::METHOD => {
+                AsyncMessage::SemanticTokensFullRequest(AsyncRequest::new(req)?)
+            }
+            Formatting::METHOD => AsyncMessage::Formatting(AsyncRequest::new(req)?),
+            RangeFormatting::METHOD => AsyncMessage::RangeFormatting(AsyncRequest::new(req)?),
+            CompilationRequest::METHOD => AsyncMessage::CompilationRequest(AsyncRequest::new(req)?),
+            DependencyTreeRequest::METHOD => {
+                AsyncMessage::DependencyTreeRequest(AsyncRequest::new(req)?)
+            }
+            // Debug request
+            DumpAstRequest::METHOD => AsyncMessage::DumpAstRequest(AsyncRequest::new(req)?),
+            DumpDependencyRequest::METHOD => {
+                AsyncMessage::DumpDependencyRequest(AsyncRequest::new(req)?)
+            }
+            _ => {
+                warn!("Received unhandled request: {:#?}", req);
+                return Err(ServerLanguageError::MethodNotFound(req.method));
+            }
+        };
         if let Some(uri) = async_request.get_uri() {
             info!(
                 "Received request #{} {} for file {}",
-                req_id, req.method, uri
+                req_id, req_method, uri
             );
         } else {
-            info!("Received request #{} {}", req_id, req.method);
+            info!("Received request #{} {}", req_id, req_method);
         }
         Ok(async_request)
     }
@@ -907,12 +891,10 @@ impl ServerLanguage {
         // But symbol parsing & validation is done asynchronously.
         match notification.method.as_str() {
             DidOpenTextDocument::METHOD => {
-                let params: DidOpenTextDocumentParams =
-                    serde_json::from_value(notification.params)?;
-                let uri = clean_url(&params.text_document.uri);
+                let params = parse_notification_params::<DidOpenTextDocument>(notification.params)?;
                 profile_scope!(
                     "Received did open text document notification for {}:{}",
-                    uri,
+                    params.text_document.uri,
                     self.debug(&params)
                 );
 
@@ -926,28 +908,26 @@ impl ServerLanguage {
                 // Return error instead
                 let language_data = self.language_data.get_mut(&shading_language).unwrap();
                 let _ = self.watched_files.watch_main_file(
-                    &uri,
+                    &params.text_document.uri,
                     shading_language.clone(),
                     &params.text_document.text,
                     &mut language_data.shader_module_parser,
                 )?;
                 Ok(AsyncMessage::UpdateCache(vec![AsyncCacheRequest::new(
-                    uri,
+                    params.text_document.uri,
                     shading_language,
                     false, // Just opened file
                 )]))
             }
             DidSaveTextDocument::METHOD => {
-                let params: DidSaveTextDocumentParams =
-                    serde_json::from_value(notification.params)?;
-                let uri = clean_url(&params.text_document.uri);
+                let params = parse_notification_params::<DidSaveTextDocument>(notification.params)?;
                 profile_scope!(
                     "Received did save text document notification for file {}:{}",
-                    uri,
+                    params.text_document.uri,
                     self.debug(&params)
                 );
                 // File content is updated through DidChangeTextDocument.
-                let cached_file = self.get_cachable_file(&uri)?;
+                let cached_file = self.get_cachable_file(&params.text_document.uri)?;
 
                 assert!(
                     params.text.is_none()
@@ -961,13 +941,13 @@ impl ServerLanguage {
                         let shading_language = cached_file.shading_language;
                         let language_data = self.language_data.get_mut(&shading_language).unwrap();
                         let _ = self.watched_files.update_file(
-                            &uri,
+                            &params.text_document.uri,
                             &mut language_data.shader_module_parser,
                             None,
                             None,
                         )?;
                         Ok(AsyncMessage::UpdateCache(vec![AsyncCacheRequest::new(
-                            uri,
+                            params.text_document.uri,
                             shading_language,
                             true,
                         )]))
@@ -979,36 +959,36 @@ impl ServerLanguage {
                 }
             }
             DidCloseTextDocument::METHOD => {
-                let params: DidCloseTextDocumentParams =
-                    serde_json::from_value(notification.params)?;
-                let uri = clean_url(&params.text_document.uri);
+                let params =
+                    parse_notification_params::<DidCloseTextDocument>(notification.params)?;
                 profile_scope!(
                     "Received did close text document notification for file {}: {}",
-                    uri,
+                    params.text_document.uri,
                     self.debug(&params)
                 );
-                let removed_urls = self.watched_files.remove_main_file(&uri)?;
+                let removed_urls = self
+                    .watched_files
+                    .remove_main_file(&params.text_document.uri)?;
                 for removed_url in removed_urls {
                     self.clear_diagnostic(&removed_url);
                 }
                 Ok(AsyncMessage::None)
             }
             DidChangeTextDocument::METHOD => {
-                let params: DidChangeTextDocumentParams =
-                    serde_json::from_value(notification.params)?;
-                let uri = clean_url(&params.text_document.uri);
+                let params =
+                    parse_notification_params::<DidChangeTextDocument>(notification.params)?;
                 profile_scope!(
                     "Received did change text document notification for file {}: {}",
-                    uri,
+                    params.text_document.uri,
                     self.debug(&params)
                 );
-                let cached_file = self.get_cachable_file(&uri)?;
+                let cached_file = self.get_cachable_file(&params.text_document.uri)?;
                 let shading_language = cached_file.shading_language;
                 let language_data = self.language_data.get_mut(&shading_language).unwrap();
                 // Update all content before caching data.
                 for content in &params.content_changes {
                     match self.watched_files.update_file(
-                        &uri,
+                        &params.text_document.uri,
                         &mut language_data.shader_module_parser,
                         content.range,
                         Some(&content.text),
@@ -1018,7 +998,7 @@ impl ServerLanguage {
                     };
                 }
                 Ok(AsyncMessage::UpdateCache(vec![AsyncCacheRequest::new(
-                    uri,
+                    params.text_document.uri,
                     shading_language,
                     true,
                 )]))
@@ -1036,7 +1016,9 @@ impl ServerLanguage {
                 Ok(AsyncMessage::None) // Its request_configuration job to return async task here.
             }
             DidChangeShaderVariant::METHOD => {
-                let new_variant = self.parse_variant_params(notification.params)?;
+                let params =
+                    parse_notification_params::<DidChangeShaderVariant>(notification.params)?;
+                let new_variant = params.shader_variant;
                 profile_scope!(
                     "Received did change shader variant notification for file {}: {}",
                     new_variant

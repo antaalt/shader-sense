@@ -6,7 +6,6 @@ use core::panic;
 use std::collections::HashMap;
 use std::iter::zip;
 use std::net::{SocketAddr, SocketAddrV4};
-use std::path::Path;
 use std::str::FromStr;
 
 use lsp_server::ErrorCode;
