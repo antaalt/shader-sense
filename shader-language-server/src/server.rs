@@ -76,15 +76,18 @@ pub struct ServerLanguage {
     regex_cache: LruCache<String, regex::Regex>, // For semantic token provider who create regex on the fly
 }
 
+/// Filter invalid url out and clean them to ensure there is not issue when comparing path.
 fn clean_url(url: &mut Url) -> Result<(), ServerLanguageError> {
+    // shader-sense core rely on file path for almost everything. So non file path url scheme
+    // will crash the shader-sense core. Ignoring them for now
+    // Should instead rely on url in shader-sense instead of file path to fix this.
+    if url.scheme() != "file" {
+        return Err(ServerLanguageError::InvalidParams(format!("Unsupported url scheme: {}", url.scheme())));
+    }
     // Workaround issue with url encoded as &3a that break key comparison.
     // Clean it by converting back & forth.
     #[cfg(not(target_os = "wasi"))]
     {
-        assert!(
-            url.scheme() == "file",
-            "Cannot clean an url with non file scheme"
-        );
         Url::from_file_path(url.to_file_path().map_err(|_| {
             ServerLanguageError::InternalError(format!(
                 "Failed to convert {} to a valid path.",
