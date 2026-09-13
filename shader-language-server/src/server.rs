@@ -89,22 +89,18 @@ fn clean_url(url: &mut Url) -> Result<(), ServerLanguageError> {
     }
     // Workaround issue with url encoded as &3a that break key comparison.
     // Clean it by converting back & forth.
+    // This method of cleaning URL fail on WASI due to different path format. Removing it.
     #[cfg(not(target_os = "wasi"))]
     {
-        Url::from_file_path(url.to_file_path().map_err(|_| {
+        *url = Url::from_file_path(url.to_file_path().map_err(|_| {
             ServerLanguageError::InternalError(format!(
                 "Failed to convert {} to a valid path.",
                 url
             ))
         })?)
         .map_err(|_| ServerLanguageError::InternalError(format!("Failed to clean url {}.", url)))?;
-        Ok(())
     }
-    // This method of cleaning URL fail on WASI due to path format. Removing it.
-    #[cfg(target_os = "wasi")]
-    {
-        Ok(url.clone())
-    }
+    Ok(())
 }
 fn shader_error_to_lsp_error(error: &ServerLanguageError) -> ErrorCode {
     match error {
