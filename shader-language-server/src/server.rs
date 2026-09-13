@@ -82,7 +82,10 @@ fn clean_url(url: &mut Url) -> Result<(), ServerLanguageError> {
     // will crash the shader-sense core. Ignoring them for now
     // Should instead rely on url in shader-sense instead of file path to fix this.
     if url.scheme() != "file" {
-        return Err(ServerLanguageError::InvalidParams(format!("Unsupported url scheme: {}", url.scheme())));
+        return Err(ServerLanguageError::InvalidParams(format!(
+            "Unsupported url scheme: {}",
+            url.scheme()
+        )));
     }
     // Workaround issue with url encoded as &3a that break key comparison.
     // Clean it by converting back & forth.

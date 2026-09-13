@@ -21,7 +21,7 @@ use lsp_types::{
 };
 use lsp_types::{
     DocumentDiagnosticParams, Hover, HoverParams, SemanticTokensParams, SemanticTokensResult,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use shader_language_server::server::provider::compilation::CompilationRequest;
 use shader_language_server::server::provider::compilation::{
@@ -731,5 +731,24 @@ fn test_dependency_tree() {
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_untitled_uri() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    // Test non uri file scheme. They should be ignored, but not crash the server.
+    let file_url = Url::parse("untitled://Untitled").unwrap();
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: file_url.clone(),
+            language_id: "glsl".into(),
+            version: 0,
+            text: "#version 450\nvoid main(){}".into(),
+        },
+    });
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: TextDocumentIdentifier { uri: file_url },
     });
 }
