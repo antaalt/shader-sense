@@ -64,9 +64,10 @@ impl IncludeHandler {
         path_remapping: HashMap<PathBuf, PathBuf>,
     ) -> Self {
         // Add local path to directory stack
-        let cwd = file_path.parent().unwrap();
         let mut directory_stack = Vec::new();
-        directory_stack.push(cwd.into());
+        if let Some(cwd) = file_path.parent() {
+            directory_stack.push(cwd.into());
+        }
         let mut visited_dependencies = HashMap::new();
         visited_dependencies.insert(file_path.into(), 1);
         Self {

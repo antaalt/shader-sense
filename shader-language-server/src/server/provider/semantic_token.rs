@@ -19,29 +19,31 @@ impl ServerLanguage {
             regex::Regex::new(format!("\\b({})\\b", regex::escape(label)).as_str()).unwrap()
         })
     }
-    fn find_macros(&mut self, uri: &Url) -> Vec<SemanticToken> {
-        let cached_file = self.watched_files.files.get(uri).unwrap();
+    fn find_macros(&mut self, uri: &Url) -> Result<Vec<SemanticToken>, ServerLanguageError> {
+        // Do not use get_cachable_file as it will borrow whole self.
+        let cached_file = self
+            .watched_files
+            .files
+            .get(uri)
+            .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
-        let file_path = uri.to_file_path().unwrap();
         let content = &RefCell::borrow(&cached_file.shader_module).content;
-        symbols
+        Ok(symbols
             .macros
             .iter()
             .map(|symbol| {
                 let byte_offset_start = match &symbol.mode {
                     ShaderSymbolMode::Runtime(runtime) => {
-                        if runtime.file_path.as_os_str() == file_path.as_os_str() {
-                            runtime.range.start.to_byte_offset(content).unwrap()
+                        if runtime.file_path.as_os_str() == cached_file.file_path.as_os_str() {
+                            runtime.range.start.to_byte_offset(content)?
                         } else {
                             match cached_file
-                                .data
-                                .as_ref()
-                                .unwrap()
+                                .get_data()
                                 .symbol_cache
                                 .find_direct_includer(&runtime.file_path)
                             {
                                 Some(include) => {
-                                    include.get_range().start.to_byte_offset(content).unwrap()
+                                    include.get_range().start.to_byte_offset(content)?
                                 }
                                 None => 0, // Included from another file, but not found...
                             }
@@ -57,7 +59,7 @@ impl ServerLanguage {
                     .captures_iter(&content[byte_offset_start..])
                     .map(|e| e.get(0).unwrap().range().start + byte_offset_start)
                     .collect();
-                word_byte_offsets
+                Ok(word_byte_offsets
                     .iter()
                     .filter_map(|byte_offset| {
                         match ShaderPosition::from_byte_offset(&content, *byte_offset) {
@@ -73,35 +75,41 @@ impl ServerLanguage {
                             Err(_) => None,
                         }
                     })
-                    .collect()
+                    .collect())
             })
-            .collect::<Vec<Vec<SemanticToken>>>()
-            .concat()
+            .collect::<Result<Vec<Vec<SemanticToken>>, ServerLanguageError>>()?
+            .concat())
     }
-    fn find_enum(&mut self, uri: &Url) -> Vec<SemanticToken> {
-        let cached_file = self.watched_files.files.get(uri).unwrap();
+    fn find_enum(&mut self, uri: &Url) -> Result<Vec<SemanticToken>, ServerLanguageError> {
+        // Do not use get_cachable_file as it will borrow whole self.
+        let cached_file = self
+            .watched_files
+            .files
+            .get(uri)
+            .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
-        let file_path = uri.to_file_path().unwrap();
         let content = &RefCell::borrow(&cached_file.shader_module).content;
-        symbols
+        Ok(symbols
             .types
             .iter()
-            .filter_map(|symbol| match &symbol.data {
+            .filter(|symbol| match &symbol.data {
+                ShaderSymbolData::Enum { values: _ } => true,
+                _ => false,
+            })
+            .map(|symbol| match &symbol.data {
                 ShaderSymbolData::Enum { values } => {
                     let byte_offset_start = match &symbol.mode {
                         ShaderSymbolMode::Runtime(runtime) => {
-                            if runtime.file_path.as_os_str() == file_path.as_os_str() {
-                                runtime.range.start.to_byte_offset(content).unwrap()
+                            if runtime.file_path.as_os_str() == cached_file.file_path.as_os_str() {
+                                runtime.range.start.to_byte_offset(content)?
                             } else {
                                 match cached_file
-                                    .data
-                                    .as_ref()
-                                    .unwrap()
+                                    .get_data()
                                     .symbol_cache
                                     .find_direct_includer(&runtime.file_path)
                                 {
                                     Some(include) => {
-                                        include.get_range().start.to_byte_offset(content).unwrap()
+                                        include.get_range().start.to_byte_offset(content)?
                                     }
                                     None => 0, // Included from another file, but not found...
                                 }
@@ -162,19 +170,26 @@ impl ServerLanguage {
                                 .collect::<Vec<SemanticToken>>(),
                         );
                     }
-                    Some(tokens)
+                    Ok(tokens)
                 }
-                _ => None,
+                _ => unreachable!(),
             })
-            .collect::<Vec<Vec<SemanticToken>>>()
-            .concat()
+            .collect::<Result<Vec<Vec<SemanticToken>>, ServerLanguageError>>()?
+            .concat())
     }
-    fn find_parameters_variables(&mut self, uri: &Url) -> Vec<SemanticToken> {
-        let cached_file = self.watched_files.files.get(uri).unwrap();
+    fn find_parameters_variables(
+        &mut self,
+        uri: &Url,
+    ) -> Result<Vec<SemanticToken>, ServerLanguageError> {
+        // Do not use get_cachable_file as it will borrow whole self.
+        let cached_file = self
+            .watched_files
+            .files
+            .get(uri)
+            .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
-        let file_path = uri.to_file_path().unwrap();
         let content = &RefCell::borrow(&cached_file.shader_module).content;
-        symbols
+        Ok(symbols
             .functions
             .iter()
             .map(|symbol| {
@@ -182,9 +197,9 @@ impl ServerLanguage {
                 // If we own a scope and have a range.
                 if let ShaderSymbolMode::Runtime(runtime) = &symbol.mode {
                     if let Some(scope) = &runtime.scope {
-                        if runtime.file_path.as_os_str() == file_path.as_os_str() {
-                            let content_start = scope.start.to_byte_offset(&content).unwrap();
-                            let content_end = scope.end.to_byte_offset(&content).unwrap();
+                        if runtime.file_path.as_os_str() == cached_file.file_path.as_os_str() {
+                            let content_start = scope.start.to_byte_offset(&content)?;
+                            let content_end = scope.end.to_byte_offset(&content)?;
                             match &symbol.data {
                                 ShaderSymbolData::Functions { signatures } => {
                                     assert!(
@@ -256,10 +271,10 @@ impl ServerLanguage {
                 } else {
                     // Nothing to push
                 }
-                tokens
+                Ok(tokens)
             })
-            .collect::<Vec<Vec<SemanticToken>>>()
-            .concat()
+            .collect::<Result<Vec<Vec<SemanticToken>>, ServerLanguageError>>()?
+            .concat())
     }
     pub fn recolt_semantic_tokens(
         &mut self,
@@ -269,9 +284,9 @@ impl ServerLanguage {
         let _cached_file = self.get_cachable_file(&uri)?;
         // Find occurences of tokens to paint
         let mut tokens = Vec::new();
-        tokens.extend(self.find_macros(uri));
-        tokens.extend(self.find_parameters_variables(uri));
-        tokens.extend(self.find_enum(uri));
+        tokens.extend(self.find_macros(uri)?);
+        tokens.extend(self.find_parameters_variables(uri)?);
+        tokens.extend(self.find_enum(uri)?);
 
         // Increase cache size if we couldnt fit all tokens.
         if tokens.len() > self.regex_cache.cap().get() {

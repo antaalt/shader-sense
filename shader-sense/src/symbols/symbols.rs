@@ -480,53 +480,47 @@ impl ShaderSymbolType {
 
 impl ShaderSymbol {
     pub fn is_type(&self, ty: ShaderSymbolType) -> bool {
-        match self.get_type() {
-            Some(tty) => tty == ty,
-            None => false,
-        }
+        self.get_type() == ty
     }
     pub fn is_transient(&self) -> bool {
-        match self.get_type() {
-            Some(ty) => ty.is_transient(),
-            None => false,
-        }
+        self.get_type().is_transient()
     }
-    pub fn get_type(&self) -> Option<ShaderSymbolType> {
+    pub fn get_type(&self) -> ShaderSymbolType {
         match &self.data {
-            ShaderSymbolData::Types { constructors: _ } => Some(ShaderSymbolType::Types),
+            ShaderSymbolData::Types { constructors: _ } => ShaderSymbolType::Types,
             ShaderSymbolData::Struct {
                 constructors: _,
                 members: _,
                 methods: _,
-            } => Some(ShaderSymbolType::Types),
+            } => ShaderSymbolType::Types,
             ShaderSymbolData::Constants {
                 ty: _,
                 qualifier: _,
                 value: _,
-            } => Some(ShaderSymbolType::Constants),
-            ShaderSymbolData::Variables { ty: _, count: _ } => Some(ShaderSymbolType::Variables),
+            } => ShaderSymbolType::Constants,
+            ShaderSymbolData::Variables { ty: _, count: _ } => ShaderSymbolType::Variables,
             ShaderSymbolData::Parameter {
                 context: _,
                 ty: _,
                 count: _,
-            } => Some(ShaderSymbolType::Variables),
+            } => ShaderSymbolType::Variables,
             ShaderSymbolData::Method {
                 context: _,
                 signatures: _,
-            } => Some(ShaderSymbolType::Functions),
-            ShaderSymbolData::Enum { values: _ } => Some(ShaderSymbolType::Types),
+            } => ShaderSymbolType::Functions,
+            ShaderSymbolData::Enum { values: _ } => ShaderSymbolType::Types,
             ShaderSymbolData::CallExpression {
                 label: _,
                 range: _,
                 parameters: _,
-            } => Some(ShaderSymbolType::CallExpression),
-            ShaderSymbolData::Functions { signatures: _ } => Some(ShaderSymbolType::Functions),
-            ShaderSymbolData::Keyword {} => Some(ShaderSymbolType::Keyword),
-            ShaderSymbolData::Include { target: _ } => Some(ShaderSymbolType::Include),
+            } => ShaderSymbolType::CallExpression,
+            ShaderSymbolData::Functions { signatures: _ } => ShaderSymbolType::Functions,
+            ShaderSymbolData::Keyword {} => ShaderSymbolType::Keyword,
+            ShaderSymbolData::Include { target: _ } => ShaderSymbolType::Include,
             ShaderSymbolData::Macro {
                 value: _,
                 parameters: _,
-            } => Some(ShaderSymbolType::Macros),
+            } => ShaderSymbolType::Macros,
         }
     }
     pub fn format(&self) -> String {

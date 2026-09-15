@@ -48,11 +48,11 @@ impl ServerLanguage {
         let cached_file_uri = if let Some(variant) = &self.watched_files.variant {
             if let Some(variant_file) = self.watched_files.files.get(&variant.url) {
                 if let Some(variant_data) = &variant_file.data {
-                    let file_path = uri.to_file_path().unwrap();
                     if variant_data
                         .symbol_cache
                         .find_include(&mut |include| {
-                            include.get_absolute_path().as_os_str() == file_path.as_os_str()
+                            include.get_absolute_path().as_os_str()
+                                == variant_file.file_path.as_os_str()
                         })
                         .is_some()
                     {

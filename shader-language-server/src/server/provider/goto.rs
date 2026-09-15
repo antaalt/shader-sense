@@ -18,13 +18,9 @@ impl ServerLanguage {
         position: Position,
     ) -> Result<Option<GotoDefinitionResponse>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
-        let language_data = self
-            .language_data
-            .get(&cached_file.shading_language)
-            .unwrap();
-        let file_path = uri.to_file_path().unwrap();
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
         let shader_position = ShaderFilePosition::new(
-            file_path.clone(),
+            cached_file.file_path.clone(),
             position.line as u32,
             position.character as u32,
         );
@@ -35,7 +31,7 @@ impl ServerLanguage {
         ) {
             Ok(word) => {
                 let matching_symbols =
-                    word.find_symbol_from_parent(file_path.clone(), &symbol_list);
+                    word.find_symbol_from_parent(cached_file.file_path.clone(), &symbol_list);
                 Ok(Some(GotoDefinitionResponse::Link(
                     matching_symbols
                         .iter()

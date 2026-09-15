@@ -26,12 +26,7 @@ impl ServerLanguage {
         uri: &Url,
     ) -> Result<ShaderDependencyNode, ServerLanguageError> {
         let cached_file = self.get_cachable_file(uri)?;
-        let deps_tree = cached_file
-            .data
-            .as_ref()
-            .unwrap()
-            .symbol_cache
-            .get_dependency_tree();
+        let deps_tree = cached_file.get_data().symbol_cache.get_dependency_tree();
         Ok(deps_tree)
     }
 }

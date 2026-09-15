@@ -137,6 +137,7 @@ pub struct ServerFileCache {
     pub shading_language: ShadingLanguage,
     pub shader_module: ShaderModuleHandle, // Store content on change as its not on disk.
     pub data: Option<ServerFileCacheData>, // Data for file opened and edited.
+    pub file_path: PathBuf,                // Cached file path to avoid conversion.
     // A file can be dependency, main, dependent variant or main variant.
     is_main_file: bool,    // main file are opened file in editor.
     is_variant_file: bool, // variant are set through variant window.
@@ -1017,6 +1018,7 @@ impl ServerLanguageFileCache {
                     shading_language: lang,
                     shader_module: shader_module,
                     data: None,
+                    file_path: file_path.clone(),
                     is_main_file: false,
                     is_variant_file: true,
                 };
@@ -1088,6 +1090,7 @@ impl ServerLanguageFileCache {
                     shading_language: lang,
                     shader_module: shader_module,
                     data: None,
+                    file_path: file_path.clone(),
                     is_main_file: true,
                     is_variant_file: false, // Cannot be a variant if its not watched.
                 };
@@ -1145,6 +1148,7 @@ impl ServerLanguageFileCache {
                     shading_language: lang,
                     shader_module: shader_module,
                     data: None,
+                    file_path: file_path.clone(),
                     is_main_file: false,
                     is_variant_file: self
                         .variant

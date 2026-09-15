@@ -1,11 +1,9 @@
-use std::{
-    fmt,
-    path::{Path, PathBuf},
-};
+use std::{fmt, path::Path};
 
 use lsp_types::{Location, Url};
 use shader_sense::{
     position::{ShaderFileRange, ShaderPosition, ShaderRange},
+    shader::ShadingLanguage,
     shader_error::ShaderError,
 };
 
@@ -13,7 +11,8 @@ use shader_sense::{
 pub enum ServerLanguageError {
     ShaderError(ShaderError),
     InvalidParams(String),
-    FileNotWatched(PathBuf),
+    FileNotWatched(Url),
+    UnsupportedLanguage(ShadingLanguage),
     SerializationError(serde_json::Error),
     MethodNotFound(String),
     LastRequestCanceled,
@@ -29,12 +28,13 @@ impl fmt::Display for ServerLanguageError {
                 write!(f, "Error with serialization: {}", err)
             }
             ServerLanguageError::FileNotWatched(uri) => {
-                write!(f, "File not watched: {}", uri.display())
+                write!(f, "File not watched: {}", uri)
             }
-            ServerLanguageError::InvalidParams(err) => write!(f, "Invalid params: {}", err),
+            ServerLanguageError::InvalidParams(err) => write!(f, "Invalid parameters: {}", err),
             ServerLanguageError::MethodNotFound(err) => write!(f, "Method not found: {}", err),
             ServerLanguageError::InternalError(err) => write!(f, "Internal error: {}", err),
-            ServerLanguageError::LastRequestCanceled => write!(f, "LastRequestCanceled"),
+            ServerLanguageError::LastRequestCanceled => write!(f, "Last request canceled"),
+            ServerLanguageError::UnsupportedLanguage(lang) => write!(f, "Unsupported language: {:?}. Restart server with the correct parameter to enable this language.", lang),
             ServerLanguageError::IoErr(err) => write!(f, "Io Err : {}", err),
         }
     }
@@ -101,9 +101,9 @@ pub fn read_string_lossy(file_path: &Path) -> std::io::Result<String> {
                     "Non UTF8 characters detected in file {}. Loaded as lossy string.",
                     file_path.display()
                 );
-                let mut file = std::fs::File::open(file_path).unwrap();
+                let mut file = std::fs::File::open(file_path)?;
                 let mut buf = vec![];
-                file.read_to_end(&mut buf).unwrap();
+                file.read_to_end(&mut buf)?;
                 Ok(String::from_utf8_lossy(&buf).into())
             }
             _ => Err(err),

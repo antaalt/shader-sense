@@ -374,28 +374,22 @@ pub fn main() {
                                 ),
                                 _ => symbol.format(),
                             };
+                            if !symbol_type_to_print.contains(&symbol.get_type()) {
+                                continue;
+                            }
                             let icon = match &symbol.get_type() {
-                                Some(ty) => {
-                                    if !symbol_type_to_print.contains(ty) {
-                                        continue;
-                                    }
-                                    match ty {
-                                        ShaderSymbolType::Types => {
-                                            format!("{} {}", "{}".white().bold(), "Type").yellow()
-                                        }
-                                        ShaderSymbolType::Constants => "♾️ Constant".yellow(),
-                                        ShaderSymbolType::Functions => "⚙️  Function".yellow(),
-                                        ShaderSymbolType::Keyword => {
-                                            format!("{} {}", "</>".white().bold(), "Keyword")
-                                                .yellow()
-                                        }
-                                        ShaderSymbolType::Variables => "🔡 Variable".yellow(),
-                                        ShaderSymbolType::CallExpression => continue,
-                                        ShaderSymbolType::Include => "🔗 Include".yellow(),
-                                        ShaderSymbolType::Macros => "✏️  Macro".yellow(),
-                                    }
+                                ShaderSymbolType::Types => {
+                                    format!("{} {}", "{}".white().bold(), "Type").yellow()
                                 }
-                                None => continue,
+                                ShaderSymbolType::Constants => "♾️ Constant".yellow(),
+                                ShaderSymbolType::Functions => "⚙️  Function".yellow(),
+                                ShaderSymbolType::Keyword => {
+                                    format!("{} {}", "</>".white().bold(), "Keyword").yellow()
+                                }
+                                ShaderSymbolType::Variables => "🔡 Variable".yellow(),
+                                ShaderSymbolType::CallExpression => continue,
+                                ShaderSymbolType::Include => "🔗 Include".yellow(),
+                                ShaderSymbolType::Macros => "✏️  Macro".yellow(),
                             };
                             found_some_symbols = true;
                             println!("{} {} {}", icon, header.blue(), symbol.format().italic());

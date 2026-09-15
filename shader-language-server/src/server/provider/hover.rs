@@ -16,16 +16,12 @@ impl ServerLanguage {
         position: Position,
     ) -> Result<Option<Hover>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
-        let file_path = uri.to_file_path().unwrap();
         let shader_position = ShaderFilePosition::new(
-            file_path.clone(),
+            cached_file.file_path.clone(),
             position.line as u32,
             position.character as u32,
         );
-        let language_data = self
-            .language_data
-            .get(&cached_file.shading_language)
-            .unwrap();
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
         match language_data.symbol_provider.get_word_range_at_position(
             &RefCell::borrow(&cached_file.shader_module),
             &shader_position.position,
@@ -34,7 +30,7 @@ impl ServerLanguage {
             Ok(word) => {
                 let symbol_list = self.watched_files.get_all_symbols(uri);
                 let matching_symbols =
-                    word.find_symbol_from_parent(file_path.clone(), &symbol_list);
+                    word.find_symbol_from_parent(cached_file.file_path.clone(), &symbol_list);
                 if matching_symbols.len() == 0 {
                     Ok(None)
                 } else {
@@ -88,10 +84,13 @@ impl ServerLanguage {
                     let location = match &symbol.mode {
                         ShaderSymbolMode::Runtime(runtime) => format!(
                             "Defined in {}, line {}",
-                            if runtime.file_path.as_os_str() == file_path.as_os_str() {
+                            if runtime.file_path.as_os_str() == cached_file.file_path.as_os_str() {
                                 "this file".into()
                             } else {
-                                runtime.file_path.file_name().unwrap().to_string_lossy()
+                                match runtime.file_path.file_name() {
+                                    Some(file_name) => file_name.to_string_lossy(),
+                                    None => "unknown file".into(),
+                                }
                             },
                             runtime.range.start.line + 1
                         ),

@@ -37,7 +37,7 @@ impl ServerLanguage {
                 DocumentSymbol {
                     name: symbol.label.clone(),
                     detail: Some(symbol.format()),
-                    kind: match symbol.get_type().unwrap() {
+                    kind: match symbol.get_type() {
                         ShaderSymbolType::Types => SymbolKind::TYPE_PARAMETER,
                         ShaderSymbolType::Constants => SymbolKind::CONSTANT,
                         ShaderSymbolType::Variables => SymbolKind::VARIABLE,

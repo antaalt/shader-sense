@@ -12,9 +12,7 @@ impl ServerLanguage {
         let cached_file = self.get_cachable_file(&uri)?;
         // Adding regions
         let mut folding_ranges: Vec<FoldingRange> = cached_file
-            .data
-            .as_ref()
-            .unwrap()
+            .get_data()
             .symbol_cache
             .get_preprocessor()
             .regions
@@ -29,13 +27,10 @@ impl ServerLanguage {
             })
             .collect();
         // Adding scopes from file
-        let symbol_provider = &self
-            .language_data
-            .get(&cached_file.shading_language)
-            .unwrap()
-            .symbol_provider;
-        let scopes =
-            symbol_provider.query_file_scopes(&RefCell::borrow(&cached_file.shader_module));
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
+        let scopes = language_data
+            .symbol_provider
+            .query_file_scopes(&RefCell::borrow(&cached_file.shader_module));
         let mut folded_scopes: Vec<FoldingRange> = scopes
             .iter()
             .map(|s| FoldingRange {

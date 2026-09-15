@@ -4,7 +4,6 @@ use lsp_types::{
     MarkupContent, ParameterInformation, ParameterLabel, Position, SignatureHelp,
     SignatureInformation, Url,
 };
-use regex::Regex;
 
 use shader_sense::{
     position::{ShaderFilePosition, ShaderFileRange, ShaderPosition},
@@ -21,26 +20,22 @@ impl ServerLanguage {
         position: Position,
     ) -> Result<Option<SignatureHelp>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
-        let file_path = uri.to_file_path().unwrap();
         let shader_position = ShaderFilePosition::new(
-            file_path.clone(),
+            cached_file.file_path.clone(),
             position.line as u32,
             position.character as u32,
         );
-        let language_data = self
-            .language_data
-            .get(&cached_file.shading_language)
-            .unwrap();
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
         let all_symbol_list = self.watched_files.get_all_symbols(uri);
         let symbol_list = all_symbol_list.filter_scoped_symbol(&shader_position);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
-        let function_parameter = get_function_parameter_at_position(content, position);
+        let function_parameter = self.get_function_parameter_at_position(content, position);
         let (word_range, parameter_index) =
             if let Some((function_label_range, parameter_index)) = function_parameter {
                 let function_label_range = ShaderFileRange::new(
-                    file_path.clone(),
-                    ShaderPosition::from_byte_offset(content, function_label_range.start).unwrap(),
-                    ShaderPosition::from_byte_offset(content, function_label_range.end).unwrap(),
+                    cached_file.file_path.clone(),
+                    ShaderPosition::from_byte_offset(content, function_label_range.start)?,
+                    ShaderPosition::from_byte_offset(content, function_label_range.end)?,
                 );
                 let word_range = language_data.symbol_provider.get_word_range_at_position(
                     &RefCell::borrow(&cached_file.shader_module),
@@ -57,7 +52,7 @@ impl ServerLanguage {
         match word_range {
             Ok(word) => {
                 let matching_symbols =
-                    word.find_symbol_from_parent(file_path.clone(), &symbol_list);
+                    word.find_symbol_from_parent(cached_file.file_path.clone(), &symbol_list);
                 if matching_symbols.len() == 0 {
                     Ok(None)
                 } else {
@@ -144,49 +139,46 @@ impl ServerLanguage {
             }
         }
     }
-}
-
-fn get_function_parameter_at_position(
-    shader: &str,
-    position: Position,
-) -> Option<(Range<usize>, Option<u32>)> {
-    let line = shader.lines().nth(position.line as usize).unwrap();
-    // Check this regex is working for all lang.
-    let regex =
-        Regex::new("\\b([a-zA-Z_][a-zA-Z0-9_]*)(\\(.*?)(\\))").expect("Failed to init regex");
-    for capture in regex.captures_iter(line) {
-        let function_name = capture.get(1).unwrap();
-        let parenthesis = capture.get(2).unwrap();
-        let parameter_index = if position.character >= parenthesis.start() as u32
-            && position.character <= parenthesis.end() as u32
-        {
-            let parameters = line[parenthesis.start()..parenthesis.end()].to_string();
-            let parameters = parameters.split(',');
-            let pos_in_parameters = position.character as usize - parenthesis.start();
-            // Compute parameter index
-            let mut parameter_index = 0;
-            let mut parameter_offset = 0;
-            for parameter in parameters {
-                parameter_offset += parameter.len() + 1; // Add 1 for removed comma
-                if parameter_offset > pos_in_parameters {
-                    break;
+    fn get_function_parameter_at_position(
+        &self,
+        shader: &str,
+        position: Position,
+    ) -> Option<(Range<usize>, Option<u32>)> {
+        let line = shader.lines().nth(position.line as usize)?;
+        for capture in self.regex_parameter_cache.captures_iter(line) {
+            let function_name = capture.get(1).unwrap();
+            let parenthesis = capture.get(2).unwrap();
+            let parameter_index = if position.character >= parenthesis.start() as u32
+                && position.character <= parenthesis.end() as u32
+            {
+                let parameters = line[parenthesis.start()..parenthesis.end()].to_string();
+                let parameters = parameters.split(',');
+                let pos_in_parameters = position.character as usize - parenthesis.start();
+                // Compute parameter index
+                let mut parameter_index = 0;
+                let mut parameter_offset = 0;
+                for parameter in parameters {
+                    parameter_offset += parameter.len() + 1; // Add 1 for removed comma
+                    if parameter_offset > pos_in_parameters {
+                        break;
+                    }
+                    parameter_index += 1;
                 }
-                parameter_index += 1;
+                Some(parameter_index)
+            } else {
+                None
+            };
+            let byte_offset = line.as_ptr() as usize - shader.as_ptr() as usize;
+            if position.character >= function_name.start() as u32
+                && position.character <= parenthesis.end() as u32
+            {
+                return Some((
+                    ((byte_offset + function_name.start())..(byte_offset + function_name.end())),
+                    parameter_index,
+                ));
             }
-            Some(parameter_index)
-        } else {
-            None
-        };
-        let byte_offset = line.as_ptr() as usize - shader.as_ptr() as usize;
-        if position.character >= function_name.start() as u32
-            && position.character <= parenthesis.end() as u32
-        {
-            return Some((
-                ((byte_offset + function_name.start())..(byte_offset + function_name.end())),
-                parameter_index,
-            ));
         }
+        // No signature
+        None
     }
-    // No signature
-    None
 }

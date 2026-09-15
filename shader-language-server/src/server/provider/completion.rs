@@ -21,17 +21,16 @@ impl ServerLanguage {
         trigger_character: Option<String>,
     ) -> Result<Vec<CompletionItem>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
-        let language_data = self
-            .language_data
-            .get(&cached_file.shading_language)
-            .unwrap();
-        let file_path = uri.to_file_path().unwrap();
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
         let symbol_list = self.watched_files.get_all_symbols(uri);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
         let shader_position = {
-            let position =
-                ShaderFilePosition::new(file_path.clone(), position.line, position.character);
-            let position_byte_offset = position.position.to_byte_offset(content).unwrap();
+            let position = ShaderFilePosition::new(
+                cached_file.file_path.clone(),
+                position.line,
+                position.character,
+            );
+            let position_byte_offset = position.position.to_byte_offset(content)?;
             // Get UTF8 offset of trigger character
             let trigger_offset = match &trigger_character {
                 Some(trigger) => match trigger.as_str() {
@@ -49,9 +48,9 @@ impl ServerLanguage {
             };
             // Remove offset
             let byte_offset = position_byte_offset - trigger_offset;
-            assert!(content.is_char_boundary(byte_offset));
+            debug_assert!(content.is_char_boundary(byte_offset));
             if byte_offset == 0 {
-                ShaderPosition::from_byte_offset(content, byte_offset).unwrap()
+                ShaderPosition::from_byte_offset(content, byte_offset)?
             } else {
                 let mut new_byte_offset = byte_offset;
                 // Check if the previous character is ')' or ']' for getting function call / array label position
@@ -76,10 +75,11 @@ impl ServerLanguage {
                         }
                     }
                 }
-                ShaderPosition::from_byte_offset(content, new_byte_offset).unwrap()
+                ShaderPosition::from_byte_offset(content, new_byte_offset)?
             }
         };
-        let shader_file_position = ShaderFilePosition::from(file_path.clone(), shader_position);
+        let shader_file_position =
+            ShaderFilePosition::from(cached_file.file_path.clone(), shader_position);
         let symbol_list = symbol_list.filter_scoped_symbol(&shader_file_position);
         match trigger_character {
             Some(_) => {
@@ -88,7 +88,8 @@ impl ServerLanguage {
                     &shader_file_position.position,
                 ) {
                     Ok(word) => {
-                        let symbols = word.find_symbol_from_parent(file_path.clone(), &symbol_list);
+                        let symbols = word
+                            .find_symbol_from_parent(cached_file.file_path.clone(), &symbol_list);
                         // TODO: should select right ones based on types and context
                         if symbols.is_empty() {
                             Ok(vec![])
@@ -128,7 +129,8 @@ impl ServerLanguage {
                                             let position = if let Some(range) = &v.range {
                                                 format!(
                                                     "{}:{}:{}",
-                                                    file_path
+                                                    cached_file
+                                                        .file_path
                                                         .file_name()
                                                         .unwrap_or(OsStr::new("file"))
                                                         .to_string_lossy(),
@@ -224,7 +226,7 @@ fn convert_completion_item(
     shading_language: ShadingLanguage,
     shader_symbol: &ShaderSymbol,
 ) -> CompletionItem {
-    let completion_kind = match shader_symbol.get_type().unwrap() {
+    let completion_kind = match shader_symbol.get_type() {
         ShaderSymbolType::Types => CompletionItemKind::TYPE_PARAMETER,
         ShaderSymbolType::Constants => CompletionItemKind::CONSTANT,
         ShaderSymbolType::Variables => CompletionItemKind::VARIABLE,

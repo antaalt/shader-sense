@@ -74,6 +74,7 @@ pub struct ServerLanguage {
     watched_files: ServerLanguageFileCache,
     language_data: HashMap<ShadingLanguage, ServerLanguageData>,
     regex_cache: LruCache<String, regex::Regex>, // For semantic token provider who create regex on the fly
+    regex_parameter_cache: regex::Regex,         // For signature provider
 }
 
 /// Filter invalid url out and clean them to ensure there is not issue when comparing path.
@@ -111,6 +112,7 @@ fn shader_error_to_lsp_error(error: &ServerLanguageError) -> ErrorCode {
         ServerLanguageError::MethodNotFound(_) => ErrorCode::MethodNotFound,
         ServerLanguageError::LastRequestCanceled => ErrorCode::RequestCanceled,
         ServerLanguageError::InternalError(_) => ErrorCode::InternalError,
+        ServerLanguageError::UnsupportedLanguage(_) => ErrorCode::InternalError,
         ServerLanguageError::IoErr(_) => ErrorCode::InternalError,
     }
 }
@@ -160,6 +162,9 @@ impl ServerLanguage {
             // Else when recomputing a file, we will recreate all regex and reinsert
             // them instead of reading from cache. So we update it size at runtime.
             regex_cache: LruCache::new(NonZero::new(50).unwrap()),
+            // Check this regex is working for all lang.
+            regex_parameter_cache: regex::Regex::new("\\b([a-zA-Z_][a-zA-Z0-9_]*)(\\(.*?)(\\))")
+                .unwrap(),
         })
     }
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
@@ -285,14 +290,10 @@ impl ServerLanguage {
             Some(uri) => {
                 if let Some(cached_file) = self.watched_files.files.get(uri) {
                     if !cached_file.is_cachable_file() {
-                        return Err(ServerLanguageError::FileNotWatched(
-                            uri.to_file_path().unwrap(),
-                        ));
+                        return Err(ServerLanguageError::FileNotWatched(uri.clone()));
                     }
                 } else {
-                    return Err(ServerLanguageError::FileNotWatched(
-                        uri.to_file_path().unwrap(),
-                    ));
+                    return Err(ServerLanguageError::FileNotWatched(uri.clone()));
                 }
             }
             None => {} // workspace request or such.
@@ -799,18 +800,24 @@ impl ServerLanguage {
         }
     }
     fn get_cachable_file(&self, uri: &Url) -> Result<&ServerFileCache, ServerLanguageError> {
-        let main_file =
-            self.watched_files
-                .get_file(&uri)
-                .ok_or(ServerLanguageError::FileNotWatched(
-                    uri.to_file_path().unwrap(),
-                ))?;
+        let main_file = self
+            .watched_files
+            .get_file(&uri)
+            .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         debug_assert!(
             main_file.is_cachable_file(),
             "File {} is not a cachable file.",
             uri
         );
         Ok(main_file)
+    }
+    fn get_language_data(
+        &self,
+        shading_language: &ShadingLanguage,
+    ) -> Result<&ServerLanguageData, ServerLanguageError> {
+        self.language_data
+            .get(&shading_language)
+            .ok_or(ServerLanguageError::UnsupportedLanguage(*shading_language))
     }
     fn on_request(
         &mut self,
@@ -908,7 +915,10 @@ impl ServerLanguage {
                         ))
                     })?;
                 // Return error instead
-                let language_data = self.language_data.get_mut(&shading_language).unwrap();
+                let language_data = self
+                    .language_data
+                    .get_mut(&shading_language)
+                    .ok_or(ServerLanguageError::UnsupportedLanguage(shading_language))?;
                 let _ = self.watched_files.watch_main_file(
                     &params.text_document.uri,
                     shading_language.clone(),
@@ -941,7 +951,10 @@ impl ServerLanguage {
                 if let Some(text) = params.text {
                     if text != RefCell::borrow(&cached_file.shader_module).content {
                         let shading_language = cached_file.shading_language;
-                        let language_data = self.language_data.get_mut(&shading_language).unwrap();
+                        let language_data = self
+                            .language_data
+                            .get_mut(&shading_language)
+                            .ok_or(ServerLanguageError::UnsupportedLanguage(shading_language))?;
                         let _ = self.watched_files.update_file(
                             &params.text_document.uri,
                             &mut language_data.shader_module_parser,
@@ -986,7 +999,10 @@ impl ServerLanguage {
                 );
                 let cached_file = self.get_cachable_file(&params.text_document.uri)?;
                 let shading_language = cached_file.shading_language;
-                let language_data = self.language_data.get_mut(&shading_language).unwrap();
+                let language_data = self
+                    .language_data
+                    .get_mut(&shading_language)
+                    .ok_or(ServerLanguageError::UnsupportedLanguage(shading_language))?;
                 // Update all content before caching data.
                 for content in &params.content_changes {
                     match self.watched_files.update_file(
@@ -1034,7 +1050,9 @@ impl ServerLanguage {
                         let language_data = self
                             .language_data
                             .get_mut(&new_variant.shading_language)
-                            .unwrap();
+                            .ok_or(ServerLanguageError::UnsupportedLanguage(
+                                new_variant.shading_language,
+                            ))?;
                         if let Some(old_variant) = &self.watched_files.variant {
                             // Remove old variant if not used anymore.
                             if new_variant.url != old_variant.url {

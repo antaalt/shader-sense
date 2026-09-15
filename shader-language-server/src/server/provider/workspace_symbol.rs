@@ -20,7 +20,7 @@ impl ServerLanguage {
                 symbols
                     .iter()
                     .filter(|symbol| {
-                        let ty = symbol.get_type().unwrap();
+                        let ty = symbol.get_type();
                         // For workspace, only publish function, types & macros
                         (ty == ShaderSymbolType::Functions
                             || ty == ShaderSymbolType::Types
@@ -38,7 +38,7 @@ impl ServerLanguage {
                         // https://github.com/rust-lang/rust/issues/102777
                         SymbolInformation {
                             name: symbol.label.clone(),
-                            kind: match symbol.get_type().unwrap() {
+                            kind: match symbol.get_type() {
                                 ShaderSymbolType::Types => SymbolKind::TYPE_PARAMETER,
                                 ShaderSymbolType::Functions => SymbolKind::FUNCTION,
                                 ShaderSymbolType::Macros => SymbolKind::CONSTANT,
