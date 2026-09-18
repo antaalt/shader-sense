@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use lsp_server::RequestId;
 use lsp_types::{
     notification::Notification,
@@ -103,6 +105,22 @@ impl AsyncMessage {
                 unreachable!("Should not be reached. Update AsyncMessage::is_update accordingly.");
             }
         }
+    }
+    pub fn get_request_id_as_i32(request_id: &RequestId) -> Result<i32, ParseIntError> {
+        // RequestId does not implement anything to get this other than display which use fmt for string...
+        // So remove string delimiter from display result.
+        let req_id_as_string = request_id.to_string();
+        let (offset_start, offset_end) =
+            if req_id_as_string.starts_with("\"") && req_id_as_string.ends_with("\"") {
+                (1, req_id_as_string.len() - 1)
+            } else if req_id_as_string.starts_with("\"") {
+                (1, req_id_as_string.len()) // Weird...
+            } else if req_id_as_string.ends_with("\"") {
+                (0, req_id_as_string.len() - 1) // Weird...
+            } else {
+                (0, req_id_as_string.len())
+            };
+        req_id_as_string[offset_start..offset_end].parse::<i32>()
     }
     pub fn get_request_method(&self) -> &'static str {
         assert!(!self.is_update());

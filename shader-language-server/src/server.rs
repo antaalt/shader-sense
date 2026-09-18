@@ -520,7 +520,12 @@ impl ServerLanguage {
                                 // Find last request and cancel it.
                                 match async_messages_queue.iter().position(|m| match m {
                                     AsyncMessage::None | AsyncMessage::UpdateCache(_) => false, // Dont cancel async request without id.
-                                    _ => *m.get_request_id() == lsp_server::RequestId::from(id),
+                                    _ => match AsyncMessage::get_request_id_as_i32(
+                                        m.get_request_id(),
+                                    ) {
+                                        Ok(parsed_id) => parsed_id == id,
+                                        Err(_) => false, // Failed to parse id.
+                                    },
                                 }) {
                                     Some(canceled_request_index) => {
                                         let canceled_request =
@@ -659,56 +664,14 @@ impl ServerLanguage {
                             if async_request_queue.len() > 0 {
                                 profile_scope!("Solving {} request", async_request_queue.len());
                                 for request in async_request_queue {
-                                    fn request_id_to_i32(
-                                        request_id: &lsp_server::RequestId,
-                                    ) -> Option<i32> {
-                                        // RequestId does not implement anything to get this other than display which use fmt for string...
-                                        // So remove string delimiter from display result.
-                                        let req_id_as_string = request_id.to_string();
-                                        let (offset_start, offset_end) = if req_id_as_string
-                                            .starts_with("\"")
-                                            && req_id_as_string.ends_with("\"")
-                                        {
-                                            (1, req_id_as_string.len() - 1)
-                                        } else if req_id_as_string.starts_with("\"") {
-                                            (1, req_id_as_string.len()) // Weird...
-                                        } else if req_id_as_string.ends_with("\"") {
-                                            (0, req_id_as_string.len() - 1) // Weird...
-                                        } else {
-                                            (0, req_id_as_string.len())
-                                        };
-                                        req_id_as_string[offset_start..offset_end]
-                                            .parse::<i32>()
-                                            .ok()
-                                    }
                                     let req_id = request.get_request_id().clone();
                                     match self.resolve_async_request(request) {
                                         Ok(_) => {}
-                                        Err(err) => {
-                                            match err {
-                                                ServerLanguageError::FileNotWatched(_) => {
-                                                    if let Some(req_id_i32) =
-                                                        request_id_to_i32(&req_id)
-                                                    {
-                                                        info!("Cancelling request {}", req_id);
-                                                        self.connection.send_notification::<Cancel>(CancelParams {
-                                                            id: lsp_types::NumberOrString::Number(req_id_i32),
-                                                        })
-                                                    } else {
-                                                        self.connection.send_response_error(
-                                                            req_id,
-                                                            shader_error_to_lsp_error(&err),
-                                                            err.to_string(),
-                                                        )
-                                                    }
-                                                }
-                                                _ => self.connection.send_response_error(
-                                                    req_id,
-                                                    shader_error_to_lsp_error(&err),
-                                                    err.to_string(),
-                                                ),
-                                            }
-                                        }
+                                        Err(err) => self.connection.send_response_error(
+                                            req_id,
+                                            shader_error_to_lsp_error(&err),
+                                            err.to_string(),
+                                        ),
                                     }
                                 }
                             }
