@@ -300,16 +300,21 @@ impl ServerLanguage {
         }
 
         // For variant, we handle requesting items again on client side, so it does not change version.
+        profile_scope!(
+            "Processing request #{} {} for file {}",
+            request.get_request_id(),
+            request.get_request_method(),
+            request
+                .get_uri()
+                .map(|u| u.to_file_path().unwrap().to_string_lossy().into_owned())
+                .unwrap_or("unspecified".into())
+        );
         match request {
             AsyncMessage::None | AsyncMessage::UpdateCache(_) => {
                 unreachable!()
             }
             AsyncMessage::DocumentSymbolRequest(async_request) => {
-                profile_scope!(
-                    "Received document symbol request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let symbols =
                     self.recolt_document_symbol(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<DocumentSymbolRequest>(
@@ -318,10 +323,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::WorkspaceSymbolRequest(async_request) => {
-                profile_scope!(
-                    "Received workspace symbol request: {}",
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let _ = async_request.params.query; // TODO: Should we filter ?
                 let symbols = self.recolt_workspace_symbol()?;
                 self.connection.send_response::<WorkspaceSymbolRequest>(
@@ -330,11 +332,7 @@ impl ServerLanguage {
                 )
             }
             AsyncMessage::RangeFormatting(async_request) => {
-                profile_scope!(
-                    "Received formatting range request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let formatting = self.recolt_formatting(
                     &async_request.params.text_document.uri,
                     Some(lsp_range_to_shader_range(&async_request.params.range)),
@@ -343,11 +341,7 @@ impl ServerLanguage {
                     .send_response::<Formatting>(async_request.req_id, Some(formatting));
             }
             AsyncMessage::FoldingRangeRequest(async_request) => {
-                profile_scope!(
-                    "Received folding range request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let folding_ranges =
                     self.recolt_folding_range(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<FoldingRangeRequest>(
@@ -356,22 +350,14 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::Formatting(async_request) => {
-                profile_scope!(
-                    "Received formatting request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let formatting =
                     self.recolt_formatting(&async_request.params.text_document.uri, None)?;
                 self.connection
                     .send_response::<Formatting>(async_request.req_id.clone(), Some(formatting));
             }
             AsyncMessage::InlayHintRequest(async_request) => {
-                profile_scope!(
-                    "Received inlay hint request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let inlay_hints = self.recolt_inlay_hint(
                     &async_request.params.text_document.uri,
                     &async_request.params.range,
@@ -382,15 +368,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::HoverRequest(async_request) => {
-                profile_scope!(
-                    "Received hover request for file {}: {}",
-                    async_request
-                        .params
-                        .text_document_position_params
-                        .text_document
-                        .uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let position = async_request.params.text_document_position_params.position;
                 let value = self.recolt_hover(
                     &async_request
@@ -404,15 +382,7 @@ impl ServerLanguage {
                     .send_response::<HoverRequest>(async_request.req_id.clone(), value);
             }
             AsyncMessage::SignatureHelpRequest(async_request) => {
-                profile_scope!(
-                    "Received completion request for file {}: {}",
-                    async_request
-                        .params
-                        .text_document_position_params
-                        .text_document
-                        .uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let value = self.recolt_signature(
                     &async_request
                         .params
@@ -425,15 +395,7 @@ impl ServerLanguage {
                     .send_response::<SignatureHelpRequest>(async_request.req_id.clone(), value);
             }
             AsyncMessage::Completion(async_request) => {
-                profile_scope!(
-                    "Received completion request for file {}: {}",
-                    async_request
-                        .params
-                        .text_document_position
-                        .text_document
-                        .uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let value = self.recolt_completion(
                     &async_request
                         .params
@@ -452,15 +414,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::GotoDefinition(async_request) => {
-                profile_scope!(
-                    "Received gotoDefinition request for file {}: {}",
-                    async_request
-                        .params
-                        .text_document_position_params
-                        .text_document
-                        .uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let position = async_request.params.text_document_position_params.position;
                 let value = self.recolt_goto(
                     &async_request
@@ -474,11 +428,7 @@ impl ServerLanguage {
                     .send_response::<GotoDefinition>(async_request.req_id.clone(), value);
             }
             AsyncMessage::DocumentDiagnosticRequest(async_request) => {
-                profile_scope!(
-                    "Received document diagnostic request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let document_diagnostic =
                     self.recolt_document_diagnostic(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<DocumentDiagnosticRequest>(
@@ -487,11 +437,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::SemanticTokensFullRequest(async_request) => {
-                profile_scope!(
-                    "Received semantic token request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let semantic_tokens =
                     self.recolt_semantic_tokens(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<SemanticTokensFullRequest>(
@@ -500,11 +446,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::CompilationRequest(async_request) => {
-                profile_scope!(
-                    "Received compilation request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let compilation_request_result = self.recolt_compilation_result(
                     &async_request.params.text_document.uri,
                     async_request.params.compilation_type,
@@ -515,11 +457,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::DependencyTreeRequest(async_request) => {
-                profile_scope!(
-                    "Received dependecy tree request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let deps_tree =
                     self.recolt_dependency_tree(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<DependencyTreeRequest>(
@@ -528,11 +466,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::DumpDependencyRequest(async_request) => {
-                profile_scope!(
-                    "Received dump dependency request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let deps_tree =
                     self.recolt_dependency_dump(&async_request.params.text_document.uri)?;
                 self.connection.send_response::<DumpDependencyRequest>(
@@ -541,11 +475,7 @@ impl ServerLanguage {
                 );
             }
             AsyncMessage::DumpAstRequest(async_request) => {
-                profile_scope!(
-                    "Received dump ast request for file {}: {}",
-                    async_request.params.text_document.uri,
-                    self.debug(&async_request.params)
-                );
+                debug!("Params: {}", self.debug(&async_request.params));
                 let ast = self.recolt_ast_dump(&async_request.params.text_document.uri)?;
                 self.connection
                     .send_response::<DumpAstRequest>(async_request.req_id.clone(), Some(ast));
@@ -902,10 +832,11 @@ impl ServerLanguage {
             DidOpenTextDocument::METHOD => {
                 let params = parse_notification_params::<DidOpenTextDocument>(notification.params)?;
                 profile_scope!(
-                    "Received did open text document notification for {}:{}",
-                    params.text_document.uri,
-                    self.debug(&params)
+                    "Received notification {} for file {}",
+                    notification.method,
+                    params.text_document.uri
                 );
+                debug!("Params: {}", self.debug(&params));
 
                 let shading_language = ShadingLanguage::from_str(&params.text_document.language_id)
                     .map_err(|_| {
@@ -934,10 +865,11 @@ impl ServerLanguage {
             DidSaveTextDocument::METHOD => {
                 let params = parse_notification_params::<DidSaveTextDocument>(notification.params)?;
                 profile_scope!(
-                    "Received did save text document notification for file {}:{}",
-                    params.text_document.uri,
-                    self.debug(&params)
+                    "Received notification {} for file {}",
+                    notification.method,
+                    params.text_document.uri
                 );
+                debug!("Params: {}", self.debug(&params));
                 // File content is updated through DidChangeTextDocument.
                 let cached_file = self.get_cachable_file(&params.text_document.uri)?;
 
@@ -977,10 +909,11 @@ impl ServerLanguage {
                 let params =
                     parse_notification_params::<DidCloseTextDocument>(notification.params)?;
                 profile_scope!(
-                    "Received did close text document notification for file {}: {}",
-                    params.text_document.uri,
-                    self.debug(&params)
+                    "Received notification {} for file {}",
+                    notification.method,
+                    params.text_document.uri
                 );
+                debug!("Params: {}", self.debug(&params));
                 let removed_urls = self
                     .watched_files
                     .remove_main_file(&params.text_document.uri)?;
@@ -993,10 +926,11 @@ impl ServerLanguage {
                 let params =
                     parse_notification_params::<DidChangeTextDocument>(notification.params)?;
                 profile_scope!(
-                    "Received did change text document notification for file {}: {}",
-                    params.text_document.uri,
-                    self.debug(&params)
+                    "Received notification {} for file {}",
+                    notification.method,
+                    params.text_document.uri
                 );
+                debug!("Params: {}", self.debug(&params));
                 let cached_file = self.get_cachable_file(&params.text_document.uri)?;
                 let shading_language = cached_file.shading_language;
                 let language_data = self
@@ -1024,10 +958,8 @@ impl ServerLanguage {
             DidChangeConfiguration::METHOD => {
                 let params: DidChangeConfigurationParams =
                     serde_json::from_value(notification.params)?;
-                profile_scope!(
-                    "Received did change configuration notification: {}",
-                    self.debug(&params)
-                );
+                profile_scope!("Received notification {}", notification.method);
+                debug!("Params: {}", self.debug(&params));
                 // Here config received is empty. we need to request it to user.
                 //let config : ServerConfig = serde_json::from_value(params.settings)?;
                 self.request_configuration();
@@ -1036,17 +968,18 @@ impl ServerLanguage {
             DidChangeShaderVariant::METHOD => {
                 let params =
                     parse_notification_params::<DidChangeShaderVariant>(notification.params)?;
-                let new_variant = params.shader_variant;
+                let new_variant = &params.shader_variant;
                 profile_scope!(
-                    "Received did change shader variant notification for file {}: {}",
+                    "Received notification {} for file {}",
+                    notification.method,
                     new_variant
                         .as_ref()
                         .map(|v| v.url.to_string())
-                        .unwrap_or("None".into()),
-                    self.debug(&new_variant)
+                        .unwrap_or("None".into())
                 );
-                if new_variant != self.watched_files.variant {
-                    let updated_url = if let Some(new_variant) = &new_variant {
+                debug!("Params: {}", self.debug(&params));
+                if *new_variant != self.watched_files.variant {
+                    let updated_url = if let Some(new_variant) = new_variant {
                         let language_data = self
                             .language_data
                             .get_mut(&new_variant.shading_language)
@@ -1121,7 +1054,7 @@ impl ServerLanguage {
                         unreachable!();
                     };
                     // Set new variant.
-                    self.watched_files.variant = new_variant;
+                    self.watched_files.variant = params.shader_variant;
                     Ok(AsyncMessage::UpdateCache(updated_url))
                 } else {
                     Ok(AsyncMessage::None)
@@ -1130,7 +1063,8 @@ impl ServerLanguage {
             DidChangeWorkspaceFolders::METHOD => {
                 let params: DidChangeWorkspaceFoldersParams =
                     serde_json::from_value(notification.params)?;
-                profile_scope!("Received {}: {}", notification.method, self.debug(&params));
+                profile_scope!("Received notification {}", notification.method);
+                debug!("Params: {}", self.debug(&params));
                 for removed in params.event.removed {
                     if let Some(position) = self
                         .watched_files
@@ -1157,8 +1091,10 @@ impl ServerLanguage {
             }
             SetTrace::METHOD => {
                 let params: SetTraceParams = serde_json::from_value(notification.params)?;
-                profile_scope!("Received {}: {}", notification.method, self.debug(&params));
+                profile_scope!("Received notification {}", notification.method);
+                debug!("Params: {}", self.debug(&params));
                 // Config will override this though...
+                // env_logger level will not change at runtime.
                 self.config.set_trace(match params.value {
                     lsp_types::TraceValue::Off => ServerTrace::new(ServerTraceLevel::Off),
                     lsp_types::TraceValue::Messages => ServerTrace::new(ServerTraceLevel::Messages),
