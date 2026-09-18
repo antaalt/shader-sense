@@ -672,6 +672,24 @@ fn test_invalid_method() {
 }
 
 #[test]
+fn test_not_watched() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
+    server.send_request_with_error::<DocumentDiagnosticRequest>(
+        &file.document_diagnostic_params(),
+        |_report| {
+            assert!(false, "Should have file not watched error");
+        },
+        |error| assert_eq!(error.code, lsp_server::ErrorCode::InternalError as i32),
+    );
+    // DidClose when no DidOpen should not crash.
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
 fn test_cancel_request() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
@@ -688,7 +706,7 @@ fn test_cancel_request() {
         |_report| {
             assert!(false, "Should be canceled");
         },
-        |error| assert!(error.code == lsp_server::ErrorCode::RequestCanceled as i32),
+        |error| assert_eq!(error.code, lsp_server::ErrorCode::RequestCanceled as i32),
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),

@@ -1010,7 +1010,7 @@ impl ServerLanguageFileCache {
                 }
             }
             None => {
-                let text = read_string_lossy(&file_path).unwrap();
+                let text = read_string_lossy(&file_path)?;
                 let shader_module = Rc::new(RefCell::new(
                     shader_module_parser.create_module(&file_path, &text)?,
                 ));
@@ -1328,6 +1328,12 @@ impl ServerLanguageFileCache {
     }
     pub fn remove_main_file(&mut self, uri: &Url) -> Result<Vec<Url>, ShaderError> {
         let used_as_deps = self.is_used_as_dependency(uri).is_some();
+        if !self.files.contains_key(&uri) {
+            return Err(ShaderError::InternalErr(format!(
+                "Trying to remove main file {} that is not watched.",
+                uri
+            )));
+        }
         let mut dangling_files = if self.files.get(&uri).unwrap().data.is_some() {
             self.get_all_included_files(uri)
         } else {
