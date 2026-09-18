@@ -15,7 +15,7 @@ pub enum ServerLanguageError {
     UnsupportedLanguage(ShadingLanguage),
     SerializationError(serde_json::Error),
     MethodNotFound(String),
-    LastRequestCanceled,
+    RequestCanceled(i32),
     InternalError(String),
     IoErr(std::io::Error),
 }
@@ -33,7 +33,7 @@ impl fmt::Display for ServerLanguageError {
             ServerLanguageError::InvalidParams(err) => write!(f, "Invalid parameters: {}", err),
             ServerLanguageError::MethodNotFound(err) => write!(f, "Method not found: {}", err),
             ServerLanguageError::InternalError(err) => write!(f, "Internal error: {}", err),
-            ServerLanguageError::LastRequestCanceled => write!(f, "Last request canceled"),
+            ServerLanguageError::RequestCanceled(id) => write!(f, "Request #{} canceled", id),
             ServerLanguageError::UnsupportedLanguage(lang) => write!(f, "Unsupported language: {:?}. Restart server with the correct parameter to enable this language.", lang),
             ServerLanguageError::IoErr(err) => write!(f, "Io Err : {}", err),
         }

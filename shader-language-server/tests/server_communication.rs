@@ -9,6 +9,7 @@ use std::net::{SocketAddr, SocketAddrV4};
 use std::str::FromStr;
 
 use lsp_server::ErrorCode;
+use lsp_types::notification::Cancel;
 use lsp_types::request::{
     DocumentDiagnosticRequest, HoverRequest, SemanticTokensFullRequest, WorkspaceSymbolRequest,
 };
@@ -20,8 +21,9 @@ use lsp_types::{
     TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use lsp_types::{
-    DocumentDiagnosticParams, Hover, HoverParams, SemanticTokensParams, SemanticTokensResult,
-    TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    CancelParams, DocumentDiagnosticParams, Hover, HoverParams, SemanticTokensParams,
+    SemanticTokensResult, TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 use shader_language_server::server::provider::compilation::CompilationRequest;
 use shader_language_server::server::provider::compilation::{
@@ -670,6 +672,30 @@ fn test_invalid_method() {
 }
 
 #[test]
+fn test_cancel_request() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request_only::<DocumentDiagnosticRequest>(&file.document_diagnostic_params());
+    // Cancel request before checking for its response.
+    server.send_notification::<Cancel>(&CancelParams {
+        id: lsp_types::NumberOrString::Number(1),
+    });
+    server.expect_response::<DocumentDiagnosticRequest>(
+        |_report| {
+            assert!(false, "Should be canceled");
+        },
+        |error| assert!(error.code == lsp_server::ErrorCode::RequestCanceled as i32),
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
 fn test_disabling_variant() {
     // Updating variant is done synchronously, so check it does not break async updates
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
@@ -748,6 +774,7 @@ fn test_untitled_uri() {
             text: "#version 450\nvoid main(){}".into(),
         },
     });
+    // Server should fail opening, so close will do nothing, but should not crash
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: TextDocumentIdentifier { uri: file_url },
     });

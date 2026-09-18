@@ -110,7 +110,7 @@ fn shader_error_to_lsp_error(error: &ServerLanguageError) -> ErrorCode {
         ServerLanguageError::SerializationError(_) => ErrorCode::InternalError,
         ServerLanguageError::InvalidParams(_) => ErrorCode::InvalidParams,
         ServerLanguageError::MethodNotFound(_) => ErrorCode::MethodNotFound,
-        ServerLanguageError::LastRequestCanceled => ErrorCode::RequestCanceled,
+        ServerLanguageError::RequestCanceled(_) => ErrorCode::RequestCanceled,
         ServerLanguageError::InternalError(_) => ErrorCode::InternalError,
         ServerLanguageError::UnsupportedLanguage(_) => ErrorCode::InternalError,
         ServerLanguageError::IoErr(_) => ErrorCode::InternalError,
@@ -516,22 +516,19 @@ impl ServerLanguage {
                     Message::Notification(not) => match self.on_notification(not) {
                         Ok(async_message) => async_messages_queue.push(async_message),
                         Err(err) => match err {
-                            ServerLanguageError::LastRequestCanceled => {
+                            ServerLanguageError::RequestCanceled(id) => {
                                 // Find last request and cancel it.
-                                match async_messages_queue
-                                    .iter()
-                                    .rev()
-                                    .position(|m| m.is_request())
-                                {
-                                    Some(last_request_index_from_end) => {
-                                        let last_request_index = async_messages_queue.len()
-                                            - last_request_index_from_end
-                                            - 1;
+                                match async_messages_queue.iter().position(|m| match m {
+                                    AsyncMessage::None | AsyncMessage::UpdateCache(_) => false, // Dont cancel async request without id.
+                                    _ => *m.get_request_id() == lsp_server::RequestId::from(id),
+                                }) {
+                                    Some(canceled_request_index) => {
                                         let canceled_request =
-                                            async_messages_queue.remove(last_request_index);
+                                            async_messages_queue.remove(canceled_request_index);
                                         info!(
-                                            "Request #{} has been cancelled.",
-                                            canceled_request.get_request_id()
+                                            "Request #{} {} has been cancelled.",
+                                            canceled_request.get_request_id(),
+                                            canceled_request.get_request_method()
                                         );
                                         self.connection.send_response_error(
                                             canceled_request.get_request_id().clone(),
@@ -543,8 +540,10 @@ impl ServerLanguage {
                                             ),
                                         );
                                     }
-                                    // Couldn't cancel last request as its probably been flushed from queue. Ignore it.
-                                    None => {}
+                                    // Couldn't cancel request as its probably been flushed from queue. Ignore it.
+                                    None => {
+                                        debug!("Failed to cancel request #{}", id)
+                                    }
                                 }
                             }
                             _ => self.connection.send_notification_error(err.to_string()),
@@ -1102,7 +1101,23 @@ impl ServerLanguage {
                 });
                 Ok(AsyncMessage::None)
             }
-            Cancel::METHOD => Err(ServerLanguageError::LastRequestCanceled),
+            Cancel::METHOD => {
+                let params: CancelParams = serde_json::from_value(notification.params)?;
+                profile_scope!("Received notification {}", notification.method);
+                debug!("Params: {}", self.debug(&params));
+                match params.id {
+                    lsp_types::NumberOrString::Number(id) => {
+                        Err(ServerLanguageError::RequestCanceled(id))
+                    }
+                    lsp_types::NumberOrString::String(id_str) => match id_str.parse::<i32>() {
+                        Ok(id) => Err(ServerLanguageError::RequestCanceled(id)),
+                        Err(err) => Err(ServerLanguageError::InternalError(format!(
+                            "Failed to parse canceled request id: {}",
+                            err.to_string()
+                        ))),
+                    },
+                }
+            }
             _ => {
                 warn!(
                     "Received unhandled notification {}: {}",

@@ -421,6 +421,10 @@ impl TestServer {
         callback: fn(T::Result),
         error_callback: fn(lsp_server::ResponseError),
     ) {
+        self.send_request_only::<T>(params);
+        self.expect_response::<T>(callback, error_callback);
+    }
+    pub fn send_request_only<T: lsp_types::request::Request>(&mut self, params: &T::Params) {
         let request = lsp_server::Message::Request(lsp_server::Request::new(
             lsp_server::RequestId::from(self.request_id),
             T::METHOD.into(),
@@ -429,6 +433,12 @@ impl TestServer {
         self.request_id += 1;
         println!("Send request: {}", serde_json::to_string(&request).unwrap());
         lsp_server::Message::write(request, &mut self.connection.write()).unwrap();
+    }
+    pub fn expect_response<T: lsp_types::request::Request>(
+        &mut self,
+        callback: fn(T::Result),
+        error_callback: fn(lsp_server::ResponseError),
+    ) {
         // Wait for response
         loop {
             let message = lsp_server::Message::read(&mut self.connection.read()).unwrap();
