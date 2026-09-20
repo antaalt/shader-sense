@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.6.0"
+version = "1.6.1"
 dependencies = [
  "base64-bytes",
  "cfg-if",
