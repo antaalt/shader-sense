@@ -160,7 +160,7 @@ interface CompilationRequestResult {
 
 ### Dependency tree request commands
 
-This command allow client to expose the dependency tree of a file that is computed by shader-sense. The DumpDependencyParams simply format this output to a string.
+This command allow client to expose the dependency tree of a file that is computed by shader-sense. Use request `textDocument/dependencyTree` to get the hierarchy as JSON. The `debug/dumpDependency` request simply format this output as a string.
 
 ```typescript
 interface DependencyTreeRequestParams {
@@ -176,7 +176,7 @@ interface DependencyTreeRequestResult {
 
 The server offer some specific debug request to help inspect the current state of the server.
 
-- Dump AST request: "debug/dumpAst"
+- Dump AST request: `debug/dumpAst`
 ```typescript
 interface DumpAstParams {
     uri: string,
@@ -184,7 +184,7 @@ interface DumpAstParams {
 ```
 Result will be either a string or null
 
-- Dump dependencies request: "debug/dumpDependency"
+- Dump dependencies request: `debug/dumpDependency`
 ```typescript
 interface DumpDependencyParams {
     uri: string,
