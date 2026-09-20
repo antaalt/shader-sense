@@ -755,19 +755,19 @@ fn test_dependency_tree() {
         },
         |dependency_tree| {
             assert_eq!(
-                dependency_tree.path,
+                dependency_tree.url.to_file_path().unwrap(),
                 workspace_path("glsl/include-level.comp.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.path,
+                dependency_tree.url.to_file_path().unwrap(),
                 workspace_path("glsl/inc0/level0.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.path,
+                dependency_tree.url.to_file_path().unwrap(),
                 workspace_path("glsl/inc0/inc1/level1.glsl")
             );
             assert!(dependency_tree.includes.len() == 0);

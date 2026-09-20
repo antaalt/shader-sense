@@ -36,8 +36,7 @@ pub struct ShaderSymbols {
     pub(super) symbol_list: ShaderSymbolList,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ShaderDependencyNode {
     pub path: PathBuf,
     pub includes: Vec<ShaderDependencyNode>,

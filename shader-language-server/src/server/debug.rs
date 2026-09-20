@@ -69,8 +69,8 @@ impl ServerLanguage {
         } else {
             None
         };
-        Ok(self
-            .recolt_dependency_tree(&cached_file_uri.unwrap_or(uri.clone()))?
-            .dump())
+        let cached_file = self.get_cachable_file(&cached_file_uri.unwrap_or(uri.clone()))?;
+        let deps_tree = cached_file.get_data().symbol_cache.get_dependency_tree();
+        Ok(deps_tree.dump())
     }
 }
