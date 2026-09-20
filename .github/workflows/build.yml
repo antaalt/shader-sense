@@ -15,7 +15,7 @@ jobs:
   test:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.89
         with:
           components: rustfmt
@@ -23,7 +23,7 @@ jobs:
         run: cargo fmt --check
       # Download dxc dll for tests.
       - name: Download dxc dll.
-        uses: robinraju/release-downloader@v1.11
+        uses: robinraju/release-downloader@v1.13
         with:
           repository: 'microsoft/DirectXShaderCompiler'
           tag: v1.8.2405
@@ -60,7 +60,7 @@ jobs:
             #  target: aarch64-unknown-linux-gnu
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -73,7 +73,7 @@ jobs:
           executable: shader-language-server${{ runner.os == 'Windows' && '.exe' || '' }}
       # TODO: Add debug symbols for supported target to bin folder.
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: shader-language-server-${{ matrix.target }}
           path: ./bin/
@@ -84,11 +84,11 @@ jobs:
 
     # Build WASM from source.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      - uses: robinraju/release-downloader@v1.11
+      - uses: robinraju/release-downloader@v1.13
         with:
           repository: 'WebAssembly/wasi-sdk'
           tag: 'wasi-sdk-24'
@@ -137,7 +137,7 @@ jobs:
       - name: Copy WASI executables
         run: mkdir -p ./bin/ && cp ./target/wasm32-wasip1-threads/release/shader-language-server.wasm ./bin/shader-language-server.wasm
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: shader-language-server-wasm32-wasip1-threads
           path: ./bin/

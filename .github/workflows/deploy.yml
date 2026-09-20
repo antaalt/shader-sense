@@ -41,16 +41,16 @@ jobs:
               dxc-dxcompiler:
 
     steps:
-      - uses: actions/checkout@v4 # Required for release upload
+      - uses: actions/checkout@v7 # Required for release upload
       - name: Create bundle folder
         run: mkdir -p ./package
       - name: Download server binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: shader-language-server-${{ matrix.rust-target }}
           path: ./package
       - name: Download dxc dll.
-        uses: robinraju/release-downloader@v1.11
+        uses: robinraju/release-downloader@v1.13
         if: ${{ matrix.dxc-zip != '' }}
         with:
           repository: 'microsoft/DirectXShaderCompiler'
@@ -75,7 +75,7 @@ jobs:
     if: ${{ !github.event.release.prerelease }}
 
     steps:
-      - uses: actions/checkout@v4 # Required for release upload
+      - uses: actions/checkout@v7 # Required for release upload
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
