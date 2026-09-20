@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.6.0] - 2026-09-20
+
+### Added
+
+- New custom command `textDocument/dependencyTree` to request all dependencies of a file as JSON hierarchy.
+- Add new settings `shader-validator.glsl.version.version` and `shader-validator.glsl.version.profile` to override glsl version and profile as an option.
+
+### Fixed
+
+- Improved server stability with better error handling to avoid crash.
+- Improved handling of user given URL.
+- Issue with cancel request which was cancelling the last request instead of the one specified.
+- Issue with file not watched error that were not sending back an error to client and instead simply cancelling the request, silencing the error.
+
 ## [1.5.0] - 2026-09-07
 
 ### Added
@@ -497,7 +511,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.5.0...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/antaalt/shader-sense/compare/v1.5.0..v1.6.0
 [1.5.0]: https://github.com/antaalt/shader-sense/compare/v1.4.3...v1.5.0
 [1.4.3]: https://github.com/antaalt/shader-sense/compare/v1.4.2...v1.4.3
 [1.4.2]: https://github.com/antaalt/shader-sense/compare/v1.4.1...v1.4.2
