@@ -5,7 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use serde::{Deserialize, Serialize};
 use tree_sitter::{Tree, TreeCursor};
 
 use crate::{
