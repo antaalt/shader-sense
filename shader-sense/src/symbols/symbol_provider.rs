@@ -387,7 +387,7 @@ impl SymbolProvider {
             result
         } else {
             // Set empty symbols to avoid crash when getting symbols.
-            include.cache = Some(ShaderSymbols::default());
+            include.cache = Some(ShaderSymbols::empty(include.get_absolute_path()));
             // Notify
             return Err(ShaderError::SymbolQueryError(
                 format!(

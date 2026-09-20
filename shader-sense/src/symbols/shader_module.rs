@@ -9,7 +9,7 @@ use tree_sitter::{Tree, TreeCursor};
 
 use crate::{
     include::canonicalize,
-    shader::ShaderContextParams,
+    shader::{ShaderContextParams, ShaderParams},
     symbols::symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
 };
 
@@ -28,7 +28,7 @@ pub struct ShaderModule {
 
 pub type ShaderModuleHandle = Rc<RefCell<ShaderModule>>;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct ShaderSymbols {
     pub(super) file_path: PathBuf,
     pub(super) preprocessor: ShaderPreprocessor,
@@ -42,6 +42,9 @@ pub struct ShaderDependencyNode {
 }
 
 impl ShaderSymbols {
+    pub fn empty(file_path: &Path) -> Self {
+        Self::new(file_path, ShaderContextParams::default())
+    }
     pub fn new(file_path: &Path, shader_params: ShaderContextParams) -> Self {
         Self {
             file_path: canonicalize(file_path).unwrap(),

@@ -124,12 +124,23 @@ use shader_sense::{
 
 use super::{server_config::ServerConfig, shader_variant::ShaderVariant};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ServerFileCacheData {
     pub symbol_cache: ShaderSymbols, // Store symbols to avoid computing them at every change.
     pub intrinsics: ShaderSymbolListRef<'static>, // Cached intrinsics to not recompute them everytime
     pub diagnostic_cache: ShaderDiagnosticList,   // Cached diagnostic
     pub compilation_cache: CompilationResult,     // Cached compilation
+}
+
+impl ServerFileCacheData {
+    pub fn empty(file_path: &Path) -> Self {
+        Self {
+            symbol_cache: ShaderSymbols::empty(file_path),
+            intrinsics: ShaderSymbolListRef::default(),
+            diagnostic_cache: ShaderDiagnosticList::default(),
+            compilation_cache: CompilationResult::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -334,7 +345,7 @@ impl ServerLanguageFileCache {
 
         // Get old data and replace it by dummy to avoid empty data on early exit.
         let old_data = self.files.get_mut(&uri).unwrap().data.take();
-        self.files.get_mut(&uri).unwrap().data = Some(ServerFileCacheData::default());
+        self.files.get_mut(&uri).unwrap().data = Some(ServerFileCacheData::empty(&file_path));
 
         // Get symbols for main file.
         let (mut symbols, symbol_diagnostics) = if config.get_symbols() {
@@ -372,7 +383,10 @@ impl ServerLanguageFileCache {
                 }
             }
         } else {
-            (ShaderSymbols::default(), ShaderDiagnosticList::default())
+            (
+                ShaderSymbols::empty(&file_path),
+                ShaderDiagnosticList::default(),
+            )
         };
         // Get diagnostics
         let (compilation, diagnostics) = if config.get_validate() {
