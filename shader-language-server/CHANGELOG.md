@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [1.6.2] - 2026-09-20
+
+### Fixed
+
+- Crash when getting dependency tree and file has not been cached yet because path is empty.
+
 ## [1.6.1] - 2026-09-20
 
 ### Fixed
@@ -517,7 +523,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.6.1...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/antaalt/shader-sense/compare/v1.6.1..v1.6.2
 [1.6.1]: https://github.com/antaalt/shader-sense/compare/v1.6.0..v1.6.1
 [1.6.0]: https://github.com/antaalt/shader-sense/compare/v1.5.0..v1.6.0
 [1.5.0]: https://github.com/antaalt/shader-sense/compare/v1.4.3...v1.5.0

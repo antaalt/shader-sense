@@ -1261,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense"
-version = "1.6.0"
+version = "1.6.1"
 dependencies = [
  "glslang",
  "hassle-rs",
@@ -1287,7 +1287,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "base64-bytes",
  "cfg-if",
