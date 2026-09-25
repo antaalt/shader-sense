@@ -73,7 +73,8 @@ impl hassle_rs::wrapper::DxcIncludeHandler for DxcIncludeHandler<'_> {
                 if self.include_handler.get_visited_count(&include) > 0
                     && content.contains("#pragma once")
                 {
-                    None
+                    // Return empty string
+                    Some("".into())
                 } else {
                     self.include_handler.push_directory_stack(&include);
                     Some(content)

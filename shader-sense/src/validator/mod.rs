@@ -743,6 +743,32 @@ mod tests {
     }
 
     #[test]
+    fn hlsl_pragma_once() {
+        let validator = create_test_validator(ShadingLanguage::Hlsl);
+        let file_path = Path::new("./test/hlsl/pragma-once/main.hlsl");
+        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            file_path,
+            &ShaderParams {
+                compilation: ShaderCompilationParams {
+                    entry_point: Some("main".into()),
+                    shader_stage: Some(ShaderStage::Compute),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+                assert!(diagnostic_list.is_empty())
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
     fn wgsl_stages() {
         // Wgsl only support three main stages.
         // Mesh shader stage: https://github.com/gfx-rs/wgpu/issues/7197
