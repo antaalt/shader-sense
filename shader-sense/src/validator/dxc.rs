@@ -66,8 +66,18 @@ impl hassle_rs::wrapper::DxcIncludeHandler for DxcIncludeHandler<'_> {
             .search_in_includes(&path, self.include_callback)
         {
             Some((content, include)) => {
-                self.include_handler.push_directory_stack(&include);
-                Some(content)
+                // DXC include handler really bad.
+                // Two different path targetting the same file will make DXC interpret
+                // them as different and pragma once declaration will then be ignored.
+                // So if pragma once in file, check if its not already included.
+                if self.include_handler.get_visited_count(&include) > 0
+                    && content.contains("#pragma once")
+                {
+                    None
+                } else {
+                    self.include_handler.push_directory_stack(&include);
+                    Some(content)
+                }
             }
             None => None,
         }
