@@ -16,12 +16,12 @@ use crate::server::ServerLanguage;
 impl ServerLanguage {
     pub fn publish_diagnostic(&mut self, uri: &Url, version: Option<i32>) {
         match self.recolt_diagnostic(uri) {
-            Ok(diagnostics) => {
-                info!("Publishing diagnostic for {} files", diagnostics.len());
-                for (diagnostic_url, diagnostics) in diagnostics {
+            Ok(all_diagnostics) => {
+                info!("Publishing diagnostic for {} files", all_diagnostics.len());
+                for (diagnostic_url, diagnostics) in all_diagnostics {
                     info!(
                         "Publishing diagnostic for file {} ({} diags)",
-                        uri,
+                        diagnostic_url,
                         diagnostics.len()
                     );
                     let publish_diagnostics_params = PublishDiagnosticsParams {
