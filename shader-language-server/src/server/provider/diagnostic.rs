@@ -109,7 +109,7 @@ impl ServerLanguage {
 
             for diagnostic in &diagnostic_cache.diagnostics {
                 let uri = Url::from_file_path(&diagnostic.range.file_path).unwrap();
-                if diagnostic.severity.is_required(self.config.get_severity()) {
+                if diagnostic.severity.is_required(&self.config.get_severity()) {
                     let diagnostic = Diagnostic {
                         range: shader_range_to_lsp_range(&diagnostic.range.range),
                         severity: Some(Self::get_lsp_severity(&diagnostic.severity)),

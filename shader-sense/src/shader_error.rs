@@ -36,7 +36,7 @@ impl From<&str> for ShaderDiagnosticSeverity {
 
 impl ShaderDiagnosticSeverity {
     /// Is this diagnostic required
-    pub fn is_required(&self, required_severity: ShaderDiagnosticSeverity) -> bool {
+    pub fn is_required(&self, required_severity: &ShaderDiagnosticSeverity) -> bool {
         self.get_enum_index() <= required_severity.get_enum_index()
     }
     fn get_enum_index(&self) -> u32 {

@@ -489,8 +489,8 @@ impl ServerConfig {
     pub fn is_verbose(&self) -> bool {
         self.trace.is_verbose()
     }
-    pub fn get_severity(&self) -> ShaderDiagnosticSeverity {
-        self.severity.clone() // TODO: ref
+    pub fn get_severity(&self) -> &ShaderDiagnosticSeverity {
+        &self.severity
     }
     pub fn get_glsl_preamble_path(&self) -> Option<&PathBuf> {
         self.glsl.preamble_path.as_ref()
@@ -675,7 +675,7 @@ mod tests {
                 == ServerConfig::DEFAULT_AUTOMATIC_VARIANT_DISCOVERY
         );
         assert!(cfg.is_verbose() == ServerConfig::DEFAULT_TRACE.is_verbose());
-        assert!(cfg.get_severity() == ServerConfig::DEFAULT_SEVERITY);
+        assert!(*cfg.get_severity() == ServerConfig::DEFAULT_SEVERITY);
     }
 
     #[test]

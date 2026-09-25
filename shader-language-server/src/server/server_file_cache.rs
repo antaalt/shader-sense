@@ -453,7 +453,7 @@ impl ServerLanguageFileCache {
                 let required_severity = config.get_severity();
                 diagnostic_list
                     .diagnostics
-                    .retain(|e| e.severity.is_required(required_severity.clone()));
+                    .retain(|e| e.severity.is_required(&required_severity));
             }
             {
                 // If includes have issues, diagnose them.
