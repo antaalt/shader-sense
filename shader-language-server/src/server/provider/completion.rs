@@ -22,7 +22,7 @@ impl ServerLanguage {
     ) -> Result<Vec<CompletionItem>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
         let language_data = self.get_language_data(&cached_file.shading_language)?;
-        let symbol_list = self.watched_files.get_all_symbols(uri);
+        let mut symbol_list = self.watched_files.get_all_symbols(uri);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
         let shader_position = {
             let position = ShaderFilePosition::new(
@@ -80,7 +80,7 @@ impl ServerLanguage {
         };
         let shader_file_position =
             ShaderFilePosition::from(cached_file.file_path.clone(), shader_position);
-        let symbol_list = symbol_list.filter_scoped_symbol(&shader_file_position);
+        symbol_list.retain_scoped_symbol(&shader_file_position);
         match trigger_character {
             Some(_) => {
                 match language_data.symbol_provider.get_word_range_at_position(

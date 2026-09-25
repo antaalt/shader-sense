@@ -153,42 +153,44 @@ impl ShaderWordRange {
             // Will be a variable or function (root only), method, or member if chained.
             let stack = self.get_word_stack();
             let mut rev_stack = stack.iter().rev();
-            // TODO: SHould not require file path & filter here...
-            let symbol_list = symbol_list
-                .filter_scoped_symbol(&self.range.end.clone_into_file(file_path.clone()));
+            let cursor_position = self.range.end.clone_into_file(file_path.clone());
             // Look for root symbol (either a function or variable)
             let root_symbol = match rev_stack.next() {
-                Some(current_word) => match symbol_list.find_symbol(&current_word.word) {
-                    Some(symbol) => {
-                        match &symbol.data {
-                            ShaderSymbolData::CallExpression {
-                                label,
-                                range: _,
-                                parameters: _,
-                            } => {
-                                match symbol_list.find_function_symbol(label) {
-                                    Some(function) => {
-                                        if let ShaderSymbolData::Functions { signatures: _ } =
-                                            &function.data
-                                        {
-                                            symbol
-                                        } else {
-                                            return vec![]; // Not a valid function
+                Some(current_word) => {
+                    match symbol_list.find_scoped_symbol(&current_word.word, &cursor_position) {
+                        Some(symbol) => {
+                            match &symbol.data {
+                                ShaderSymbolData::CallExpression {
+                                    label,
+                                    range: _,
+                                    parameters: _,
+                                } => {
+                                    match symbol_list
+                                        .find_scoped_function_symbol(label, &cursor_position)
+                                    {
+                                        Some(function) => {
+                                            if let ShaderSymbolData::Functions { signatures: _ } =
+                                                &function.data
+                                            {
+                                                symbol
+                                            } else {
+                                                return vec![]; // Not a valid function
+                                            }
                                         }
+                                        None => return vec![], // No matching function found
                                     }
-                                    None => return vec![], // No matching function found
                                 }
+                                ShaderSymbolData::Functions { signatures: _ } => symbol,
+                                ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
+                                ShaderSymbolData::Enum { values: _ } => symbol,
+                                _ => return vec![], // Symbol found is not a variable nor a function.
                             }
-                            ShaderSymbolData::Functions { signatures: _ } => symbol,
-                            ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
-                            ShaderSymbolData::Enum { values: _ } => symbol,
-                            _ => return vec![], // Symbol found is not a variable nor a function.
+                        }
+                        None => {
+                            return vec![]; // No variable found for main parent.
                         }
                     }
-                    None => {
-                        return vec![]; // No variable found for main parent.
-                    }
-                },
+                }
                 None => unreachable!("Should always have at least one symbol on this path."),
             };
             // Now loop over child for matching member elements
@@ -203,7 +205,7 @@ impl ShaderWordRange {
                         range: _,
                         parameters: _,
                     } => {
-                        match symbol_list.find_function_symbol(label) {
+                        match symbol_list.find_scoped_function_symbol(label, &cursor_position) {
                             Some(function) => {
                                 if let ShaderSymbolData::Functions { signatures } = &function.data {
                                     &signatures[0].returnType
@@ -237,7 +239,7 @@ impl ShaderWordRange {
                     _ => return vec![], // Invalid type
                 };
                 // Find the type symbol of the variable / method.
-                let symbol_ty = match symbol_list.find_type_symbol(&ty) {
+                let symbol_ty = match symbol_list.find_scoped_type_symbol(&ty, &cursor_position) {
                     Some(ty_symbol) => ty_symbol,
                     None => return vec![], // No matching type found
                 };

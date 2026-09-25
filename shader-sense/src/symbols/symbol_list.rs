@@ -30,6 +30,36 @@ pub struct ShaderSymbolListRef<'a> {
     pub includes: Vec<&'a ShaderSymbol>,
 }
 
+// Collect references to the symbols matching the predicate.
+// `Filter` only reports a lower size bound of 0, and `Vec`'s `FromIterator` uses
+// that lower bound as initial capacity, so a plain `.filter().collect()` regrows
+// and memcpy the vector log2(n) times for each of the eight categories. Sizing it
+// upfront trades a transient over-allocation for a single allocation.
+fn filter_symbols<'a, P: Fn(ShaderSymbolType, &ShaderSymbol) -> bool>(
+    symbols: &'a [ShaderSymbol],
+    symbol_type: ShaderSymbolType,
+    predicate: &P,
+) -> Vec<&'a ShaderSymbol> {
+    let mut filtered = Vec::with_capacity(symbols.len());
+    filtered.extend(symbols.iter().filter(|e| predicate(symbol_type, *e)));
+    filtered
+}
+// Same as `filter_symbols`, but filtering an already borrowed list.
+fn filter_symbols_ref<'a, P: Fn(ShaderSymbolType, &ShaderSymbol) -> bool>(
+    symbols: &[&'a ShaderSymbol],
+    symbol_type: ShaderSymbolType,
+    predicate: &P,
+) -> Vec<&'a ShaderSymbol> {
+    let mut filtered = Vec::with_capacity(symbols.len());
+    filtered.extend(
+        symbols
+            .iter()
+            .filter(|e| predicate(symbol_type, **e))
+            .map(|e| *e),
+    );
+    filtered
+}
+
 impl ShaderSymbolList {
     // Parse intrinsic database
     pub fn parse_from_json(file_content: String) -> ShaderSymbolList {
@@ -66,46 +96,18 @@ impl ShaderSymbolList {
         predicate: P,
     ) -> ShaderSymbolListRef<'a> {
         ShaderSymbolListRef {
-            types: self
-                .types
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Types, *e))
-                .collect(),
-            constants: self
-                .constants
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Constants, *e))
-                .collect(),
-            variables: self
-                .variables
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Variables, *e))
-                .collect(),
-            call_expression: self
-                .call_expression
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::CallExpression, *e))
-                .collect(),
-            functions: self
-                .functions
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Functions, *e))
-                .collect(),
-            keywords: self
-                .keywords
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Keyword, *e))
-                .collect(),
-            macros: self
-                .macros
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Macros, *e))
-                .collect(),
-            includes: self
-                .includes
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Include, *e))
-                .collect(),
+            types: filter_symbols(&self.types, ShaderSymbolType::Types, &predicate),
+            constants: filter_symbols(&self.constants, ShaderSymbolType::Constants, &predicate),
+            variables: filter_symbols(&self.variables, ShaderSymbolType::Variables, &predicate),
+            call_expression: filter_symbols(
+                &self.call_expression,
+                ShaderSymbolType::CallExpression,
+                &predicate,
+            ),
+            functions: filter_symbols(&self.functions, ShaderSymbolType::Functions, &predicate),
+            keywords: filter_symbols(&self.keywords, ShaderSymbolType::Keyword, &predicate),
+            macros: filter_symbols(&self.macros, ShaderSymbolType::Macros, &predicate),
+            includes: filter_symbols(&self.includes, ShaderSymbolType::Include, &predicate),
         }
     }
 }
@@ -168,6 +170,38 @@ impl<'a> ShaderSymbolListRef<'a> {
             })
             .collect()
     }
+    // Single label lookups honouring the cursor scope.
+    // These exist so that callers looking for one symbol do not have to materialize
+    // a whole filtered list through `filter_scoped_symbol` first.
+    pub fn find_scoped_symbol(
+        &'a self,
+        label: &str,
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<&'a ShaderSymbol> {
+        self.iter().find(|s| {
+            s.label == *label && !s.is_transient() && Self::is_symbol_defined_at(s, cursor_position)
+        })
+    }
+    pub fn find_scoped_function_symbol(
+        &'a self,
+        label: &str,
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<&'a ShaderSymbol> {
+        self.functions
+            .iter()
+            .find(|s| s.label == *label && Self::is_symbol_defined_at(s, cursor_position))
+            .map(|s| *s)
+    }
+    pub fn find_scoped_type_symbol(
+        &'a self,
+        label: &str,
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<&'a ShaderSymbol> {
+        self.types
+            .iter()
+            .find(|s| s.label == *label && Self::is_symbol_defined_at(s, cursor_position))
+            .map(|s| *s)
+    }
     pub fn filter_scoped_symbol(
         &'a self,
         cursor_position: &ShaderFilePosition,
@@ -201,55 +235,46 @@ impl<'a> ShaderSymbolListRef<'a> {
         predicate: P,
     ) -> ShaderSymbolListRef<'a> {
         ShaderSymbolListRef {
-            types: self
-                .types
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Types, *e))
-                .map(|s| *s)
-                .collect(),
-            constants: self
-                .constants
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Constants, *e))
-                .map(|s| *s)
-                .collect(),
-            variables: self
-                .variables
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Variables, *e))
-                .map(|s| *s)
-                .collect(),
-            call_expression: self
-                .call_expression
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::CallExpression, *e))
-                .map(|s| *s)
-                .collect(),
-            functions: self
-                .functions
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Functions, *e))
-                .map(|s| *s)
-                .collect(),
-            keywords: self
-                .keywords
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Keyword, *e))
-                .map(|s| *s)
-                .collect(),
-            macros: self
-                .macros
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Macros, *e))
-                .map(|s| *s)
-                .collect(),
-            includes: self
-                .includes
-                .iter()
-                .filter(|e| predicate(ShaderSymbolType::Include, *e))
-                .map(|s| *s)
-                .collect(),
+            types: filter_symbols_ref(&self.types, ShaderSymbolType::Types, &predicate),
+            constants: filter_symbols_ref(&self.constants, ShaderSymbolType::Constants, &predicate),
+            variables: filter_symbols_ref(&self.variables, ShaderSymbolType::Variables, &predicate),
+            call_expression: filter_symbols_ref(
+                &self.call_expression,
+                ShaderSymbolType::CallExpression,
+                &predicate,
+            ),
+            functions: filter_symbols_ref(&self.functions, ShaderSymbolType::Functions, &predicate),
+            keywords: filter_symbols_ref(&self.keywords, ShaderSymbolType::Keyword, &predicate),
+            macros: filter_symbols_ref(&self.macros, ShaderSymbolType::Macros, &predicate),
+            includes: filter_symbols_ref(&self.includes, ShaderSymbolType::Include, &predicate),
         }
+    }
+    // Drop every symbol not matching the predicate, in place.
+    // Prefer this over `filter` when the list is owned by the caller: it does not
+    // allocate at all, and it does not keep the unfiltered list borrowed.
+    pub fn retain<P: Fn(ShaderSymbolType, &ShaderSymbol) -> bool>(&mut self, predicate: P) {
+        self.types.retain(|e| predicate(ShaderSymbolType::Types, e));
+        self.constants
+            .retain(|e| predicate(ShaderSymbolType::Constants, e));
+        self.variables
+            .retain(|e| predicate(ShaderSymbolType::Variables, e));
+        self.call_expression
+            .retain(|e| predicate(ShaderSymbolType::CallExpression, e));
+        self.functions
+            .retain(|e| predicate(ShaderSymbolType::Functions, e));
+        self.keywords
+            .retain(|e| predicate(ShaderSymbolType::Keyword, e));
+        self.macros
+            .retain(|e| predicate(ShaderSymbolType::Macros, e));
+        self.includes
+            .retain(|e| predicate(ShaderSymbolType::Include, e));
+    }
+    // In place version of `filter_scoped_symbol`.
+    pub fn retain_scoped_symbol(&mut self, cursor_position: &ShaderFilePosition) {
+        // Transient symbols are a whole category, no need to test them one by one.
+        debug_assert!(ShaderSymbolType::CallExpression.is_transient());
+        self.call_expression.clear();
+        self.retain(|_symbol_type, symbol| Self::is_symbol_defined_at(symbol, cursor_position));
     }
     pub fn iter(&'a self) -> ShaderSymbolListIterator<'a> {
         ShaderSymbolListIterator::new(&self)

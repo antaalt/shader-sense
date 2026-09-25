@@ -456,7 +456,7 @@ pub struct ShaderSymbol {
     pub mode: ShaderSymbolMode,                    // Data for runtime or intrinsic.
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShaderSymbolType {
     Types,
     Constants,

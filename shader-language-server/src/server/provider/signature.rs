@@ -26,8 +26,8 @@ impl ServerLanguage {
             position.character as u32,
         );
         let language_data = self.get_language_data(&cached_file.shading_language)?;
-        let all_symbol_list = self.watched_files.get_all_symbols(uri);
-        let symbol_list = all_symbol_list.filter_scoped_symbol(&shader_position);
+        let mut symbol_list = self.watched_files.get_all_symbols(uri);
+        symbol_list.retain_scoped_symbol(&shader_position);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
         let function_parameter = self.get_function_parameter_at_position(content, position);
         let (word_range, parameter_index) =
