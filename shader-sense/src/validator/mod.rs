@@ -743,6 +743,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "wasi"))] // Glslang HLSL do not support pragma once
     fn hlsl_pragma_once() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
         let file_path = Path::new("./test/hlsl/pragma-once/main.hlsl");
