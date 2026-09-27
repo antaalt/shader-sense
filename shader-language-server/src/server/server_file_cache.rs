@@ -641,7 +641,7 @@ impl ServerLanguageFileCache {
                             ) {
                                 Some(variant_include) => {
                                     if first_include.insert(include.get_absolute_path().into()) {
-                                        include.cache = variant_include.cache.clone();
+                                        include.cache.clone_from(&variant_include.cache);
                                     }
                                 }
                                 None => {} // Not found
