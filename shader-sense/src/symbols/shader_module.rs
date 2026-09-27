@@ -9,7 +9,7 @@ use tree_sitter::{Tree, TreeCursor};
 
 use crate::{
     include::canonicalize,
-    shader::{ShaderContextParams, ShaderParams},
+    shader::ShaderContextParams,
     symbols::symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
 };
 
@@ -19,7 +19,7 @@ use super::prepocessor::{
 
 /// Shader module holding the [`tree_sitter`]  AST.
 /// Need to be created with [`ShaderModuleParser`]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ShaderModule {
     pub file_path: PathBuf,
     pub content: String,
