@@ -1759,7 +1759,7 @@ dependencies = [
  "tree-sitter-glsl",
  "tree-sitter-hlsl",
  "tree-sitter-language",
- "tree-sitter-wgsl-bevy",
+ "tree-sitter-wesl",
  "wesl",
 ]
 
@@ -2114,9 +2114,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
 
 [[package]]
-name = "tree-sitter-wgsl-bevy"
-version = "0.1.4"
-source = "git+https://github.com/antaalt/tree-sitter-wgsl-bevy?branch=fix-compil-clang#bf5cc8e2163441d001fc38c4a86085b19d0b7585"
+name = "tree-sitter-wesl"
+version = "0.0.1"
+source = "git+https://github.com/webgpu-tools/tree-sitter-wesl?rev=cc3c159ea55b129462da662f72ec584f0df80a19#cc3c159ea55b129462da662f72ec584f0df80a19"
 dependencies = [
  "cc",
  "tree-sitter-language",

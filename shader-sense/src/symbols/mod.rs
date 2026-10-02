@@ -214,7 +214,7 @@ mod tests {
             )
             .unwrap();
         let symbols = symbols.get_all_symbols();
-        assert!(symbols.functions.is_empty());
+        assert!(!symbols.functions.is_empty());
     }
     #[test]
     fn symbol_scope_glsl_ok() {
