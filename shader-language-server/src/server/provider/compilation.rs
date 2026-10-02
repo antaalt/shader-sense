@@ -1,7 +1,11 @@
 use lsp_types::{request::Request, TextDocumentIdentifier, Url};
 use serde::{Deserialize, Serialize};
 use shader_sense::{
-    shader::ShadingLanguage, validator::{validator::CompilationResult, wesl::{spirv_to_wgsl, wgsl_to_spirv}},
+    shader::ShadingLanguage,
+    validator::{
+        validator::CompilationResult,
+        wesl::{spirv_to_wgsl, wgsl_to_spirv},
+    },
 };
 
 use crate::server::{

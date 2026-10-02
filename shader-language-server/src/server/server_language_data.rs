@@ -1,5 +1,7 @@
 use shader_sense::{
-    shader::ShadingLanguage, symbols::{shader_module_parser::ShaderModuleParser, symbol_provider::SymbolProvider}, validator::{glslang::Glslang, validator::ValidatorImpl, wesl::Wesl},
+    shader::ShadingLanguage,
+    symbols::{shader_module_parser::ShaderModuleParser, symbol_provider::SymbolProvider},
+    validator::{glslang::Glslang, validator::ValidatorImpl, wesl::Wesl},
 };
 
 #[cfg(not(target_os = "wasi"))]
