@@ -46,7 +46,7 @@ impl ServerLanguage {
     pub fn recolt_dependency_dump(&mut self, uri: &Url) -> Result<String, ServerLanguageError> {
         // Check if its owned by a variant.
         let cached_file_uri = if let Some(variant) = &self.watched_files.variant {
-            if let Some(variant_file) = self.watched_files.files.get(&variant.url) {
+            if let Some(variant_file) = self.watched_files.files.get(&variant.uri) {
                 if let Some(variant_data) = &variant_file.data {
                     if variant_data
                         .symbol_cache
@@ -56,7 +56,7 @@ impl ServerLanguage {
                         })
                         .is_some()
                     {
-                        Some(variant.url.clone())
+                        Some(variant.uri.clone())
                     } else {
                         None
                     }

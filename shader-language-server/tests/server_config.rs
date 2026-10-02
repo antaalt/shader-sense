@@ -36,7 +36,7 @@ fn test_glsl_relative_preamble() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new("glsl/dependent-include.frag.glsl", ShadingLanguage::Glsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -71,7 +71,7 @@ fn test_validate() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new("glsl/error-parsing.frag.glsl", ShadingLanguage::Glsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -106,7 +106,7 @@ fn test_symbols() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -136,7 +136,7 @@ fn test_partial_config_update() {
     }));
 
     let file = TestFile::new("glsl/include-level.comp.glsl", ShadingLanguage::Glsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -166,7 +166,7 @@ fn test_stage_define() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -174,7 +174,7 @@ fn test_stage_define() {
     // Enforce stage with variant
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "mainOk".into(),
             stage: Some(ShaderStage::Fragment),
@@ -219,7 +219,7 @@ fn test_config_override() {
     let mut server = TestServer::new(config, Transport::Stdio).unwrap();
 
     let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file.item(),
@@ -227,7 +227,7 @@ fn test_config_override() {
     // Enforce stage with variant
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "mainOk".into(),
             stage: Some(ShaderStage::Fragment),

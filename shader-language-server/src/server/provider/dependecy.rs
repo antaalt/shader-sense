@@ -10,7 +10,7 @@ pub enum DependencyTreeRequest {}
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DependencyTreeNode {
-    pub url: Url,
+    pub uri: Url,
     pub includes: Vec<DependencyTreeNode>,
 }
 
@@ -37,7 +37,7 @@ impl ServerLanguage {
         // Convert path to URI for web support.
         fn convert(node: ShaderDependencyNode) -> DependencyTreeNode {
             DependencyTreeNode {
-                url: Url::from_file_path(node.path).unwrap(),
+                uri: Url::from_file_path(node.path).unwrap(),
                 includes: node.includes.into_iter().map(|i| convert(i)).collect(),
             }
         }

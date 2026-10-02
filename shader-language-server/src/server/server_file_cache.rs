@@ -195,12 +195,12 @@ impl ServerLanguageFileCache {
             .find(|w| file_path.starts_with(&w.to_file_path().unwrap()))
     }
     // Get all main files that #include the given file (its includers).
-    pub fn get_includer_main_files(&self, included_url: &Url) -> HashSet<Url> {
-        let included_file_path = included_url.to_file_path().unwrap();
+    pub fn get_includer_main_files(&self, included_uri: &Url) -> HashSet<Url> {
+        let included_file_path = included_uri.to_file_path().unwrap();
         self.files
             .iter()
-            .filter(|(file_url, file)| {
-                *file_url != included_url
+            .filter(|(file_uri, file)| {
+                *file_uri != included_uri
                     && file.is_cachable_file()
                     && file.has_data()
                     && file
@@ -208,7 +208,7 @@ impl ServerLanguageFileCache {
                         .symbol_cache
                         .has_dependency(&included_file_path)
             })
-            .map(|(url, _file)| url.clone())
+            .map(|(uri, _file)| uri.clone())
             .collect()
     }
     // Find a variant from the list of all main file and return the first found.
@@ -225,7 +225,7 @@ impl ServerLanguageFileCache {
             );
             // Auto generate a variant from found main file.
             Some(ShaderVariant {
-                url: first_main_file,
+                uri: first_main_file,
                 shading_language,
                 entry_point: "".into(),
                 stage: None,
@@ -239,8 +239,8 @@ impl ServerLanguageFileCache {
     }
     // Get all main files that the given file #includes (its included files).
     #[allow(dead_code)]
-    pub fn get_included_main_files(&self, url: &Url) -> HashSet<Url> {
-        match self.files.get(url) {
+    pub fn get_included_main_files(&self, uri: &Url) -> HashSet<Url> {
+        match self.files.get(uri) {
             Some(file) => {
                 let mut included_files = HashSet::new();
                 file.get_data().symbol_cache.visit_includes(&mut |include| {
@@ -259,15 +259,15 @@ impl ServerLanguageFileCache {
                 debug_assert!(
                     false,
                     "Trying to get included main files for file {} that is not watched",
-                    url
+                    uri
                 );
                 HashSet::new()
             }
         }
     }
     // Get all files that the given file #includes (its included files).
-    pub fn get_all_included_files(&self, url: &Url) -> HashSet<Url> {
-        match self.files.get(url) {
+    pub fn get_all_included_files(&self, uri: &Url) -> HashSet<Url> {
+        match self.files.get(uri) {
             Some(file) => {
                 let mut included_files = HashSet::new();
                 file.get_data().symbol_cache.visit_includes(&mut |include| {
@@ -285,17 +285,17 @@ impl ServerLanguageFileCache {
                 debug_assert!(
                     false,
                     "Trying to get all included files for file {} that is not watched",
-                    url
+                    uri
                 );
                 HashSet::new()
             }
         }
     }
     #[allow(unused)]
-    pub fn is_variant_including_file(&self, url: &Url) -> bool {
-        let file_path = url.to_file_path().unwrap();
+    pub fn is_variant_including_file(&self, uri: &Url) -> bool {
+        let file_path = uri.to_file_path().unwrap();
         match &self.variant {
-            Some(variant) => match self.files.get(&variant.url) {
+            Some(variant) => match self.files.get(&variant.uri) {
                 Some(variant_cached_file) => variant_cached_file
                     .get_data()
                     .symbol_cache
@@ -399,7 +399,7 @@ impl ServerLanguageFileCache {
                 profile_scope!("Raw validation");
                 let variant_shader_module = match &variant {
                     Some(variant) => {
-                        Rc::clone(&self.files.get(&variant.url).unwrap().shader_module)
+                        Rc::clone(&self.files.get(&variant.uri).unwrap().shader_module)
                     }
                     None => shader_module,
                 };
@@ -565,19 +565,19 @@ impl ServerLanguageFileCache {
 
         // Copy variant deps data to all its included data.
         if let Some(variant) = &variant {
-            let variant_file = self.files.get(&variant.url).unwrap();
+            let variant_file = self.files.get(&variant.uri).unwrap();
             let mut file_to_cache = HashMap::new();
             variant_file
                 .get_data()
                 .symbol_cache
                 .visit_includes(&mut |include| {
                     // Here, we could visit the same include twice, which will overwrite final cache.
-                    let include_url = Url::from_file_path(include.get_absolute_path()).unwrap();
-                    match self.files.get(&include_url) {
+                    let include_uri = Url::from_file_path(include.get_absolute_path()).unwrap();
+                    match self.files.get(&include_uri) {
                         Some(cached_file) => {
                             // Ensure we did not already got cache for this file,
                             // second include might have way less symbols (because of include guard mostly)
-                            if !file_to_cache.contains_key(&include_url) {
+                            if !file_to_cache.contains_key(&include_uri) {
                                 if cached_file.is_main_file() {
                                     let symbol_cache = include.cache.clone().unwrap();
                                     let diagnostic_cache = ShaderDiagnosticList {
@@ -606,7 +606,7 @@ impl ServerLanguageFileCache {
                                                 .compilation,
                                         );
                                     file_to_cache.insert(
-                                        include_url,
+                                        include_uri,
                                         ServerFileCacheData {
                                             symbol_cache,
                                             intrinsics,
@@ -620,13 +620,13 @@ impl ServerLanguageFileCache {
                         None => {}
                     }
                 });
-            for (include_url, mut include_data) in file_to_cache {
+            for (include_uri, mut include_data) in file_to_cache {
                 // When copying variant cache, some file in tree might be at their second include,
                 // which remove most of their symbols due to include guard.
                 // To workaround this, try to find their first occurence in variant and copy it.
                 let mut first_include: HashSet<PathBuf> = HashSet::new();
                 let mut reached_include = false;
-                let variant_file = self.files.get(&variant.url).unwrap();
+                let variant_file = self.files.get(&variant.uri).unwrap();
                 include_data
                     .symbol_cache
                     .visit_includes_mut(&mut |include| {
@@ -648,7 +648,7 @@ impl ServerLanguageFileCache {
                             }
                         }
                     });
-                self.files.get_mut(&include_url).unwrap().data = Some(include_data);
+                self.files.get_mut(&include_uri).unwrap().data = Some(include_data);
                 // Mark them for publishing diagnostics.
             }
         }
@@ -702,7 +702,7 @@ impl ServerLanguageFileCache {
                 if let Ok(preamble_uri) = Url::from_file_path(preamble_path) {
                     let has_glsl_preamble_in_request = async_cache_requests
                         .iter()
-                        .find(|r| r.url == preamble_uri)
+                        .find(|r| r.uri == preamble_uri)
                         .is_some();
                     has_glsl_preamble_in_request
                 } else {
@@ -713,17 +713,17 @@ impl ServerLanguageFileCache {
                 false
             };
         if need_to_recompute_all_glsl {
-            for (url, file) in &self.files {
+            for (uri, file) in &self.files {
                 if file.shading_language == ShadingLanguage::Glsl {
                     // Check if file already in request. If not, update it.
                     if async_cache_requests
                         .iter()
-                        .find(|r| r.url == *url)
+                        .find(|r| r.uri == *uri)
                         .is_none()
                     {
-                        info!("Preamble edited, caching file {} for recomputing", url);
+                        info!("Preamble edited, caching file {} for recomputing", uri);
                         async_cache_requests.push(AsyncCacheRequest::new(
-                            url.clone(),
+                            uri.clone(),
                             ShadingLanguage::Glsl,
                             true,
                         ));
@@ -735,11 +735,11 @@ impl ServerLanguageFileCache {
         let dirty_files: HashSet<Url> = async_cache_requests
             .iter()
             .filter(|r| r.dirty)
-            .map(|r| r.url.clone())
+            .map(|r| r.uri.clone())
             .collect();
         let dirty_dependencies: HashSet<PathBuf> = dirty_files
             .iter()
-            .map(|url| url.to_file_path().unwrap())
+            .map(|uri| uri.to_file_path().unwrap())
             .collect();
 
         let main_variant_option = self.variant.clone();
@@ -747,14 +747,14 @@ impl ServerLanguageFileCache {
         let need_to_recompute_main_variant = if let Some(main_variant) = &main_variant_option {
             let has_main_variant_in_request = async_cache_requests
                 .iter()
-                .find(|r| r.url == main_variant.url)
+                .find(|r| r.uri == main_variant.uri)
                 .is_some();
             let has_main_variant_included_files_in_request =
-                if let Some(variant_data) = &self.files.get(&main_variant.url).unwrap().data {
+                if let Some(variant_data) = &self.files.get(&main_variant.uri).unwrap().data {
                     async_cache_requests
                         .iter()
                         .find(|r| {
-                            let file_path = r.url.to_file_path().unwrap();
+                            let file_path = r.uri.to_file_path().unwrap();
                             variant_data
                                 .symbol_cache
                                 .find_include(&mut |include| {
@@ -773,22 +773,22 @@ impl ServerLanguageFileCache {
         let mut files_to_clear = HashSet::new();
         let mut includer_files_to_update = HashSet::new();
         let mut files_updating: HashSet<Url> =
-            async_cache_requests.iter().map(|r| r.url.clone()).collect();
+            async_cache_requests.iter().map(|r| r.uri.clone()).collect();
         let mut unique_remaining_files = files_updating.clone();
         let mut files_to_publish = HashSet::new();
         let mut file_progress_index = 0;
         if need_to_recompute_main_variant {
             // Recompute variant.
             let main_variant = main_variant_option.clone().unwrap();
-            let main_variant_url = main_variant.url.clone();
+            let main_variant_uri = main_variant.uri.clone();
             let main_variant_shading_language = main_variant.shading_language;
             let language_data = language_data
                 .get_mut(&main_variant_shading_language)
                 .unwrap();
-            unique_remaining_files.remove(&main_variant_url);
-            files_to_publish.insert(main_variant_url.clone());
-            files_updating.insert(main_variant_url.clone());
-            let file_name = get_file_name(&main_variant_url);
+            unique_remaining_files.remove(&main_variant_uri);
+            files_to_publish.insert(main_variant_uri.clone());
+            files_updating.insert(main_variant_uri.clone());
+            let file_name = get_file_name(&main_variant_uri);
             file_progress_index += 1;
             progress_callback(
                 &file_name,
@@ -796,7 +796,7 @@ impl ServerLanguageFileCache {
                 unique_remaining_files.len() as u32 + 1,
             );
             let removed_files = self.cache_file_data(
-                &main_variant_url,
+                &main_variant_uri,
                 language_data.validator.as_mut(),
                 &mut language_data.shader_module_parser,
                 &mut language_data.symbol_provider,
@@ -806,7 +806,7 @@ impl ServerLanguageFileCache {
             )?;
             files_to_clear.extend(removed_files);
             // Remove request for included files as they are already updated by variant.
-            let included_files = self.get_all_included_files(&main_variant_url);
+            let included_files = self.get_all_included_files(&main_variant_uri);
             unique_remaining_files.retain(|f| {
                 if included_files.contains(f) {
                     let includer_files = self.get_includer_main_files(f);
@@ -818,13 +818,13 @@ impl ServerLanguageFileCache {
             });
             files_updating.extend(included_files);
             // If file is dirty, request update for its includer files.
-            if dirty_files.contains(&main_variant_url) {
-                let includer_files = self.get_includer_main_files(&main_variant_url);
+            if dirty_files.contains(&main_variant_uri) {
+                let includer_files = self.get_includer_main_files(&main_variant_uri);
                 for includer_file in includer_files {
                     if !files_updating.contains(&includer_file) {
                         info!(
                             "File {} is being updated as it #includes {}",
-                            includer_file, main_variant_url
+                            includer_file, main_variant_uri
                         );
                         files_updating.insert(includer_file.clone());
                         includer_files_to_update.insert(includer_file);
@@ -839,11 +839,11 @@ impl ServerLanguageFileCache {
             for remaining_file in &automatic_remaining_files {
                 // Some check we assume to avoid conflict with manual variant.
                 debug_assert!(
-                    main_variant_option.iter().find(|v| v.url == *remaining_file).is_none(),
+                    main_variant_option.iter().find(|v| v.uri == *remaining_file).is_none(),
                     "Should never be reached as it should be removed from unique_remaining_files array"
                 );
                 debug_assert!(
-                    main_variant_option.iter().find(|v| self.get_all_included_files(&v.url).contains(remaining_file)).is_none(),
+                    main_variant_option.iter().find(|v| self.get_all_included_files(&v.uri).contains(remaining_file)).is_none(),
                     "Should never be reached as it should be removed from unique_remaining_files array as deps"
                 );
                 if let Some(auto_variant) =
@@ -851,17 +851,17 @@ impl ServerLanguageFileCache {
                 {
                     info!(
                         "Found file {} as automatic variant for file {}",
-                        auto_variant.url, remaining_file
+                        auto_variant.uri, remaining_file
                     );
-                    let auto_variant_url = auto_variant.url.clone();
+                    let auto_variant_uri = auto_variant.uri.clone();
                     let auto_variant_shading_language = auto_variant.shading_language;
                     let language_data = language_data
                         .get_mut(&auto_variant_shading_language)
                         .unwrap();
-                    unique_remaining_files.remove(&auto_variant_url);
-                    files_to_publish.insert(auto_variant_url.clone());
-                    files_updating.insert(auto_variant_url.clone());
-                    let file_name = get_file_name(&auto_variant_url);
+                    unique_remaining_files.remove(&auto_variant_uri);
+                    files_to_publish.insert(auto_variant_uri.clone());
+                    files_updating.insert(auto_variant_uri.clone());
+                    let file_name = get_file_name(&auto_variant_uri);
                     file_progress_index += 1;
                     auto_variant_computed += 1;
                     progress_callback(
@@ -870,7 +870,7 @@ impl ServerLanguageFileCache {
                         unique_remaining_files.len() as u32 + 1,
                     );
                     let removed_files = self.cache_file_data(
-                        &auto_variant_url,
+                        &auto_variant_uri,
                         language_data.validator.as_mut(),
                         &mut language_data.shader_module_parser,
                         &mut language_data.symbol_provider,
@@ -880,7 +880,7 @@ impl ServerLanguageFileCache {
                     )?;
                     files_to_clear.extend(removed_files);
                     // Remove request for included files as they are already updated by variant.
-                    let included_files = self.get_all_included_files(&auto_variant_url);
+                    let included_files = self.get_all_included_files(&auto_variant_uri);
                     unique_remaining_files.retain(|f| {
                         if included_files.contains(f) {
                             let includer_files = self.get_includer_main_files(f);
@@ -892,13 +892,13 @@ impl ServerLanguageFileCache {
                     });
                     files_updating.extend(included_files);
                     // If file is dirty, request update for its includer files.
-                    if dirty_files.contains(&auto_variant_url) {
-                        let includer_files = self.get_includer_main_files(&auto_variant_url);
+                    if dirty_files.contains(&auto_variant_uri) {
+                        let includer_files = self.get_includer_main_files(&auto_variant_uri);
                         for includer_file in includer_files {
                             if !files_updating.contains(&includer_file) {
                                 info!(
                                     "File {} is being updated as it #includes {}",
-                                    includer_file, auto_variant_url
+                                    includer_file, auto_variant_uri
                                 );
                                 files_updating.insert(includer_file.clone());
                                 includer_files_to_update.insert(includer_file);
@@ -943,7 +943,7 @@ impl ServerLanguageFileCache {
                 &mut language_data.shader_module_parser,
                 &mut language_data.symbol_provider,
                 &config,
-                &self.variant.clone().filter(|v| v.url == *remaining_file),
+                &self.variant.clone().filter(|v| v.uri == *remaining_file),
                 dirty_dependencies.clone(),
             )?;
             files_to_clear.extend(removed_files);
@@ -981,7 +981,7 @@ impl ServerLanguageFileCache {
                 &mut language_data.shader_module_parser,
                 &mut language_data.symbol_provider,
                 &config,
-                &self.variant.clone().filter(|v| v.url == *includer_file),
+                &self.variant.clone().filter(|v| v.uri == *includer_file),
                 dirty_dependencies.clone(),
             )?;
             files_to_clear.extend(removed_files);
@@ -1099,7 +1099,7 @@ impl ServerLanguageFileCache {
                 let shader_module = Rc::new(RefCell::new(
                     shader_module_parser.create_module(&file_path, &text)?,
                 ));
-                debug_assert!(self.variant.as_ref().map(|v| v.url != *uri).unwrap_or(true));
+                debug_assert!(self.variant.as_ref().map(|v| v.uri != *uri).unwrap_or(true));
                 let cached_file = ServerFileCache {
                     shading_language: lang,
                     shader_module: shader_module,
@@ -1167,7 +1167,7 @@ impl ServerLanguageFileCache {
                     is_variant_file: self
                         .variant
                         .as_ref()
-                        .map(|v| v.url == *uri)
+                        .map(|v| v.uri == *uri)
                         .unwrap_or(false),
                 };
                 let none = self.files.insert(uri.clone(), cached_file);
@@ -1223,8 +1223,8 @@ impl ServerLanguageFileCache {
     }
     fn is_used_as_dependency(&self, uri: &Url) -> Option<(&Url, &ServerFileCache)> {
         let file_path = uri.to_file_path().unwrap();
-        self.files.iter().find(|(file_url, file_cache)| {
-            if *file_url != uri {
+        self.files.iter().find(|(file_uri, file_cache)| {
+            if *file_uri != uri {
                 file_cache.has_data()
                     && file_cache
                         .get_data()

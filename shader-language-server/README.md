@@ -133,7 +133,7 @@ interface DidChangeShaderVariantParams {
 }
 
 interface ShaderVariant {
-    url: string, // file of variant
+    uri: string, // file of variant
     shadingLanguage: string, // language id of variant
     entryPoint: string, // The name of the entry point function.
     stage: string | null, // Correspond to the value of the enum ShaderStage in shader-sense, case sensitive. 
@@ -167,7 +167,7 @@ interface DependencyTreeRequestParams {
     uri: string
 }
 interface DependencyTreeRequestResult {
-    path: string, // Path of parent
+    uri: string, // Uri of parent
     include: DependencyTreeRequestResult[] // Include in the parent file.
 }
 ```

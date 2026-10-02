@@ -559,9 +559,9 @@ impl ServerLanguage {
                         .files
                         .iter()
                         .filter(|(_, file)| file.is_cachable_file())
-                        .map(|(url, cached_file)| {
+                        .map(|(uri, cached_file)| {
                             // Mark dirty to force revalidation on setting changes.
-                            AsyncCacheRequest::new(url.clone(), cached_file.shading_language, true)
+                            AsyncCacheRequest::new(uri.clone(), cached_file.shading_language, true)
                         })
                         .collect();
                     Ok(AsyncMessage::UpdateCache(async_updates))
@@ -626,7 +626,7 @@ mod tests {
         let vertex_shader_params = cfg.into_shader_params(
             None,
             Some(ShaderVariant {
-                url: Url::parse("file://test").unwrap(),
+                uri: Url::parse("file://test").unwrap(),
                 stage: Some(ShaderStage::Vertex),
                 shading_language: ShadingLanguage::Hlsl,
                 entry_point: "".into(),
@@ -637,7 +637,7 @@ mod tests {
         let compute_shader_params = cfg.into_shader_params(
             None,
             Some(ShaderVariant {
-                url: Url::parse("file://test").unwrap(),
+                uri: Url::parse("file://test").unwrap(),
                 stage: Some(ShaderStage::Compute),
                 shading_language: ShadingLanguage::Hlsl,
                 entry_point: "".into(),

@@ -7,7 +7,7 @@ use shader_sense::shader::{ShaderStage, ShadingLanguage};
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShaderVariant {
-    pub url: Url,
+    pub uri: Url,
     pub shading_language: ShadingLanguage,
     pub entry_point: String,
     pub stage: Option<ShaderStage>,

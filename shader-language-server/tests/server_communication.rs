@@ -165,7 +165,7 @@ fn test_variant() {
 
     // Test document
     let file = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
-    println!("Opening file {}", file.url);
+    println!("Opening file {}", file.uri);
     let document_symbol_params = get_document_symbol_params(&file);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
@@ -179,7 +179,7 @@ fn test_variant() {
     });
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "".into(),
             stage: None,
@@ -226,8 +226,8 @@ fn test_variant_dependency() {
     // Test document
     let file_variant = TestFile::new("hlsl/variants.hlsl", ShadingLanguage::Hlsl);
     let file_macros = TestFile::new("hlsl/macro.hlsl", ShadingLanguage::Hlsl);
-    println!("Opening file {}", file_variant.url);
-    println!("Opening file {}", file_macros.url);
+    println!("Opening file {}", file_variant.uri);
+    println!("Opening file {}", file_macros.uri);
 
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: file_variant.item(),
@@ -248,7 +248,7 @@ fn test_variant_dependency() {
     );
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file_variant.url.clone(),
+            uri: file_variant.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "".into(),
             stage: None,
@@ -289,7 +289,7 @@ fn test_utf8_edit() {
     let utf8_content_inserted = "こんにちは世界!";
     server.send_notification::<DidChangeTextDocument>(&DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
-            uri: file.url.clone(),
+            uri: file.uri.clone(),
             version: 0,
         },
         content_changes: vec![TextDocumentContentChangeEvent {
@@ -371,7 +371,7 @@ fn test_dependency_include_guard() {
     });
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: variant.url.clone(),
+            uri: variant.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "".into(),
             stage: Some(ShaderStage::Compute),
@@ -533,7 +533,7 @@ fn test_compilation_glsl_spirv() {
     let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Glsl,
             entry_point: "main".into(),
             stage: Some(ShaderStage::Fragment),
@@ -595,7 +595,7 @@ fn test_compilation_hlsl_dxil() {
     let file = TestFile::new("hlsl/ok.hlsl", ShadingLanguage::Hlsl);
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Hlsl,
             entry_point: "fs_main".into(),
             stage: Some(ShaderStage::Fragment),
@@ -721,7 +721,7 @@ fn test_disabling_variant() {
     let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: file.url.clone(),
+            uri: file.uri.clone(),
             shading_language: ShadingLanguage::Glsl,
             entry_point: "main".into(),
             stage: Some(ShaderStage::Fragment),
@@ -755,19 +755,19 @@ fn test_dependency_tree() {
         },
         |dependency_tree| {
             assert_eq!(
-                dependency_tree.url.to_file_path().unwrap(),
+                dependency_tree.uri.to_file_path().unwrap(),
                 workspace_path("glsl/include-level.comp.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.url.to_file_path().unwrap(),
+                dependency_tree.uri.to_file_path().unwrap(),
                 workspace_path("glsl/inc0/level0.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.url.to_file_path().unwrap(),
+                dependency_tree.uri.to_file_path().unwrap(),
                 workspace_path("glsl/inc0/inc1/level1.glsl")
             );
             assert!(dependency_tree.includes.len() == 0);
@@ -783,10 +783,10 @@ fn test_untitled_uri() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
 
     // Test non uri file scheme. They should be ignored, but not crash the server.
-    let file_url = Url::parse("untitled://Untitled").unwrap();
+    let file_uri = Url::parse("untitled://Untitled").unwrap();
     server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
-            uri: file_url.clone(),
+            uri: file_uri.clone(),
             language_id: "glsl".into(),
             version: 0,
             text: "#version 450\nvoid main(){}".into(),
@@ -794,6 +794,6 @@ fn test_untitled_uri() {
     });
     // Server should fail opening, so close will do nothing, but should not crash
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
-        text_document: TextDocumentIdentifier { uri: file_url },
+        text_document: TextDocumentIdentifier { uri: file_uri },
     });
 }

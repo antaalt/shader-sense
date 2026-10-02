@@ -51,7 +51,7 @@ pub fn native_path(file_path: &str) -> PathBuf {
 }
 
 pub struct TestFile {
-    pub url: Url,
+    pub uri: Url,
     pub shading_language: ShadingLanguage,
     pub content: String,
 }
@@ -61,7 +61,7 @@ impl TestFile {
         let content = std::fs::read_to_string(&native_path).unwrap();
         let uri = Self::uri_converter(&file_path);
         Self {
-            url: uri,
+            uri,
             shading_language: shading_language,
             content: content,
         }
@@ -70,16 +70,16 @@ impl TestFile {
     fn uri_converter(file_path: &str) -> Url {
         if use_wasi_server() {
             // Uri only use forward slash as separator, whatever the host.
-            let mut url = Url::parse("file:///").unwrap();
-            url.set_path(&format!("{}/{}", WASI_TEST_FOLDER_MOUNT, file_path));
-            url
+            let mut uri = Url::parse("file:///").unwrap();
+            uri.set_path(&format!("{}/{}", WASI_TEST_FOLDER_MOUNT, file_path));
+            uri
         } else {
             return Url::from_file_path(native_path(file_path)).unwrap();
         }
     }
     pub fn item(&self) -> TextDocumentItem {
         TextDocumentItem {
-            uri: self.url.clone(),
+            uri: self.uri.clone(),
             language_id: self.shading_language.to_string(),
             version: 0,
             text: self.content.clone(),
@@ -87,7 +87,7 @@ impl TestFile {
     }
     pub fn identifier(&self) -> TextDocumentIdentifier {
         TextDocumentIdentifier {
-            uri: self.url.clone(),
+            uri: self.uri.clone(),
         }
     }
     #[allow(dead_code)]

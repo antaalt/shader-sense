@@ -77,29 +77,29 @@ pub struct ServerLanguage {
     regex_parameter_cache: regex::Regex,         // For signature provider
 }
 
-/// Filter invalid url out and clean them to ensure there is not issue when comparing path.
-fn clean_url(url: &mut Url) -> Result<(), ServerLanguageError> {
-    // shader-sense core rely on file path for almost everything. So non file path url scheme
+/// Filter invalid uri out and clean them to ensure there is not issue when comparing path.
+fn clean_uri(uri: &mut Url) -> Result<(), ServerLanguageError> {
+    // shader-sense core rely on file path for almost everything. So non file path uri scheme
     // will crash the shader-sense core. Ignoring them for now
-    // Should instead rely on url in shader-sense instead of file path to fix this.
-    if url.scheme() != "file" {
+    // Should instead rely on uri in shader-sense instead of file path to fix this.
+    if uri.scheme() != "file" {
         return Err(ServerLanguageError::InvalidParams(format!(
-            "Unsupported url scheme: {}",
-            url.scheme()
+            "Unsupported uri scheme: {}",
+            uri.scheme()
         )));
     }
-    // Workaround issue with url encoded as &3a that break key comparison.
+    // Workaround issue with uri encoded as &3a that break key comparison.
     // Clean it by converting back & forth.
-    // This method of cleaning URL fail on WASI due to different path format. Removing it.
+    // This method of cleaning URI fail on WASI due to different path format. Removing it.
     #[cfg(not(target_os = "wasi"))]
     {
-        *url = Url::from_file_path(url.to_file_path().map_err(|_| {
+        *uri = Url::from_file_path(uri.to_file_path().map_err(|_| {
             ServerLanguageError::InternalError(format!(
                 "Failed to convert {} to a valid path.",
-                url
+                uri
             ))
         })?)
-        .map_err(|_| ServerLanguageError::InternalError(format!("Failed to clean url {}.", url)))?;
+        .map_err(|_| ServerLanguageError::InternalError(format!("Failed to clean uri {}.", uri)))?;
     }
     Ok(())
 }
@@ -876,11 +876,11 @@ impl ServerLanguage {
                     params.text_document.uri
                 );
                 debug!("Params: {}", self.debug(&params));
-                let removed_urls = self
+                let removed_uris = self
                     .watched_files
                     .remove_main_file(&params.text_document.uri)?;
-                for removed_url in removed_urls {
-                    self.clear_diagnostic(&removed_url);
+                for removed_uri in removed_uris {
+                    self.clear_diagnostic(&removed_uri);
                 }
                 Ok(AsyncMessage::None)
             }
@@ -936,12 +936,12 @@ impl ServerLanguage {
                     notification.method,
                     new_variant
                         .as_ref()
-                        .map(|v| v.url.to_string())
+                        .map(|v| v.uri.to_string())
                         .unwrap_or("None".into())
                 );
                 debug!("Params: {}", self.debug(&params));
                 if *new_variant != self.watched_files.variant {
-                    let updated_url = if let Some(new_variant) = new_variant {
+                    let updated_uri = if let Some(new_variant) = new_variant {
                         let language_data = self
                             .language_data
                             .get_mut(&new_variant.shading_language)
@@ -950,29 +950,29 @@ impl ServerLanguage {
                             ))?;
                         if let Some(old_variant) = &self.watched_files.variant {
                             // Remove old variant if not used anymore.
-                            if new_variant.url != old_variant.url {
-                                let old_variant_url = old_variant.url.clone();
+                            if new_variant.uri != old_variant.uri {
+                                let old_variant_uri = old_variant.uri.clone();
                                 let old_variant_language = old_variant.shading_language;
                                 // Watch new variant
                                 self.watched_files.watch_variant_file(
-                                    &new_variant.url,
+                                    &new_variant.uri,
                                     new_variant.shading_language,
                                     &mut language_data.shader_module_parser,
                                 )?;
                                 // Remove old one.
-                                let removed_urls =
-                                    self.watched_files.remove_variant_file(&old_variant_url)?;
-                                for removed_url in removed_urls {
-                                    self.clear_diagnostic(&removed_url);
+                                let removed_uris =
+                                    self.watched_files.remove_variant_file(&old_variant_uri)?;
+                                for removed_uri in removed_uris {
+                                    self.clear_diagnostic(&removed_uri);
                                 }
                                 vec![
                                     AsyncCacheRequest::new(
-                                        new_variant.url.clone(),
+                                        new_variant.uri.clone(),
                                         new_variant.shading_language,
                                         false, // Only context changed
                                     ),
                                     AsyncCacheRequest::new(
-                                        old_variant_url,
+                                        old_variant_uri,
                                         old_variant_language,
                                         false, // Only context changed
                                     ),
@@ -980,7 +980,7 @@ impl ServerLanguage {
                             } else {
                                 // Simply update.
                                 vec![AsyncCacheRequest::new(
-                                    new_variant.url.clone(),
+                                    new_variant.uri.clone(),
                                     old_variant.shading_language,
                                     false, // Only context changed
                                 )]
@@ -988,27 +988,27 @@ impl ServerLanguage {
                         } else {
                             // Watch new variant
                             self.watched_files.watch_variant_file(
-                                &new_variant.url,
+                                &new_variant.uri,
                                 new_variant.shading_language,
                                 &mut language_data.shader_module_parser,
                             )?;
                             vec![AsyncCacheRequest::new(
-                                new_variant.url.clone(),
+                                new_variant.uri.clone(),
                                 new_variant.shading_language,
                                 false, // Only context changed
                             )]
                         }
                     } else if let Some(old_variant) = &self.watched_files.variant {
                         // Remove old variant if not used anymore.
-                        let old_variant_url = old_variant.url.clone();
+                        let old_variant_uri = old_variant.uri.clone();
                         let old_variant_language = old_variant.shading_language;
-                        let removed_urls =
-                            self.watched_files.remove_variant_file(&old_variant_url)?;
-                        for removed_url in removed_urls {
-                            self.clear_diagnostic(&removed_url);
+                        let removed_uris =
+                            self.watched_files.remove_variant_file(&old_variant_uri)?;
+                        for removed_uri in removed_uris {
+                            self.clear_diagnostic(&removed_uri);
                         }
                         vec![AsyncCacheRequest::new(
-                            old_variant_url,
+                            old_variant_uri,
                             old_variant_language,
                             false, // Only context changed
                         )]
@@ -1017,7 +1017,7 @@ impl ServerLanguage {
                     };
                     // Set new variant.
                     self.watched_files.variant = params.shader_variant;
-                    Ok(AsyncMessage::UpdateCache(updated_url))
+                    Ok(AsyncMessage::UpdateCache(updated_uri))
                 } else {
                     Ok(AsyncMessage::None)
                 }

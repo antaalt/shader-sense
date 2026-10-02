@@ -17,7 +17,7 @@ use lsp_types::{
 use shader_sense::shader::ShadingLanguage;
 
 use crate::server::{
-    clean_url,
+    clean_uri,
     common::ServerLanguageError,
     debug::{DumpAstParams, DumpAstRequest, DumpDependencyParams, DumpDependencyRequest},
     provider::{
@@ -33,7 +33,7 @@ pub struct AsyncRequest<R: Request> {
 }
 #[derive(PartialEq, Eq, Hash)]
 pub struct AsyncCacheRequest {
-    pub url: Url,
+    pub uri: Url,
     pub shading_language: ShadingLanguage,
     pub dirty: bool,
     //version: u32,
@@ -65,9 +65,9 @@ pub enum AsyncMessage {
 }
 
 impl AsyncCacheRequest {
-    pub fn new(url: Url, shading_language: ShadingLanguage, dirty: bool) -> Self {
+    pub fn new(uri: Url, shading_language: ShadingLanguage, dirty: bool) -> Self {
         Self {
-            url,
+            uri,
             shading_language,
             dirty,
             //version: 0,
@@ -262,7 +262,7 @@ trait ParamsDeserialization {
 }
 impl ParamsDeserialization for DocumentSymbolParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for WorkspaceSymbolParams {
@@ -272,100 +272,100 @@ impl ParamsDeserialization for WorkspaceSymbolParams {
 }
 impl ParamsDeserialization for DocumentRangeFormattingParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DocumentFormattingParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for SemanticTokensParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for FoldingRangeParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for InlayHintParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for HoverParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document_position_params.text_document.uri)
+        clean_uri(&mut self.text_document_position_params.text_document.uri)
     }
 }
 impl ParamsDeserialization for SignatureHelpParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document_position_params.text_document.uri)
+        clean_uri(&mut self.text_document_position_params.text_document.uri)
     }
 }
 impl ParamsDeserialization for CompletionParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document_position.text_document.uri)
+        clean_uri(&mut self.text_document_position.text_document.uri)
     }
 }
 impl ParamsDeserialization for GotoDefinitionParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document_position_params.text_document.uri)
+        clean_uri(&mut self.text_document_position_params.text_document.uri)
     }
 }
 impl ParamsDeserialization for DocumentDiagnosticParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for CompilationRequestParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DependencyTreeParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DumpAstParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DumpDependencyParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 
 // Notification
 impl ParamsDeserialization for DidChangeTextDocumentParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DidOpenTextDocumentParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DidCloseTextDocumentParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DidSaveTextDocumentParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
-        clean_url(&mut self.text_document.uri)
+        clean_uri(&mut self.text_document.uri)
     }
 }
 impl ParamsDeserialization for DidChangeShaderVariantParams {
     fn clean(&mut self) -> Result<(), ServerLanguageError> {
         if let Some(variant) = &mut self.shader_variant {
-            clean_url(&mut variant.url)?;
+            clean_uri(&mut variant.uri)?;
         }
         Ok(())
     }

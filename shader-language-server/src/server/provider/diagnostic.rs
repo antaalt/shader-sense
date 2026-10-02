@@ -18,14 +18,14 @@ impl ServerLanguage {
         match self.recolt_diagnostic(uri) {
             Ok(all_diagnostics) => {
                 info!("Publishing diagnostic for {} files", all_diagnostics.len());
-                for (diagnostic_url, diagnostics) in all_diagnostics {
+                for (diagnostic_uri, diagnostics) in all_diagnostics {
                     info!(
                         "Publishing diagnostic for file {} ({} diags)",
-                        diagnostic_url,
+                        diagnostic_uri,
                         diagnostics.len()
                     );
                     let publish_diagnostics_params = PublishDiagnosticsParams {
-                        uri: diagnostic_url,
+                        uri: diagnostic_uri,
                         diagnostics: diagnostics,
                         version: version,
                     };

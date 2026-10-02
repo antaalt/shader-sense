@@ -106,7 +106,7 @@ fn test_automatic_variant_discovery_keep_selected_variant_context() {
     });
     server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
         shader_variant: Some(ShaderVariant {
-            url: selected_variant.url.clone(),
+            uri: selected_variant.uri.clone(),
             shading_language: ShadingLanguage::Glsl,
             entry_point: "".into(),
             stage: None,
