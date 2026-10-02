@@ -2115,8 +2115,9 @@ checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
 
 [[package]]
 name = "tree-sitter-wesl"
-version = "0.0.1"
-source = "git+https://github.com/webgpu-tools/tree-sitter-wesl?rev=cc3c159ea55b129462da662f72ec584f0df80a19#cc3c159ea55b129462da662f72ec584f0df80a19"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a3c7d1b29fb828379d118b16b1ef735cfad38b17dd3e8e52ac33f1adf3eee7e"
 dependencies = [
  "cc",
  "tree-sitter-language",
