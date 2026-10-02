@@ -1733,6 +1733,7 @@ dependencies = [
 name = "shader-intrinsics-parser"
 version = "0.1.0"
 dependencies = [
+ "ego-tree",
  "regex",
  "scraper",
  "serde",
