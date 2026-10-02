@@ -254,7 +254,7 @@ pub fn main() {
                             .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
                         version: None,
                     },
-                    wgsl: WgslCompilationParams {},
+                    wgsl: WgslCompilationParams::default(),
                 },
             };
 

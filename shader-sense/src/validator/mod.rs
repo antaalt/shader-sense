@@ -14,7 +14,9 @@ mod tests {
     use crate::shader::{
         GlslCompilationParams, GlslProfile, GlslProfileVersion, GlslSpirvVersion, GlslTargetClient,
         ShaderCompilationParams, ShaderContextParams, ShaderParams, ShaderStage, ShadingLanguage,
+        WgslCompilationParams,
     };
+    use crate::shader_error::ShaderDiagnosticList;
 
     use super::validator::*;
     use super::*;
@@ -872,6 +874,84 @@ mod tests {
                 let range = &diagnostic_list.diagnostics[0].range;
                 assert_eq!(range.file_path, file_path);
                 assert_eq!(range.range.start.line, 9);
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    fn validate_wesl_import(file_name: &str) -> ShaderDiagnosticList {
+        let validator = create_test_validator(ShadingLanguage::Wgsl);
+        let package_root = canonicalize(Path::new("./test/wesl")).unwrap();
+        let file_path = package_root.join(file_name);
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let params = ShaderParams {
+            compilation: ShaderCompilationParams {
+                wgsl: WgslCompilationParams {
+                    package_root: Some(package_root.clone()),
+                    packages: HashMap::from([("external".into(), package_root.join("external"))]),
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &params,
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostics for {}: {:#?}", file_name, diagnostic_list);
+                diagnostic_list
+            }
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    #[test]
+    fn wesl_import_ok() {
+        // Imports from package, from super & from an external package.
+        assert!(validate_wesl_import("main.wesl").is_empty());
+    }
+
+    #[test]
+    fn wesl_import_missing_module() {
+        let diagnostic_list = validate_wesl_import("error_import.wesl");
+        assert!(!diagnostic_list.is_empty());
+        // Unresolved module should point to its import statement.
+        let range = &diagnostic_list.diagnostics[0].range;
+        assert!(range.file_path.ends_with("error_import.wesl"));
+        assert_eq!(range.range.start.line, 1);
+        assert_eq!(range.range.start.pos, 0);
+        assert_eq!(range.range.end.pos, 29);
+    }
+
+    #[test]
+    fn wesl_import_error_in_module() {
+        // Error in imported module should be reported in that module.
+        let diagnostic_list = validate_wesl_import("error_module.wesl");
+        assert!(!diagnostic_list.is_empty());
+        let range = &diagnostic_list.diagnostics[0].range;
+        assert!(range.file_path.ends_with("broken.wesl"));
+        assert_eq!(range.range.start.line, 1);
+    }
+
+    #[test]
+    fn wesl_import_unknown_package() {
+        let validator = create_test_validator(ShadingLanguage::Wgsl);
+        let file_path = canonicalize(Path::new("./test/wesl/main.wesl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        // No external package declared.
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &ShaderParams::default(),
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => {
+                println!("{:#?}", diagnostic_list);
+                assert!(!diagnostic_list.is_empty());
+                assert!(diagnostic_list.diagnostics[0].error.contains("external"));
             }
             Err(err) => panic!("{}", err),
         };

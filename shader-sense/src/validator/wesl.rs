@@ -6,6 +6,9 @@
 //! are kept in the generated syntax tree.
 
 use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
     fmt::Write,
     path::{Path, PathBuf},
 };
@@ -15,16 +18,17 @@ use naga::{
     valid::{Capabilities, ValidationFlags},
 };
 use wesl::{
-    resolver::VirtualResolver,
+    error::ResolveError,
     sourcemap::{BasicSourceMap, SourceMap},
     syntax::{
         CompoundStatement, GlobalDeclaration, ModulePath, PathOrigin, Span, Statement,
         StatementNode, TranslationUnit,
     },
-    CompileResult, Compiler,
+    CompileResult, Compiler, Resolver,
 };
 
 use crate::{
+    include::canonicalize,
     position::{ShaderFileRange, ShaderPosition},
     shader::{ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
@@ -296,27 +300,196 @@ impl WgslMapping {
     }
 }
 
+/// Resolve module paths to files, relative to the package root set in [`crate::shader::WgslCompilationParams`].
+/// Files are read through the include callback so that unsaved content can be used.
+struct WeslResolver<'a> {
+    package_root: PathBuf,
+    packages: &'a HashMap<String, PathBuf>,
+    main_module_path: ModulePath,
+    main_file_path: &'a Path,
+    main_content: &'a str,
+    include_callback: RefCell<&'a mut dyn FnMut(&Path) -> Option<String>>,
+    /// Loaded modules with their file & content, used to map diagnostics.
+    modules: RefCell<HashMap<ModulePath, (PathBuf, String)>>,
+    /// Last module that failed to resolve, as resolve errors have no location.
+    unresolved_module: RefCell<Option<ModulePath>>,
+}
+
+impl<'a> WeslResolver<'a> {
+    fn new(
+        main_file_path: &'a Path,
+        main_content: &'a str,
+        params: &'a ShaderParams,
+        include_callback: &'a mut dyn FnMut(&Path) -> Option<String>,
+    ) -> Self {
+        let package_root = params
+            .compilation
+            .wgsl
+            .package_root
+            .clone()
+            .or_else(|| main_file_path.parent().map(|parent| parent.into()))
+            .unwrap_or_default();
+        let package_root = canonicalize(&package_root).unwrap_or(package_root);
+        // Main module path depends on its location in the package, required for super:: imports.
+        let main_module_path = match main_file_path.strip_prefix(&package_root) {
+            Ok(relative_path) => ModulePath::new(
+                PathOrigin::Absolute,
+                relative_path
+                    .with_extension("")
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy().to_string())
+                    .collect(),
+            ),
+            // File outside of the package, it can still import package modules.
+            Err(_) => ModulePath::new(
+                PathOrigin::Absolute,
+                vec![main_file_path
+                    .file_stem()
+                    .map(|stem| stem.to_string_lossy().to_string())
+                    .unwrap_or("main".into())],
+            ),
+        };
+        Self {
+            package_root,
+            packages: &params.compilation.wgsl.packages,
+            main_module_path,
+            main_file_path,
+            main_content,
+            include_callback: RefCell::new(include_callback),
+            modules: RefCell::new(HashMap::new()),
+            unresolved_module: RefCell::new(None),
+        }
+    }
+    /// Find the file of a module, with .wesl extension, or .wgsl as fallback.
+    fn find_file(&self, path: &ModulePath) -> Result<PathBuf, ResolveError> {
+        let root = match &path.origin {
+            PathOrigin::Absolute => &self.package_root,
+            PathOrigin::Package(name) => self.packages.get(name).ok_or_else(|| {
+                ResolveError::ModuleNotFound(
+                    path.clone(),
+                    format!(
+                        "package `{}` is not declared in wgsl packages setting",
+                        name
+                    ),
+                )
+            })?,
+            // Compiler only pass absolute path to resolver.
+            PathOrigin::Relative(_) => {
+                return Err(ResolveError::ModuleNotFound(
+                    path.clone(),
+                    "relative module path".into(),
+                ))
+            }
+        };
+        let mut file_path = root.clone();
+        file_path.extend(&path.components);
+        for extension in ["wesl", "wgsl"] {
+            let file_path = file_path.with_extension(extension);
+            if file_path.is_file() {
+                return Ok(canonicalize(&file_path).unwrap_or(file_path));
+            }
+        }
+        Err(ResolveError::FileNotFound(
+            file_path.with_extension("wesl"),
+            "module file".into(),
+        ))
+    }
+    /// Get the file & content of a loaded module.
+    fn get_module(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, String)> {
+        match module_path {
+            Some(module_path) if *module_path != self.main_module_path => {
+                self.modules.borrow().get(module_path).cloned()
+            }
+            _ => Some((self.main_file_path.into(), self.main_content.into())),
+        }
+    }
+    /// Find the import statement of a module in loaded modules, returning the importer & statement span.
+    fn find_import(&self, module_path: &ModulePath) -> Option<(ModulePath, Span)> {
+        let name = match (&module_path.origin, module_path.components.last()) {
+            (_, Some(name)) => name.as_str(),
+            (PathOrigin::Package(name), None) => name.as_str(),
+            _ => return None,
+        };
+        let find_in = |content: &str| -> Option<Span> {
+            // Imports might span multiple lines, so look for the name until the end of the statement.
+            let mut import_start = None;
+            let mut offset = 0;
+            for line in content.split_inclusive('\n') {
+                let trimmed = line.trim();
+                if trimmed.starts_with("import") {
+                    import_start = Some(offset + line.find("import").unwrap());
+                }
+                if let Some(start) = import_start {
+                    let has_name = trimmed
+                        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                        .any(|word| word == name);
+                    if has_name {
+                        let end = content[start..]
+                            .find(';')
+                            .map(|end| start + end + 1)
+                            .unwrap_or(offset + line.len());
+                        return Some(Span::new(start..end));
+                    }
+                    if trimmed.ends_with(';') {
+                        import_start = None;
+                    }
+                }
+                offset += line.len();
+            }
+            None
+        };
+        if let Some(span) = find_in(self.main_content) {
+            return Some((self.main_module_path.clone(), span));
+        }
+        self.modules
+            .borrow()
+            .iter()
+            .find_map(|(path, (_, content))| find_in(content).map(|span| (path.clone(), span)))
+    }
+}
+
+impl Resolver for WeslResolver<'_> {
+    fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, ResolveError> {
+        if *path == self.main_module_path {
+            return Ok(Cow::Borrowed(self.main_content));
+        }
+        let content = self.find_file(path).and_then(|file_path| {
+            let content = (self.include_callback.borrow_mut())(&file_path).ok_or_else(|| {
+                ResolveError::FileNotFound(file_path.clone(), "module file".into())
+            })?;
+            Ok((file_path, content))
+        });
+        let (file_path, content) = content.inspect_err(|_| {
+            *self.unresolved_module.borrow_mut() = Some(path.clone());
+        })?;
+        self.modules
+            .borrow_mut()
+            .insert(path.clone(), (file_path, content.clone()));
+        Ok(Cow::Owned(content))
+    }
+    fn display_name(&self, path: &ModulePath) -> Option<String> {
+        self.fs_path(path)
+            .ok()
+            .map(|file_path| file_path.display().to_string())
+    }
+    fn fs_path(&self, path: &ModulePath) -> Result<PathBuf, ResolveError> {
+        if *path == self.main_module_path {
+            Ok(self.main_file_path.into())
+        } else {
+            self.find_file(path)
+        }
+    }
+}
+
 /// Origin of the code being validated, used to resolve modules into files.
 struct ModuleContext<'a> {
-    main_module_path: &'a ModulePath,
-    main_content: &'a str,
-    main_file_path: &'a Path,
-    sourcemap: Option<&'a BasicSourceMap>,
+    resolver: &'a WeslResolver<'a>,
 }
 
 impl<'a> ModuleContext<'a> {
     /// Get the file & content of a module.
-    fn resolve(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, &'a str)> {
-        match module_path {
-            None => Some((self.main_file_path.into(), self.main_content)),
-            Some(module_path) if module_path == self.main_module_path => {
-                Some((self.main_file_path.into(), self.main_content))
-            }
-            Some(module_path) => {
-                let file = self.sourcemap?.file(module_path)?;
-                Some((file.path.clone()?, file.source.as_str()))
-            }
-        }
+    fn resolve(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, String)> {
+        self.resolver.get_module(module_path)
     }
     /// Create a diagnostic from a span in a module. Fallback to the start of main file if not resolvable.
     fn create_diagnostic(
@@ -329,6 +502,7 @@ impl<'a> ModuleContext<'a> {
             .filter(|span| span.end > span.start)
             .and_then(|span| {
                 let (file_path, content) = self.resolve(module_path)?;
+                let content = content.as_str();
                 // Only highlight the first line of the span, it might be a whole function.
                 let end = content[span.start..span.end.min(content.len())]
                     .find(['\r', '\n'])
@@ -338,7 +512,7 @@ impl<'a> ModuleContext<'a> {
                 let end = ShaderPosition::from_byte_offset(content, end).ok()?;
                 Some(ShaderFileRange::new(file_path, start, end))
             })
-            .unwrap_or(ShaderFileRange::zero(self.main_file_path.into()));
+            .unwrap_or(ShaderFileRange::zero(self.resolver.main_file_path.into()));
         ShaderDiagnostic {
             severity: ShaderDiagnosticSeverity::Error,
             error,
@@ -348,8 +522,18 @@ impl<'a> ModuleContext<'a> {
     fn from_wesl_error(&self, error: wesl::Error) -> ShaderDiagnostic {
         match error {
             wesl::Error::Error(diagnostic) => {
-                let span = diagnostic.detail.span;
-                let module_path = diagnostic.detail.module_path.clone();
+                let mut span = diagnostic.detail.span;
+                let mut module_path = diagnostic.detail.module_path.clone();
+                // Resolve errors have no location, point to the import statement instead.
+                if span.is_none() {
+                    let unresolved_module = self.resolver.unresolved_module.borrow().clone();
+                    if let Some((importer, import_span)) = unresolved_module
+                        .and_then(|unresolved| self.resolver.find_import(&unresolved))
+                    {
+                        span = Some(import_span);
+                        module_path = Some(importer);
+                    }
+                }
                 let message = match &diagnostic.detail.declaration {
                     Some(declaration) => format!("{} (in `{}`)", diagnostic.error, declaration),
                     None => diagnostic.error.to_string(),
@@ -404,28 +588,18 @@ impl ValidatorImpl for Wesl {
         &self,
         shader_content: &str,
         file_path: &Path,
-        _params: &ShaderParams,
-        _include_callback: &mut dyn FnMut(&Path) -> Option<String>,
+        params: &ShaderParams,
+        include_callback: &mut dyn FnMut(&Path) -> Option<String>,
     ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
-        // ModulePath::from_path panics on absolute windows path, so use a module name instead.
-        let module_name = file_path
-            .file_stem()
-            .map(|stem| stem.to_string_lossy().to_string())
-            .unwrap_or("main".into());
-        let main_module_path = ModulePath::new(PathOrigin::Absolute, vec![module_name]);
-        // TODO: custom resolver with include handler.
-        let mut resolver = VirtualResolver::new();
-        resolver.add_module(main_module_path.clone(), shader_content.into());
-        let mut compiler = Compiler::default().with_resolver(resolver);
+        let resolver = WeslResolver::new(file_path, shader_content, params, include_callback);
+        let main_module_path = resolver.main_module_path.clone();
+        let mut compiler = Compiler::default().with_resolver(&resolver);
         compiler.options.keep_main = true;
         compiler.options.sourcemap = true;
         // TODO: pass defines as compiler.options.features
 
         let context = ModuleContext {
-            main_module_path: &main_module_path,
-            main_content: shader_content,
-            main_file_path: file_path,
-            sourcemap: None,
+            resolver: &resolver,
         };
         let compile_result: CompileResult = match compiler.compile_module(&main_module_path) {
             Ok(compile_result) => compile_result,
@@ -435,10 +609,6 @@ impl ValidatorImpl for Wesl {
                     ShaderDiagnosticList::from(context.from_wesl_error(error)),
                 ));
             }
-        };
-        let context = ModuleContext {
-            sourcemap: compile_result.sourcemap.as_ref(),
-            ..context
         };
         let mapping = WgslMapping::new(&compile_result.syntax, compile_result.sourcemap.as_ref());
 
