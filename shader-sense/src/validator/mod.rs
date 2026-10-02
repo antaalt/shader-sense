@@ -3,8 +3,8 @@
 #[cfg(not(target_os = "wasi"))]
 pub mod dxc;
 pub mod glslang;
-pub mod naga;
 pub mod validator;
+pub mod wesl;
 
 #[cfg(test)]
 mod tests {
@@ -30,7 +30,7 @@ mod tests {
     fn create_test_validator(shading_language: ShadingLanguage) -> Box<dyn ValidatorImpl> {
         // Do not use Validator::from_shading_language to enforce dxc on PC.
         match shading_language {
-            ShadingLanguage::Wgsl => Box::new(naga::Naga::new()),
+            ShadingLanguage::Wgsl => Box::new(wesl::Wesl::new()),
             #[cfg(not(target_os = "wasi"))]
             ShadingLanguage::Hlsl => Box::new(dxc::Dxc::new(find_test_dxc()).unwrap()),
             #[cfg(target_os = "wasi")]
@@ -784,7 +784,8 @@ mod tests {
         ];
         let validator = create_test_validator(ShadingLanguage::Wgsl);
         for (file_name, entry_point, shader_stage) in stages {
-            let file_path = Path::new("./test/wgsl/stages/").join(file_name);
+            let file_path =
+                canonicalize(&Path::new("./test/wgsl/stages/").join(file_name)).unwrap();
             let shader_content = std::fs::read_to_string(&file_path).unwrap();
             match validator.validate_shader(
                 &shader_content,
@@ -814,11 +815,11 @@ mod tests {
     #[test]
     fn wgsl_ok() {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path = Path::new("./test/wgsl/ok.wgsl");
-        let shader_content = std::fs::read_to_string(file_path).unwrap();
+        let file_path = canonicalize(Path::new("./test/wgsl/ok.wgsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
-            file_path,
+            &file_path,
             &ShaderParams::default(),
             &mut default_include_callback,
         ) {
@@ -831,15 +832,61 @@ mod tests {
     }
 
     #[test]
+    fn wgsl_error() {
+        let validator = create_test_validator(ShadingLanguage::Wgsl);
+        let file_path = canonicalize(Path::new("./test/wgsl/error.wgsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &ShaderParams::default(),
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should not be empty: {:#?}", diagnostic_list);
+                assert!(!diagnostic_list.is_empty());
+                // Missing entry point attribute should be mapped back on the function declaration.
+                let range = &diagnostic_list.diagnostics[0].range;
+                assert_eq!(range.file_path, file_path);
+                assert_eq!(range.range.start.line, 1);
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
+    fn wgsl_error_nested() {
+        let validator = create_test_validator(ShadingLanguage::Wgsl);
+        let file_path = canonicalize(Path::new("./test/wgsl/error-nested.wgsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &ShaderParams::default(),
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => {
+                println!("Diagnostic should not be empty: {:#?}", diagnostic_list);
+                assert!(!diagnostic_list.is_empty());
+                // Error should be mapped back on the statement inside the else block.
+                let range = &diagnostic_list.diagnostics[0].range;
+                assert_eq!(range.file_path, file_path);
+                assert_eq!(range.range.start.line, 9);
+            }
+            Err(err) => panic!("{}", err),
+        };
+    }
+
+    #[test]
     fn wgsl_spirv_conversion() {
         let file_path = Path::new("./test/wgsl/ok.wgsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
-        let spirv = match naga::Naga::wgsl_to_spirv(&shader_content) {
+        let spirv = match wesl::wgsl_to_spirv(&shader_content) {
             Ok(spirv) => spirv,
             Err(err) => panic!("{}", err),
         };
         assert!(!spirv.is_empty());
-        match naga::Naga::spirv_to_wgsl(&spirv) {
+        match wesl::spirv_to_wgsl(&spirv) {
             // Generated wgsl is not the same as the input one, but should hold the same entry point.
             Ok(wgsl) => assert!(wgsl.contains("vs_main"), "Unexpected wgsl output: {}", wgsl),
             Err(err) => panic!("{}", err),

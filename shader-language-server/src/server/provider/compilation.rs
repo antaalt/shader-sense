@@ -1,8 +1,7 @@
 use lsp_types::{request::Request, TextDocumentIdentifier, Url};
 use serde::{Deserialize, Serialize};
 use shader_sense::{
-    shader::ShadingLanguage,
-    validator::{naga::Naga, validator::CompilationResult},
+    shader::ShadingLanguage, validator::{validator::CompilationResult, wesl::{spirv_to_wgsl, wgsl_to_spirv}},
 };
 
 use crate::server::{
@@ -104,7 +103,7 @@ impl ServerLanguage {
                     ShadingLanguage::Wgsl => {
                         if let Some(data) = &cached_file.data {
                             if let CompilationResult::Wgsl(wgsl) = &data.compilation_cache {
-                                match Naga::wgsl_to_spirv(&wgsl) {
+                                match wgsl_to_spirv(&wgsl) {
                                     Ok(spirv) => Ok(Some(CompilationRequestResult {
                                         compilation_type: CompilationType::Spirv,
                                         data: spirv,
@@ -143,7 +142,7 @@ impl ServerLanguage {
                         if self.config.is_generating_spirv(shading_language) {
                             if let Some(data) = &cached_file.data {
                                 if let CompilationResult::Spirv(spirv) = &data.compilation_cache {
-                                    match Naga::spirv_to_wgsl(&spirv) {
+                                    match spirv_to_wgsl(&spirv) {
                                         Ok(wgsl) => Ok(Some(CompilationRequestResult {
                                             compilation_type: CompilationType::Wgsl,
                                             data: wgsl.into_bytes(),
