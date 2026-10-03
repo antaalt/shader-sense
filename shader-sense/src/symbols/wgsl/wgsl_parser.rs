@@ -20,6 +20,7 @@ pub fn get_wgsl_parsers() -> Vec<Box<dyn SymbolTreeParser>> {
         Box::new(WgslTypeAliasTreeParser {}),
         Box::new(WgslVariableTreeParser {}),
         Box::new(WgslCallExpressionTreeParser {}),
+        // Imports are handled by the region finder as includes, as they depend on compilation params.
     ]
 }
 

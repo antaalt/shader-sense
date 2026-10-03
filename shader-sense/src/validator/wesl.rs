@@ -28,7 +28,7 @@ use wesl::{
 };
 
 use crate::{
-    include::canonicalize,
+    include::{canonicalize, find_wesl_module_file},
     position::{ShaderFileRange, ShaderPosition},
     shader::{ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
@@ -381,18 +381,11 @@ impl<'a> WeslResolver<'a> {
                 ))
             }
         };
-        let mut file_path = root.clone();
-        file_path.extend(&path.components);
-        for extension in ["wesl", "wgsl"] {
-            let file_path = file_path.with_extension(extension);
-            if file_path.is_file() {
-                return Ok(canonicalize(&file_path).unwrap_or(file_path));
-            }
-        }
-        Err(ResolveError::FileNotFound(
-            file_path.with_extension("wesl"),
-            "module file".into(),
-        ))
+        find_wesl_module_file(root, &path.components).ok_or_else(|| {
+            let mut file_path = root.clone();
+            file_path.extend(&path.components);
+            ResolveError::FileNotFound(file_path.with_extension("wesl"), "module file".into())
+        })
     }
     /// Get the file & content of a loaded module.
     fn get_module(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, String)> {

@@ -1,21 +1,25 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tree_sitter::Node;
 
 use crate::{
-    position::{ShaderPosition, ShaderRange},
+    position::{ShaderFileRange, ShaderPosition, ShaderRange},
     shader::ShaderCompilationParams,
-    shader_error::ShaderError,
+    shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
-        prepocessor::{ShaderPreprocessor, ShaderPreprocessorContext, ShaderRegion},
+        prepocessor::{
+            ShaderPreprocessor, ShaderPreprocessorContext, ShaderPreprocessorInclude, ShaderRegion,
+        },
         shader_module::{ShaderModule, ShaderSymbols},
         symbol_parser::{get_name, SymbolRegionFinder},
         symbol_provider::{SymbolIncludeCallback, SymbolProvider},
+        wgsl::wgsl_import::query_imports,
     },
 };
 
 /// Find regions from WESL conditional compilation attributes (@if, @elif & @else).
 /// Feature flags are read from defines, and are disabled if not defined.
+/// Imported modules are processed as includes, so that their symbols are available.
 pub struct WgslRegionFinder {}
 
 impl WgslRegionFinder {
@@ -120,13 +124,13 @@ impl SymbolRegionFinder for WgslRegionFinder {
     fn query_regions_in_node<'a>(
         &self,
         shader_module: &ShaderModule,
-        _symbol_provider: &SymbolProvider,
-        _shader_params: &ShaderCompilationParams,
+        symbol_provider: &SymbolProvider,
+        shader_params: &ShaderCompilationParams,
         node: tree_sitter::Node,
-        _preprocessor: &mut ShaderPreprocessor,
+        preprocessor: &mut ShaderPreprocessor,
         context: &'a mut ShaderPreprocessorContext,
-        _include_callback: &'a mut SymbolIncludeCallback<'a>,
-        _old_symbols: Option<ShaderSymbols>,
+        include_callback: &'a mut SymbolIncludeCallback<'a>,
+        mut old_symbols: Option<ShaderSymbols>,
     ) -> Result<Vec<ShaderRegion>, ShaderError> {
         let content = &shader_module.content;
         // Attributes are collected in document order, so an @if is always processed before its @elif & @else.
@@ -190,6 +194,70 @@ impl SymbolRegionFinder for WgslRegionFinder {
                     .any(|range| range.contain_bounds(&region.range))
             {
                 region.is_active = false;
+            }
+        }
+        // Imports, except the ones disabled by a region.
+        let mut imported_files = HashSet::new();
+        for import in query_imports(content, node) {
+            let is_inactive = regions
+                .iter()
+                .any(|region| !region.is_active && region.range.contain(&import.range.end));
+            if is_inactive {
+                continue;
+            }
+            let range =
+                ShaderFileRange::from(shader_module.file_path.clone(), import.range.clone());
+            match import.resolve(&shader_module.file_path, &shader_params.wgsl) {
+                Some(absolute_path) => {
+                    // Several items can be imported from the same module.
+                    if imported_files.insert(absolute_path.clone()) {
+                        preprocessor.includes.push(ShaderPreprocessorInclude::new(
+                            import.get_path(),
+                            absolute_path,
+                            range,
+                        ));
+                    }
+                }
+                None => preprocessor.diagnostics.push(ShaderDiagnostic {
+                    severity: ShaderDiagnosticSeverity::Warning,
+                    error: format!(
+                        "Failed to find module of import {}. Symbol provider might be impacted.",
+                        import.get_path()
+                    ),
+                    range,
+                }),
+            }
+        }
+        for include in preprocessor.includes.iter_mut() {
+            context.push_directory_stack(&include.get_absolute_path());
+            // Reuse old cache of the module if any.
+            let include_old_symbol = old_symbols.as_mut().and_then(|old_symbols| {
+                old_symbols
+                    .preprocessor
+                    .includes
+                    .iter_mut()
+                    .find(|old_include| {
+                        old_include.get_absolute_path() == include.get_absolute_path()
+                    })
+                    .and_then(|old_include| old_include.cache.take())
+            });
+            match symbol_provider.process_include(
+                context,
+                include,
+                shader_params,
+                include_callback,
+                include_old_symbol,
+            ) {
+                Ok(_) => {}
+                // Module not found or limit reached.
+                Err(ShaderError::SymbolQueryError(message, shader_range)) => {
+                    preprocessor.diagnostics.push(ShaderDiagnostic {
+                        severity: ShaderDiagnosticSeverity::Warning,
+                        error: message,
+                        range: shader_range,
+                    });
+                }
+                Err(err) => return Err(err),
             }
         }
         Ok(regions)

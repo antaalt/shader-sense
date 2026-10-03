@@ -1,4 +1,5 @@
 //! Parser specific for WGSL & WESL
+mod wgsl_import;
 mod wgsl_parser;
 mod wgsl_regions;
 mod wgsl_word;
@@ -30,9 +31,12 @@ mod tests {
     use crate::{
         include::canonicalize,
         position::{ShaderFilePosition, ShaderPosition, ShaderRange},
-        shader::{ShaderContextParams, ShaderParams, ShadingLanguage, WgslShadingLanguageTag},
+        shader::{
+            ShaderCompilationParams, ShaderContextParams, ShaderParams, ShadingLanguage,
+            WgslCompilationParams, WgslShadingLanguageTag,
+        },
         symbols::{
-            shader_module::ShaderModule,
+            shader_module::{ShaderModule, ShaderSymbols},
             shader_module_parser::ShaderModuleParser,
             symbol_list::ShaderSymbolList,
             symbol_provider::{default_include_callback, SymbolProvider},
@@ -154,6 +158,80 @@ mod tests {
             }
             _ => panic!("Not a struct"),
         }
+    }
+
+    fn query_wesl_import_symbols(file_name: &str) -> ShaderSymbols {
+        let package_root = canonicalize(Path::new("./test/wesl")).unwrap();
+        let file_path = package_root.join(file_name);
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Wgsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Wgsl);
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+        symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams {
+                    compilation: ShaderCompilationParams {
+                        wgsl: WgslCompilationParams {
+                            package_root: Some(package_root.clone()),
+                            packages: HashMap::from([(
+                                "external".into(),
+                                package_root.join("external"),
+                            )]),
+                        },
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                &mut default_include_callback::<WgslShadingLanguageTag>,
+                None,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn test_wesl_imports() {
+        let symbols = query_wesl_import_symbols("main.wesl");
+        // One include per imported module, with nested imports of lighting (super::util::math).
+        let includes: Vec<&str> = symbols
+            .preprocessor
+            .includes
+            .iter()
+            .map(|include| include.get_relative_path().as_str())
+            .collect();
+        assert_eq!(
+            includes,
+            vec![
+                "package::lighting::Light",
+                "package::util::math::saturate_color",
+                "external::helpers::to_srgb"
+            ]
+        );
+        assert!(symbols.preprocessor.diagnostics.is_empty());
+        let symbols = symbols.get_all_symbols();
+        assert!(symbols.types.iter().any(|t| t.label == "Light"));
+        for function in ["shade", "saturate_color", "to_srgb"] {
+            assert!(
+                symbols.functions.iter().any(|f| f.label == function),
+                "Function {} not imported",
+                function
+            );
+        }
+        // Imported by lighting.wesl through super::
+        assert!(symbols.variables.iter().any(|v| v.label == "PI"));
+    }
+
+    #[test]
+    fn test_wesl_imports_missing() {
+        let symbols = query_wesl_import_symbols("error_import.wesl");
+        assert!(symbols.preprocessor.includes.is_empty());
+        assert_eq!(symbols.preprocessor.diagnostics.len(), 1);
+        let diagnostic = &symbols.preprocessor.diagnostics[0];
+        assert!(diagnostic.error.contains("package::missing::foo"));
+        assert_eq!(diagnostic.range.range.start.line, 1);
     }
 
     #[test]
