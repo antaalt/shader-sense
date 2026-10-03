@@ -8,9 +8,12 @@ use crate::{
     shader::{ShaderCompilationParams, ShaderParams, ShadingLanguage, ShadingLanguageTag},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
-        glsl::create_glsl_symbol_provider, hlsl::create_hlsl_symbol_provider,
-        shader_module_parser::get_tree_sitter_language, symbol_parser::ShaderWordRange,
-        symbols::ShaderSymbolData, wgsl::create_wgsl_symbol_provider,
+        glsl::create_glsl_symbol_provider,
+        hlsl::create_hlsl_symbol_provider,
+        shader_module_parser::get_tree_sitter_language,
+        symbol_parser::ShaderWordRange,
+        symbols::{ShaderParameter, ShaderSignature, ShaderSymbolData, ShaderSymbolMode},
+        wgsl::create_wgsl_symbol_provider,
     },
 };
 
@@ -238,86 +241,196 @@ impl SymbolProvider {
         // TODO: correctly pick lang.
         // TODO: this code is specific to hlsl & glsl, might need to be moved in correct folder for postprocessing step.
         let mut tree = ProxyTree::new(&get_tree_sitter_language(ShadingLanguage::Hlsl));
-        let mut new_symbols = ShaderSymbolList::default();
-        for call_expression in &symbol_list.call_expression {
-            if let ShaderSymbolData::CallExpression {
-                label: _,
-                range: _,
-                parameters: call_parameters,
-            } = &call_expression.data
-            {
-                let expressions = preprocessor
-                    .defines
-                    .iter()
-                    .filter(|define| define.get_name() == &call_expression.label);
-                for expression in expressions {
-                    if let (Some(value), Some(macro_parameters)) =
-                        (expression.get_value(), expression.get_parameters())
-                    {
-                        // Really basic macro parser.
-                        fn parse_macro(value: &str, args: &Vec<(String, String)>) -> String {
-                            // Remove \ that allow new line break in macro.
-                            let mut formatted_value = value.replace("\\", "");
-                            // Replace arguments
-                            for arg in args {
-                                // TODO: handle spaces aswell.
+        let mut expand_symbol_list = |call_expressions: &Vec<ShaderSymbol>| {
+            let mut new_symbols = ShaderSymbolList::default();
+            for call_expression in call_expressions {
+                if let ShaderSymbolData::CallExpression {
+                    label: _,
+                    range: call_range,
+                    parameters: call_parameters,
+                } = &call_expression.data
+                {
+                    let expressions = preprocessor
+                        .defines
+                        .iter()
+                        .filter(|define| define.get_name() == &call_expression.label);
+                    for expression in expressions {
+                        if let (Some(value), Some(macro_parameters)) =
+                            (expression.get_value(), expression.get_parameters())
+                        {
+                            // Really basic macro parser.
+                            fn parse_macro(value: &str, args: &Vec<(String, String)>) -> String {
+                                // TODO: cache these regex.
+                                let identifier_regex =
+                                    regex::Regex::new(r"[A-Za-z_][A-Za-z0-9_]*").unwrap();
+                                let pasting_regex = regex::Regex::new(r"\s*##\s*").unwrap();
+                                // Remove \ that allow new line break in macro.
+                                let formatted_value = value.replace("\\", "");
+                                // Replace arguments
+                                let mut formatted_value = identifier_regex
+                                    .replace_all(&formatted_value, |captures: &regex::Captures| {
+                                        let word = &captures[0];
+                                        args.iter()
+                                            .find(|(name, _)| name == word)
+                                            .map(|(_, arg)| arg.clone())
+                                            .unwrap_or_else(|| word.to_string())
+                                    })
+                                    .into_owned();
+                                // Token pasting, now that parameters are replaced: Vertex##Data -> VertexData
                                 formatted_value =
-                                    formatted_value.replace(&format!("##{}", arg.0), &arg.1);
-                                formatted_value =
-                                    formatted_value.replace(&format!("{}##", arg.0), &arg.1);
+                                    pasting_regex.replace_all(&formatted_value, "").into_owned();
+                                // replace "##value" or "value##" by the value of parameter
+                                // replace "value" by the value of parameter
+                                // TODO: replace __VA_ARGS__ and other specific macros.
+                                formatted_value
                             }
-                            // replace "## value" by the value of parameter
-                            // replace "# value" by the value of parameter
-                            // replace __VA_ARGS__ and other specific macros.
-                            // TODO: nested macros & everything else
-                            formatted_value
-                        }
-                        if macro_parameters.len() != call_parameters.len() {
-                            // Macro do not match.
-                            continue;
-                        }
-                        let parameters = call_parameters
-                            .iter()
-                            .zip(macro_parameters.iter())
-                            .map(|((call_parameter, _), macro_parameter)| {
-                                (macro_parameter.clone(), call_parameter.clone())
-                            })
-                            .collect();
+                            if macro_parameters.len() != call_parameters.len() {
+                                // Macro do not match.
+                                continue;
+                            }
+                            let parameters = call_parameters
+                                .iter()
+                                .zip(macro_parameters.iter())
+                                .map(|((call_parameter, _), macro_parameter)| {
+                                    (macro_parameter.clone(), call_parameter.clone())
+                                })
+                                .collect();
 
-                        let value = parse_macro(value, &parameters);
-                        if let Some(tree) = tree.parse(&value) {
-                            let module = ShaderModule {
-                                file_path: file_path.into(),
-                                content: value.clone(),
-                                tree: tree.clone(), // TODO: ref somehow
-                            };
-                            if let Ok(macro_symbols) = self.query_file_symbols(
-                                &module,
-                                &ShaderCompilationParams {
-                                    entry_point: None, // Remove the entry point.
-                                    shader_stage: shader_compilation_params.shader_stage,
-                                    experimental_macro_expansion: shader_compilation_params
-                                        .experimental_macro_expansion,
-                                    hlsl: shader_compilation_params.hlsl.clone(),
-                                    glsl: shader_compilation_params.glsl.clone(),
-                                    wgsl: shader_compilation_params.wgsl.clone(),
-                                },
-                            ) {
-                                new_symbols.append(macro_symbols);
+                            let formatted_value = parse_macro(value, &parameters);
+                            if let Some(tree) = tree.parse(&formatted_value) {
+                                let module = ShaderModule {
+                                    file_path: file_path.into(),
+                                    content: formatted_value.clone(),
+                                    tree: tree.clone(), // TODO: ref somehow this should be done by proxy tree.
+                                };
+                                if let Ok(mut macro_symbols) = self.query_file_symbols(
+                                    &module,
+                                    &ShaderCompilationParams {
+                                        entry_point: None, // Remove the entry point.
+                                        shader_stage: shader_compilation_params.shader_stage,
+                                        experimental_macro_expansion: shader_compilation_params
+                                            .experimental_macro_expansion,
+                                        hlsl: shader_compilation_params.hlsl.clone(),
+                                        glsl: shader_compilation_params.glsl.clone(),
+                                        wgsl: shader_compilation_params.wgsl.clone(),
+                                    },
+                                ) {
+                                    // Fix line of declaration.
+                                    macro_symbols.for_each_mut(|_ty, symbol| {
+                                        // Update main range
+                                        if let ShaderSymbolMode::Runtime(mode) = &mut symbol.mode {
+                                            mode.range = call_range.clone();
+                                        } else {
+                                            unreachable!();
+                                        }
+                                        // TODO: hack to update inside values range.
+                                        // Should have some way to easily offset ranges...
+                                        fn move_parameters(
+                                            parameters: &mut [ShaderParameter],
+                                            range: &ShaderRange,
+                                        ) {
+                                            for parameter in parameters {
+                                                if let Some(parameter_range) = &mut parameter.range
+                                                {
+                                                    *parameter_range = range.clone();
+                                                }
+                                            }
+                                        }
+                                        fn move_signatures(
+                                            signatures: &mut [ShaderSignature],
+                                            range: &ShaderRange,
+                                        ) {
+                                            for signature in signatures {
+                                                move_parameters(&mut signature.parameters, range);
+                                            }
+                                        }
+                                        match &mut symbol.data {
+                                            ShaderSymbolData::Types { constructors } => {
+                                                move_signatures(constructors, call_range)
+                                            }
+                                            ShaderSymbolData::Struct {
+                                                constructors,
+                                                members,
+                                                methods,
+                                            } => {
+                                                move_signatures(constructors, call_range);
+                                                for member in members {
+                                                    if let Some(range) =
+                                                        &mut member.parameters.range
+                                                    {
+                                                        *range = call_range.clone();
+                                                    }
+                                                }
+                                                for method in methods {
+                                                    if let Some(range) = &mut method.range {
+                                                        *range = call_range.clone();
+                                                    }
+                                                    move_parameters(
+                                                        &mut method.signature.parameters,
+                                                        call_range,
+                                                    );
+                                                }
+                                            }
+                                            ShaderSymbolData::Functions { signatures }
+                                            | ShaderSymbolData::Method { signatures, .. } => {
+                                                move_signatures(signatures, call_range)
+                                            }
+                                            ShaderSymbolData::Enum { values } => {
+                                                for value in values {
+                                                    if let Some(range) = &mut value.range {
+                                                        *range = call_range.clone();
+                                                    }
+                                                }
+                                            }
+                                            ShaderSymbolData::CallExpression {
+                                                range,
+                                                parameters,
+                                                ..
+                                            } => {
+                                                *range = call_range.clone();
+                                                for (_, parameter_range) in parameters {
+                                                    *parameter_range = call_range.clone();
+                                                }
+                                            }
+                                            // No range in their data.
+                                            ShaderSymbolData::Constants { .. }
+                                            | ShaderSymbolData::Parameter { .. }
+                                            | ShaderSymbolData::Keyword {}
+                                            | ShaderSymbolData::Variables { .. }
+                                            | ShaderSymbolData::Include { .. }
+                                            | ShaderSymbolData::Macro { .. } => {}
+                                        }
+                                    });
+                                    new_symbols.append(macro_symbols);
+                                } else {
+                                }
                             } else {
+                                // failed to parse macro value. Ignore.
                             }
                         } else {
-                            // failed to parse macro value. Ignore.
+                            // no value for macro. Ignore.
                         }
-                    } else {
-                        // no value for macro. Ignore.
                     }
+                } else {
+                    unreachable!("call expression is not a call expression")
                 }
-            } else {
-                unreachable!("call expression is not a call expression")
+            }
+            new_symbols
+        };
+        let new_symbols = expand_symbol_list(&symbol_list.call_expression);
+        // Look for nested symbols inside expressions. Up to depth of 5.
+        let mut nested_call_expressions = new_symbols.call_expression.clone();
+        symbol_list.append(new_symbols);
+        if nested_call_expressions.len() > 0 {
+            for i in 0..5 {
+                let new_nested_symbols = expand_symbol_list(&nested_call_expressions);
+                nested_call_expressions = new_nested_symbols.call_expression.clone();
+                symbol_list.append(new_nested_symbols);
+                if nested_call_expressions.len() == 0 {
+                    break;
+                }
             }
         }
-        symbol_list.append(new_symbols);
     }
     pub fn query_symbols<'a>(
         &self,

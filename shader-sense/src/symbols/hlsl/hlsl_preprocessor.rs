@@ -144,11 +144,7 @@ impl SymbolTreePreprocessorParser for HlslDefineFuncTreePreprocessorParser {
         r#"(preproc_function_def
             (#define)
             name: (identifier) @define.name
-            parameters: (preproc_params 
-                ([
-                    ((identifier)(",")?) @define.param
-                ])?
-            )
+            parameters: (preproc_params) @define.param
             value: (preproc_arg) @define.value
         )"#
         .into()
@@ -166,15 +162,27 @@ impl SymbolTreePreprocessorParser for HlslDefineFuncTreePreprocessorParser {
             ShaderFileRange::from(file_path.into(), ShaderRange::from(identifier_node.range()));
         let name = get_name(shader_content, identifier_node).into();
         assert!(symbol_match.captures.len() >= 2);
-        let arguments = symbol_match.captures[1..symbol_match.captures.len() - 1]
-            .iter()
-            .map(|c| get_name(shader_content, c.node).trim().into())
-            .collect::<Vec<String>>();
-        let value = get_name(
-            shader_content,
-            symbol_match.captures[symbol_match.captures.len() - 1].node,
-        )
-        .trim();
+        let parameters_range = symbol_match.captures[1].node.range();
+        let parameters_length = parameters_range.end_byte - parameters_range.start_byte;
+        let arguments = if parameters_length > 2 {
+            assert!(
+                &shader_content[parameters_range.start_byte..(parameters_range.start_byte + 1)]
+                    == "("
+            );
+            assert!(
+                &shader_content[(parameters_range.start_byte + parameters_length - 1)
+                    ..parameters_range.end_byte]
+                    == ")"
+            );
+            shader_content[(parameters_range.start_byte + 1)..(parameters_range.end_byte - 1)]
+                .split(",")
+                .into_iter()
+                .map(|p| p.trim().into())
+                .collect::<Vec<String>>()
+        } else {
+            vec![]
+        };
+        let value = get_name(shader_content, symbol_match.captures[2].node).trim();
         symbols.defines.push(ShaderPreprocessorDefine::new(
             name,
             range,

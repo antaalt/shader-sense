@@ -110,6 +110,35 @@ impl ShaderSymbolList {
             includes: filter_symbols(&self.includes, ShaderSymbolType::Include, &predicate),
         }
     }
+    pub fn for_each_mut<P: FnMut(ShaderSymbolType, &mut ShaderSymbol)>(
+        &mut self,
+        mut predicate: P,
+    ) {
+        let ShaderSymbolList {
+            types,
+            constants,
+            variables,
+            call_expression,
+            functions,
+            keywords,
+            macros,
+            includes,
+        } = self;
+        for (symbol_type, symbols) in [
+            (ShaderSymbolType::Types, types),
+            (ShaderSymbolType::Constants, constants),
+            (ShaderSymbolType::Variables, variables),
+            (ShaderSymbolType::CallExpression, call_expression),
+            (ShaderSymbolType::Functions, functions),
+            (ShaderSymbolType::Keyword, keywords),
+            (ShaderSymbolType::Macros, macros),
+            (ShaderSymbolType::Include, includes),
+        ] {
+            symbols
+                .iter_mut()
+                .for_each(|symbol| predicate(symbol_type, symbol));
+        }
+    }
 }
 impl<'a> ShaderSymbolListRef<'a> {
     pub fn to_owned(&self) -> ShaderSymbolList {
