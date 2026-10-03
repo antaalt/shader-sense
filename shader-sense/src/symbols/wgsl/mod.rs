@@ -22,12 +22,15 @@ pub(super) fn create_wgsl_symbol_provider(
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::{
+        collections::HashMap,
+        path::{Path, PathBuf},
+    };
 
     use crate::{
         include::canonicalize,
-        position::{ShaderFilePosition, ShaderPosition},
-        shader::{ShaderParams, ShadingLanguage, WgslShadingLanguageTag},
+        position::{ShaderFilePosition, ShaderPosition, ShaderRange},
+        shader::{ShaderContextParams, ShaderParams, ShadingLanguage, WgslShadingLanguageTag},
         symbols::{
             shader_module::ShaderModule,
             shader_module_parser::ShaderModuleParser,
@@ -55,6 +58,102 @@ mod tests {
             .unwrap();
         let symbols = symbols.get_all_symbols().into();
         (shader_module, symbols)
+    }
+
+    #[test]
+    fn test_wesl_regions() {
+        let file_path = canonicalize(Path::new("./test/wesl/macros.wesl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Wgsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Wgsl);
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+        // Features are read from defines, undefined ones are disabled.
+        let symbols = symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams {
+                    context: ShaderContextParams {
+                        defines: HashMap::from([
+                            ("debug".into(), "1".into()),
+                            ("debug_mode".into(), "1".into()),
+                            ("legacy_implementation".into(), "true".into()),
+                            ("is_web_version".into(), "0".into()),
+                        ]),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                &mut default_include_callback::<WgslShadingLanguageTag>,
+                None,
+            )
+            .unwrap();
+        let expected_regions = vec![
+            // @if(textured) on a global variable.
+            ((1, 13), (2, 54), false),
+            // @if(debug) on a block of declarations.
+            ((6, 10), (20, 1), true),
+            // @if(debug_mode && raytracing_enabled) on a struct member.
+            ((26, 39), (27, 16), false),
+            // @if(legacy_implementation || (is_web_version && xyz_not_supported)) on a statement.
+            ((32, 69), (33, 29), true),
+            // @if(!legacy_implementation && !(is_web_version && xyz_not_supported)) on a statement.
+            ((34, 71), (35, 29), false),
+            // @compute @if(feature), attribute order does not matter.
+            ((40, 21), (40, 35), false),
+            ((42, 12), (42, 35), false),
+            // @if(feature1), feature are not declarations.
+            ((46, 13), (48, 1), false),
+            // @if / @elif / @else chain, only first true branch is active.
+            ((51, 13), (51, 32), false),
+            ((52, 12), (52, 31), true),
+            ((53, 5), (53, 24), false),
+        ];
+        let regions = &symbols.preprocessor.regions;
+        println!("{:#?}", regions);
+        assert_eq!(regions.len(), expected_regions.len());
+        for (index, (region, (start, end, is_active))) in
+            regions.iter().zip(expected_regions).enumerate()
+        {
+            let expected_range = ShaderRange::new(
+                ShaderPosition::new(start.0, start.1),
+                ShaderPosition::new(end.0, end.1),
+            );
+            assert_eq!(
+                region.range, expected_range,
+                "Wrong range for region {}",
+                index
+            );
+            assert_eq!(
+                region.is_active, is_active,
+                "Wrong state for region {}",
+                index
+            );
+        }
+        // Symbols in inactive regions are filtered.
+        let symbols = symbols.get_all_symbols();
+        let has_variable = |label: &str| symbols.variables.iter().any(|v| v.label == label);
+        assert!(has_variable("debug_buffer"));
+        assert!(has_variable("MAX_DEBUG_OUTPUT"));
+        assert!(!has_variable("my_texture"));
+        assert!(symbols.functions.iter().any(|f| f.label == "debug_write"));
+        let results: Vec<String> = symbols
+            .call_expression
+            .iter()
+            .map(|call| call.label.clone())
+            .collect();
+        assert!(results.contains(&"legacy_impl".into()));
+        assert!(!results.contains(&"modern_impl".into()));
+        let ray = symbols.types.iter().find(|t| t.label == "Ray").unwrap();
+        match &ray.data {
+            ShaderSymbolData::Struct { members, .. } => {
+                // Members are part of the struct symbol, so they are not filtered by regions.
+                assert_eq!(members.len(), 3);
+            }
+            _ => panic!("Not a struct"),
+        }
     }
 
     #[test]
