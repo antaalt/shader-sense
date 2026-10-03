@@ -36,12 +36,17 @@ use super::{
 /// It performs on a [`ShaderModule`] which need to be created by a [`ShaderModuleParser`]
 pub struct SymbolProvider {
     symbol_parsers: Vec<(Box<dyn SymbolTreeParser>, tree_sitter::Query)>,
+    shading_language: ShadingLanguage,
     scope_query: Query,
     error_query: Query,
 
     preprocessor_parsers: Vec<(Box<dyn SymbolTreePreprocessorParser>, tree_sitter::Query)>,
     region_finder: Box<dyn SymbolRegionFinder>,
     word_provider: Box<dyn SymbolWordProvider>,
+
+    // cache
+    postprocess_identifier_regex: regex::Regex,
+    postprocess_pasting_regex: regex::Regex,
 }
 
 pub type SymbolIncludeCallback<'a> =
@@ -105,13 +110,13 @@ impl ProxyTree {
 
 impl SymbolProvider {
     pub fn glsl() -> Self {
-        create_glsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Glsl))
+        create_glsl_symbol_provider()
     }
     pub fn hlsl() -> Self {
-        create_hlsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Hlsl))
+        create_hlsl_symbol_provider()
     }
     pub fn wgsl() -> Self {
-        create_wgsl_symbol_provider(&get_tree_sitter_language(ShadingLanguage::Wgsl))
+        create_wgsl_symbol_provider()
     }
     pub fn from_shading_language(shading_language: ShadingLanguage) -> Self {
         match shading_language {
@@ -121,7 +126,7 @@ impl SymbolProvider {
         }
     }
     pub(crate) fn new(
-        language: &tree_sitter::Language,
+        shading_language: ShadingLanguage,
         parsers: Vec<Box<dyn SymbolTreeParser>>,
         preprocessor_parsers: Vec<Box<dyn SymbolTreePreprocessorParser>>,
         region_finder: Box<dyn SymbolRegionFinder>,
@@ -132,27 +137,32 @@ impl SymbolProvider {
             "}"? @scope.end
         ) @scope"#;
         let error_query = r#"(ERROR) @error"#;
+        let language = get_tree_sitter_language(shading_language);
         Self {
+            shading_language,
             symbol_parsers: parsers
                 .into_iter()
                 .map(|e| {
                     // Cache query
-                    let query = Query::new(language, e.get_query().as_str()).unwrap();
+                    let query = Query::new(&language, e.get_query().as_str()).unwrap();
                     (e, query)
                 })
                 .collect(),
-            scope_query: tree_sitter::Query::new(language, scope_query).unwrap(),
-            error_query: tree_sitter::Query::new(language, error_query).unwrap(),
+            scope_query: tree_sitter::Query::new(&language, scope_query).unwrap(),
+            error_query: tree_sitter::Query::new(&language, error_query).unwrap(),
             preprocessor_parsers: preprocessor_parsers
                 .into_iter()
                 .map(|e| {
                     // Cache query
-                    let query = Query::new(language, e.get_query().as_str()).unwrap();
+                    let query = Query::new(&language, e.get_query().as_str()).unwrap();
                     (e, query)
                 })
                 .collect(),
             region_finder: region_finder,
             word_provider,
+            // cache
+            postprocess_identifier_regex: regex::Regex::new(r"[A-Za-z_][A-Za-z0-9_]*").unwrap(),
+            postprocess_pasting_regex: regex::Regex::new(r"\s*##\s*").unwrap(),
         }
     }
     pub fn query_file_scopes(&self, shader_module: &ShaderModule) -> Vec<ShaderScope> {
@@ -237,10 +247,14 @@ impl SymbolProvider {
             shader_compilation_params.experimental_macro_expansion,
             "This should only be reached if feature is enabled."
         );
+        // TODO: might need to be moved to HLSL / GLSL folder instead.
+        match self.shading_language {
+            // This is mostly designed for HLSL & GLSL
+            ShadingLanguage::Wgsl => return,
+            ShadingLanguage::Hlsl | ShadingLanguage::Glsl => {}
+        }
         // A preprocess step that filter out and develop content.
-        // TODO: correctly pick lang.
-        // TODO: this code is specific to hlsl & glsl, might need to be moved in correct folder for postprocessing step.
-        let mut tree = ProxyTree::new(&get_tree_sitter_language(ShadingLanguage::Hlsl));
+        let mut tree = ProxyTree::new(&get_tree_sitter_language(self.shading_language));
         let mut expand_symbol_list = |call_expressions: &Vec<ShaderSymbol>| {
             let mut new_symbols = ShaderSymbolList::default();
             for call_expression in call_expressions {
@@ -259,11 +273,12 @@ impl SymbolProvider {
                             (expression.get_value(), expression.get_parameters())
                         {
                             // Really basic macro parser.
-                            fn parse_macro(value: &str, args: &Vec<(String, String)>) -> String {
-                                // TODO: cache these regex.
-                                let identifier_regex =
-                                    regex::Regex::new(r"[A-Za-z_][A-Za-z0-9_]*").unwrap();
-                                let pasting_regex = regex::Regex::new(r"\s*##\s*").unwrap();
+                            fn parse_macro(
+                                value: &str,
+                                args: &Vec<(String, String)>,
+                                identifier_regex: &regex::Regex,
+                                pasting_regex: &regex::Regex,
+                            ) -> String {
                                 // Remove \ that allow new line break in macro.
                                 let formatted_value = value.replace("\\", "");
                                 // Replace arguments
@@ -296,7 +311,12 @@ impl SymbolProvider {
                                 })
                                 .collect();
 
-                            let formatted_value = parse_macro(value, &parameters);
+                            let formatted_value = parse_macro(
+                                value,
+                                &parameters,
+                                &self.postprocess_identifier_regex,
+                                &self.postprocess_pasting_regex,
+                            );
                             if let Some(tree) = tree.parse(&formatted_value) {
                                 let module = ShaderModule {
                                     file_path: file_path.into(),
@@ -422,7 +442,7 @@ impl SymbolProvider {
         let mut nested_call_expressions = new_symbols.call_expression.clone();
         symbol_list.append(new_symbols);
         if nested_call_expressions.len() > 0 {
-            for i in 0..5 {
+            for _ in 0..5 {
                 let new_nested_symbols = expand_symbol_list(&nested_call_expressions);
                 nested_call_expressions = new_nested_symbols.call_expression.clone();
                 symbol_list.append(new_nested_symbols);

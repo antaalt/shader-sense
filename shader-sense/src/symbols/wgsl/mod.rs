@@ -5,7 +5,8 @@ use wgsl_parser::get_wgsl_parsers;
 use wgsl_regions::WgslRegionFinder;
 
 use crate::{
-    position::ShaderPosition, shader_error::ShaderError, symbols::symbol_parser::ShaderWordRange,
+    position::ShaderPosition, shader::ShadingLanguage, shader_error::ShaderError,
+    symbols::symbol_parser::ShaderWordRange,
 };
 
 use super::{
@@ -25,11 +26,9 @@ impl SymbolWordProvider for WgslSymbolWordProvider {
     }
 }
 
-pub(super) fn create_wgsl_symbol_provider(
-    tree_sitter_language: &tree_sitter::Language,
-) -> SymbolProvider {
+pub(super) fn create_wgsl_symbol_provider() -> SymbolProvider {
     SymbolProvider::new(
-        tree_sitter_language,
+        ShadingLanguage::Wgsl,
         get_wgsl_parsers(),
         vec![],
         Box::new(WgslRegionFinder {}),

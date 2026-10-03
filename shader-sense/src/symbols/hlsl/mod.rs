@@ -15,11 +15,9 @@ use crate::shader::ShadingLanguage;
 
 use super::symbol_provider::SymbolProvider;
 
-pub(super) fn create_hlsl_symbol_provider(
-    tree_sitter_language: &tree_sitter::Language,
-) -> SymbolProvider {
+pub(super) fn create_hlsl_symbol_provider() -> SymbolProvider {
     SymbolProvider::new(
-        tree_sitter_language,
+        ShadingLanguage::Hlsl,
         get_hlsl_parsers(),
         get_hlsl_preprocessor_parser(),
         Box::new(HlslSymbolRegionFinder::new(ShadingLanguage::Hlsl)),
