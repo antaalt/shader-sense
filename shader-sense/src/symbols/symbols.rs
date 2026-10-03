@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     position::ShaderRange,
-    shader::{HlslShaderModel, HlslVersion, ShaderCompilationParams, ShaderStageMask},
+    shader::{
+        HlslShaderModel, HlslVersion, ShaderCompilationParams, ShaderStageMask, ShadingLanguage,
+    },
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -523,7 +525,7 @@ impl ShaderSymbol {
             } => ShaderSymbolType::Macros,
         }
     }
-    pub fn format(&self) -> String {
+    pub fn format(&self, shading_language: ShadingLanguage) -> String {
         match &self.data {
             ShaderSymbolData::Types { constructors: _ } => format!("{}", self.label.clone()),
             ShaderSymbolData::Struct {
@@ -581,16 +583,27 @@ impl ShaderSymbol {
             ),
             ShaderSymbolData::Functions { signatures } => signatures[0].format(&self.label), // TODO: append +1 symbol
             ShaderSymbolData::Keyword {} => format!("{}", self.label.clone()),
-            ShaderSymbolData::Include { target: _ } => {
-                format!("#include \"{}\"", self.label)
-            }
-            ShaderSymbolData::Macro { value, parameters } => {
-                if parameters.len() == 0 {
-                    format!("#define {} {}", self.label, value)
-                } else {
-                    format!("#define {}({}) {}", self.label, parameters.join(","), value)
+            ShaderSymbolData::Include { target: _ } => match shading_language {
+                ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
+                    format!("#include \"{}\"", self.label)
                 }
-            }
+                ShadingLanguage::Wgsl => {
+                    format!("import {}", self.label)
+                }
+            },
+            ShaderSymbolData::Macro { value, parameters } => match shading_language {
+                ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
+                    if parameters.len() == 0 {
+                        format!("#define {} {}", self.label, value)
+                    } else {
+                        format!("#define {}({}) {}", self.label, parameters.join(","), value)
+                    }
+                }
+                ShadingLanguage::Wgsl => {
+                    assert!(parameters.is_empty());
+                    format!("const {} = {};", self.label, value)
+                }
+            },
         }
     }
 }
