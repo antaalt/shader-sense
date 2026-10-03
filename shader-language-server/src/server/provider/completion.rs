@@ -308,16 +308,16 @@ fn convert_completion_item(
             description: match &shader_symbol.data {
                 ShaderSymbolData::Functions { signatures } => {
                     Some(if signatures.len() > 1 {
-                        format!("{} (+ {})", signatures[0].format(shader_symbol.label.as_str()), signatures.len() - 1)
+                        format!("{} (+ {})", signatures[0].format(shader_symbol.label.as_str(), shading_language), signatures.len() - 1)
                     } else {
-                        signatures[0].format(shader_symbol.label.as_str())
+                        signatures[0].format(shader_symbol.label.as_str(), shading_language)
                     })
                 },
                 ShaderSymbolData::Method { context, signatures } => {
                     Some(if signatures.len() > 1 {
-                        format!("{} (+ {})", signatures[0].format_with_context(shader_symbol.label.as_str(), context), signatures.len() - 1)
+                        format!("{} (+ {})", signatures[0].format_with_context(shader_symbol.label.as_str(), context, shading_language), signatures.len() - 1)
                     } else {
-                        signatures[0].format(shader_symbol.label.as_str())
+                        signatures[0].format(shader_symbol.label.as_str(), shading_language)
                     })
                 },
                 _ => Some(signature.clone())

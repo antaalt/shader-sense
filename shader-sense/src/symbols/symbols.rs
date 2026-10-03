@@ -36,27 +36,67 @@ pub struct ShaderLabelSignature {
 }
 
 impl ShaderSignature {
-    pub fn format(&self, label: &str) -> String {
-        let signature = self
-            .parameters
-            .iter()
-            .map(|p| format!("{} {}", p.ty, p.label))
-            .collect::<Vec<String>>();
-        format!("{} {}({})", self.returnType, label, signature.join(", "))
+    pub fn format(&self, label: &str, shading_language: ShadingLanguage) -> String {
+        match shading_language {
+            ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
+                let signature = self
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{} {}", p.ty, p.label))
+                    .collect::<Vec<String>>();
+                format!("{} {}({})", self.returnType, label, signature.join(", "))
+            }
+            ShadingLanguage::Wgsl => {
+                let signature = self
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{}: {}", p.label, p.ty))
+                    .collect::<Vec<String>>();
+                format!(
+                    "fn {}({}) -> {}",
+                    label,
+                    signature.join(", "),
+                    self.returnType
+                )
+            }
+        }
     }
-    pub fn format_with_context(&self, label: &str, context: &str) -> String {
-        let signature = self
-            .parameters
-            .iter()
-            .map(|p| format!("{} {}", p.ty, p.label))
-            .collect::<Vec<String>>();
-        format!(
-            "{} {}::{}({})",
-            self.returnType,
-            context,
-            label,
-            signature.join(", ")
-        )
+    pub fn format_with_context(
+        &self,
+        label: &str,
+        context: &str,
+        shading_language: ShadingLanguage,
+    ) -> String {
+        match shading_language {
+            ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
+                let signature = self
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{} {}", p.ty, p.label))
+                    .collect::<Vec<String>>();
+                format!(
+                    "{} {}::{}({})",
+                    self.returnType,
+                    context,
+                    label,
+                    signature.join(", ")
+                )
+            }
+            ShadingLanguage::Wgsl => {
+                let signature = self
+                    .parameters
+                    .iter()
+                    .map(|p| format!("{}: {}", p.label, p.ty))
+                    .collect::<Vec<String>>();
+                format!(
+                    "fn {}::{}({}) -> {}",
+                    context,
+                    label,
+                    signature.join(", "),
+                    self.returnType
+                )
+            }
+        }
     }
 }
 
@@ -537,7 +577,14 @@ impl ShaderSymbol {
                 ty,
                 qualifier,
                 value,
-            } => format!("{} {} {} = {};", qualifier, ty, self.label.clone(), value),
+            } => match shading_language {
+                ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
+                    format!("{} {} {} = {};", qualifier, ty, self.label.clone(), value)
+                } 
+                ShadingLanguage::Wgsl => {
+                    format!("{} {}: {} = {};", qualifier, self.label.clone(), ty, value)
+                }
+            }
             ShaderSymbolData::Variables { ty, count } => match count {
                 Some(count) => format!(
                     "{} {}[{}]",
@@ -567,7 +614,7 @@ impl ShaderSymbol {
             ShaderSymbolData::Method {
                 context,
                 signatures,
-            } => signatures[0].format_with_context(&self.label, context), // TODO: append +1 symbol
+            } => signatures[0].format_with_context(&self.label, context, shading_language), // TODO: append +1 symbol
             ShaderSymbolData::CallExpression {
                 label,
                 range: _,
@@ -581,7 +628,9 @@ impl ShaderSymbol {
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
-            ShaderSymbolData::Functions { signatures } => signatures[0].format(&self.label), // TODO: append +1 symbol
+            ShaderSymbolData::Functions { signatures } => {
+                signatures[0].format(&self.label, shading_language)
+            } // TODO: append +1 symbol
             ShaderSymbolData::Keyword {} => format!("{}", self.label.clone()),
             ShaderSymbolData::Include { target: _ } => match shading_language {
                 ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
