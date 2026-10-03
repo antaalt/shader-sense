@@ -78,7 +78,10 @@ impl ServerLanguage {
                                 signatures
                                     .iter()
                                     .map(|signature| SignatureInformation {
-                                        label: signature.format(shader_symbol.label.as_str()),
+                                        label: signature.format(
+                                            shader_symbol.label.as_str(),
+                                            cached_file.shading_language,
+                                        ),
                                         documentation: Some(
                                             lsp_types::Documentation::MarkupContent(
                                                 MarkupContent {

@@ -1,7 +1,7 @@
 use shader_sense::{
     shader::ShadingLanguage,
     symbols::{shader_module_parser::ShaderModuleParser, symbol_provider::SymbolProvider},
-    validator::{glslang::Glslang, naga::Naga, validator::ValidatorImpl},
+    validator::{glslang::Glslang, validator::ValidatorImpl, wesl::Wesl},
 };
 
 #[cfg(not(target_os = "wasi"))]
@@ -79,7 +79,7 @@ impl ServerLanguageData {
         let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Wgsl);
         log::info!("Using Naga for WGSL validation.");
         Self {
-            validator: Box::new(Naga::new()),
+            validator: Box::new(Wesl::new()),
             shader_module_parser,
             symbol_provider,
         }

@@ -35,7 +35,7 @@ pub struct ShaderModuleParser {
 
 pub fn get_tree_sitter_language(shading_language: ShadingLanguage) -> tree_sitter::Language {
     match shading_language {
-        ShadingLanguage::Wgsl => tree_sitter_wgsl_bevy::LANGUAGE.into(),
+        ShadingLanguage::Wgsl => tree_sitter_wesl::LANGUAGE.into(),
         ShadingLanguage::Hlsl => tree_sitter_hlsl::LANGUAGE_HLSL.into(),
         ShadingLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
     }

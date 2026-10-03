@@ -20,6 +20,7 @@ harness = false
 [dependencies]
 glslang = "0.6.1"
 naga = { version = "24.0.0", features = ["wgsl-in", "wgsl-out", "spv-out", "spv-in"] }
+wesl = "0.5.0"
 regex = "1.10.4"
 serde = { version = "1.0.199", features = ["derive"] }
 serde_json = "1.0.116"
@@ -27,7 +28,7 @@ tree-sitter = "0.25.8"
 tree-sitter-language = "0.1.0"
 tree-sitter-glsl = "0.2.0"
 tree-sitter-hlsl = "0.2.0"
-tree-sitter-wgsl-bevy = "0.1.4"
+tree-sitter-wesl = "0.1.0"
 # Slang support with tree-sitter-slang 0.3.1.
 # Metal does not have rust lib neither tree-sitter
 # Cg too old

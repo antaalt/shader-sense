@@ -285,7 +285,7 @@ fn convert_completion_item(
     } else {
         "".to_string()
     };
-    let shading_language = shading_language.to_string();
+    let shading_language_str = shading_language.to_string();
     let description = if let ShaderSymbolMode::Intrinsic(intrinsic) = &shader_symbol.mode {
         let mut description = intrinsic.description.clone();
         let max_len = 500;
@@ -298,7 +298,7 @@ fn convert_completion_item(
         "".into()
     };
 
-    let signature = shader_symbol.format();
+    let signature = shader_symbol.format(shading_language);
     CompletionItem {
         kind: Some(completion_kind),
         label: shader_symbol.label.clone(),
@@ -308,25 +308,25 @@ fn convert_completion_item(
             description: match &shader_symbol.data {
                 ShaderSymbolData::Functions { signatures } => {
                     Some(if signatures.len() > 1 {
-                        format!("{} (+ {})", signatures[0].format(shader_symbol.label.as_str()), signatures.len() - 1)
+                        format!("{} (+ {})", signatures[0].format(shader_symbol.label.as_str(), shading_language), signatures.len() - 1)
                     } else {
-                        signatures[0].format(shader_symbol.label.as_str())
+                        signatures[0].format(shader_symbol.label.as_str(), shading_language)
                     })
                 },
                 ShaderSymbolData::Method { context, signatures } => {
                     Some(if signatures.len() > 1 {
-                        format!("{} (+ {})", signatures[0].format_with_context(shader_symbol.label.as_str(), context), signatures.len() - 1)
+                        format!("{} (+ {})", signatures[0].format_with_context(shader_symbol.label.as_str(), context, shading_language), signatures.len() - 1)
                     } else {
-                        signatures[0].format(shader_symbol.label.as_str())
+                        signatures[0].format(shader_symbol.label.as_str(), shading_language)
                     })
                 },
-                _ => Some(shader_symbol.format())
+                _ => Some(signature.clone())
             }
         }),
         filter_text: Some(shader_symbol.label.clone()),
         documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
             kind: lsp_types::MarkupKind::Markdown,
-            value: format!("```{shading_language}\n{signature}\n```\n{description}\n\n{doc_signature}\n\n{position}\n{doc_link}"),
+            value: format!("```{shading_language_str}\n{signature}\n```\n{description}\n\n{doc_signature}\n\n{position}\n{doc_link}"),
         })),
         ..Default::default()
     }
