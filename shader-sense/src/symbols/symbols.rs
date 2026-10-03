@@ -580,11 +580,11 @@ impl ShaderSymbol {
             } => match shading_language {
                 ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {
                     format!("{} {} {} = {};", qualifier, ty, self.label.clone(), value)
-                } 
+                }
                 ShadingLanguage::Wgsl => {
                     format!("{} {}: {} = {};", qualifier, self.label.clone(), ty, value)
                 }
-            }
+            },
             ShaderSymbolData::Variables { ty, count } => match count {
                 Some(count) => format!(
                     "{} {}[{}]",
