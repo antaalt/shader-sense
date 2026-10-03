@@ -91,7 +91,10 @@ interface ServerConfig {
             profile: 'None' | 'Core' | 'Compatibility' | 'Es' | null, // Profile to force for GLSL shaders. Ignored if no version set. Default to Core.
         }?
     }?, // Glsl specific configuration
-    wgsl: {} // Wgsl specific configuration
+    wgsl: {
+        packageRoot: string?, // Root of the wesl package for `package::` imports.
+        packages: { string: string }?, // Root of external wesl packages for `name::` imports.
+    } // Wgsl specific configuration
 }
 // Configuration that can be loaded by server through configOverride option. Useful for engine specific configuration to be swapped.
 interface ServerConfigOverride {
@@ -137,7 +140,7 @@ interface ShaderVariant {
     shadingLanguage: string, // language id of variant
     entryPoint: string, // The name of the entry point function.
     stage: string | null, // Correspond to the value of the enum ShaderStage in shader-sense, case sensitive. 
-    defines: Object, // defines and its values
+    defines: { string: string }, // defines and its values
     includes: string[], // include folders for this variant
 }
 ```
@@ -200,7 +203,7 @@ Diagnostics are generated following language specifics API:
 
 - **GLSL** uses [glslang-rs](https://github.com/SnowflakePowered/glslang-rs) as backend. It provide complete linting for GLSL trough glslang API bindings from C.
 - **HLSL** uses [hassle-rs](https://github.com/Traverse-Research/hassle-rs) as backend. It provides bindings to directx shader compiler in rust.
-- **WGSL** uses [naga](https://github.com/gfx-rs/naga) as backend for linting.
+- **WGSL** uses [naga](https://github.com/gfx-rs/naga) as backend for linting, and [wesl-rs](https://github.com/webgpu-tools/wesl-rs) for resolving import and macros.
 
 ### Symbols
 
