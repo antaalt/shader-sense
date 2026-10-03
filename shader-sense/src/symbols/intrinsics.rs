@@ -4,7 +4,10 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use crate::{
     shader::{ShaderCompilationParams, ShadingLanguage},
-    symbols::symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
+    symbols::{
+        symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
+        symbols::{ShaderSymbol, ShaderSymbolData, ShaderSymbolIntrinsic, ShaderSymbolMode},
+    },
 };
 
 static INTRINSICS: LazyLock<HashMap<ShadingLanguage, ShaderIntrinsics>> = LazyLock::new(|| {
@@ -37,11 +40,23 @@ impl ShaderIntrinsics {
         }
     }
     fn new(shading_language: ShadingLanguage) -> Self {
-        Self {
-            shader_intrinsics: ShaderSymbolList::parse_from_json(
-                Self::get_symbol_intrinsic_path(shading_language).into(),
-            ),
-        }
+        let mut shader_intrinsics = ShaderSymbolList::parse_from_json(
+            Self::get_symbol_intrinsic_path(shading_language).into(),
+        );
+        shader_intrinsics.macros.push(ShaderSymbol {
+            label: "__SHADER_SENSE__".into(),
+            requirement: None,
+            data: ShaderSymbolData::Macro {
+                value: "1".into(),
+                parameters: vec![],
+            },
+            mode: ShaderSymbolMode::Intrinsic(ShaderSymbolIntrinsic::new(
+                "This is available because the shader is currently validated by shader-sense."
+                    .into(),
+                Some("https://github.com/antaalt/shader-sense".into()),
+            )),
+        });
+        Self { shader_intrinsics }
     }
     pub fn get(shading_language: ShadingLanguage) -> &'static ShaderIntrinsics {
         INTRINSICS.get(&shading_language).unwrap()
