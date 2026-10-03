@@ -1,11 +1,45 @@
-use std::path::{Path, PathBuf};
+use std::{collections::HashMap, path::{Path, PathBuf}};
+
+use shader_slang::{Blob, FileSystem};
 
 use crate::{
-    position::{ShaderFileRange, ShaderPosition},
-    shader::{ShaderParams, ShaderStage},
-    shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
-    validator::validator::ValidatorImpl,
+    include::IncludeHandler, position::{ShaderFileRange, ShaderPosition}, shader::{ShaderParams, ShaderStage}, shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError}, validator::{slang, validator::ValidatorImpl},
 };
+
+
+struct SlangIncludeHandler<'a> {
+    include_handler: IncludeHandler,
+    include_callback: &'a mut dyn FnMut(&Path) -> Option<String>,
+}
+
+impl<'a> SlangIncludeHandler<'a> {
+    pub fn new(
+        file: &Path,
+        includes: Vec<PathBuf>,
+        path_remapping: HashMap<PathBuf, PathBuf>,
+        include_callback: &'a mut dyn FnMut(&Path) -> Option<String>,
+    ) -> Self {
+        Self {
+            include_handler: IncludeHandler::main(file, includes, path_remapping),
+            include_callback: include_callback,
+        }
+    }
+}
+
+impl shader_slang::FileSystemImpl for SlangIncludeHandler<'static> {
+    fn load_file(&mut self, path: &str) -> Option<Blob> {
+        match self
+            .include_handler
+            .search_in_includes(Path::new(path), self.include_callback)
+        {
+            Some((content, include)) => {
+                self.include_handler.push_directory_stack(&include);
+                Some(shader_slang::Blob::from(content))
+            }
+            None => None,
+        }
+    }
+}
 
 pub struct Slang {
     // Cache regex for parsing.
@@ -68,10 +102,10 @@ impl Slang {
 impl ValidatorImpl for Slang {
     fn validate_shader(
         &self,
-        _shader_content: &str,
+        shader_content: &str,
         file_path: &Path,
         params: &ShaderParams,
-        _include_callback: &mut dyn FnMut(&Path) -> Option<String>, // TODO: cant be used now as slang-rs does not provide way for custom load.
+        include_callback: &mut dyn FnMut(&Path) -> Option<String>,
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         // TODO: this should not be recreated.
         let global_session = shader_slang::GlobalSession::new().unwrap();
@@ -94,20 +128,23 @@ impl ValidatorImpl for Slang {
 
         let targets = [target_desc];
         let search_paths = [search_path.as_ptr()];
-
+        let include_handler = SlangIncludeHandler::new(
+            file_path,
+            params.context.includes.clone(),
+            params.context.path_remapping.clone(),
+            include_callback,
+        );
+        let file_system = FileSystem::new(include_handler);
         let session_desc = shader_slang::SessionDesc::default()
             .targets(&targets)
             .search_paths(&search_paths)
-            .options(&session_options);
-        // In order to have a custom file loader which behave the same for all lang,
-        // we should implement a class extending ISlangFileSystem with a custom loadFile,
-        // but this is not possible to do in pure Rust. Need to implement the class in C++
-        // TODO: implement filesystem to be able to use include_callback
-        //session_desc.fileSystem;
+            .options(&session_options)
+            .file_system(&file_system);
 
         let session = global_session.create_session(&session_desc).unwrap();
         //session.load_module(name);
-        match session.load_module("shader.slang") {
+        let file_path_str = file_path.to_string_lossy();
+        match session.load_module_from_source_string("shader.slang", &file_path_str, shader_content) {
             Ok(_module) => Ok(ShaderDiagnosticList::empty()),
             Err(errors) => self.parse_errors(&errors.to_string(), file_path, params),
         }

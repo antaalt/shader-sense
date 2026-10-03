@@ -1343,8 +1343,7 @@ dependencies = [
 [[package]]
 name = "shader-slang"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f87ca0837663794c1d9db2c8c9383832557605a354a60ae754c7e56015596b7"
+source = "git+https://github.com/antaalt/slang-rs?branch=add-custom-file-system-handler#2cf53b645a3792227fda8542190eedf28430df7e"
 dependencies = [
  "shader-slang-sys",
 ]
@@ -1352,8 +1351,7 @@ dependencies = [
 [[package]]
 name = "shader-slang-sys"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "279effb991b113c13e73108899aad05fabbf0d7a62b51c646ebad0512c40a1e3"
+source = "git+https://github.com/antaalt/slang-rs?branch=add-custom-file-system-handler#2cf53b645a3792227fda8542190eedf28430df7e"
 dependencies = [
  "bindgen",
 ]
