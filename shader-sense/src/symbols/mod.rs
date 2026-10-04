@@ -126,6 +126,41 @@ mod tests {
         )));
     }
     #[test]
+    fn intrinsics_hlsl_modifiers() {
+        let intrinsics = ShaderSymbolList::parse_from_json(String::from(include_str!(
+            "hlsl/hlsl-intrinsics.json"
+        )));
+        let get_modifiers = |label: &str| -> Vec<(String, Option<String>)> {
+            let function = intrinsics
+                .functions
+                .iter()
+                .find(|f| f.label == label)
+                .unwrap_or_else(|| panic!("Function {} not found", label));
+            match &function.data {
+                ShaderSymbolData::Functions { signatures } => signatures[0]
+                    .parameters
+                    .iter()
+                    .map(|p| (p.label.clone(), p.modifier.clone()))
+                    .collect(),
+                _ => panic!("{} is not a function", label),
+            }
+        };
+        assert_eq!(
+            get_modifiers("sincos"),
+            vec![
+                ("x".into(), None),
+                ("s".into(), Some("out".into())),
+                ("c".into(), Some("out".into()))
+            ]
+        );
+        // Raytracing intrinsics are functions.
+        let trace_ray = get_modifiers("TraceRay");
+        assert_eq!(
+            trace_ray.last(),
+            Some(&("Payload".into(), Some("inout".into())))
+        );
+    }
+    #[test]
     fn intrinsics_wgsl_ok() {
         // Ensure parsing of intrinsics is OK
         let _ = ShaderSymbolList::parse_from_json(String::from(include_str!(

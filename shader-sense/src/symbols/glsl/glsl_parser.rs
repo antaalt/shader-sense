@@ -81,6 +81,7 @@ impl SymbolTreeParser for GlslFunctionTreeParser {
                             count: None,
                             description: "".into(),
                             range: Some(ShaderRange::from(w[1].node.range())),
+                            modifier: None,
                         })
                         .collect::<Vec<ShaderParameter>>(),
                 }],
@@ -140,6 +141,7 @@ impl SymbolTreeParser for GlslUniformBlock {
                                 count: None,
                                 description: "".into(),
                                 range: Some(ShaderRange::from(w[1].node.range())),
+                                modifier: None,
                             },
                         })
                         .collect(),
@@ -232,6 +234,7 @@ impl SymbolTreeParser for GlslStructTreeParser {
                 count: None,
                 description: "".into(),
                 range: Some(ShaderRange::from(w[1].node.range())),
+                modifier: None,
             })
             .collect::<Vec<ShaderParameter>>();
         symbols.add_type(ShaderSymbol {

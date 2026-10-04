@@ -58,6 +58,7 @@ impl SymbolTreeParser for WgslStructTreeParser {
                             count: None,
                             description: "".into(),
                             range: Some(ShaderRange::from(ShaderRange::from(w[0].node.range()))),
+                            modifier: None,
                         },
                     })
                     .collect(),

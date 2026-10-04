@@ -83,6 +83,15 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
             .map(|w| {
                 let ty: String = get_name(shader_content, w[0].node).into();
                 let label: String = get_name(shader_content, w[1].node).into();
+                // in / out / inout are anonymous children of the parameter declaration.
+                let modifier = w[1].node.parent().and_then(|parameter_node| {
+                    let mut cursor = parameter_node.walk();
+                    let modifier = parameter_node
+                        .children(&mut cursor)
+                        .find(|child| matches!(child.kind(), "in" | "out" | "inout"))
+                        .map(|child| child.kind().to_string());
+                    modifier
+                });
                 symbols.add_variable(ShaderSymbol {
                     label: label.clone(),
                     requirement: None,
@@ -103,6 +112,7 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
                     count: None,
                     description: "".into(),
                     range: Some(ShaderRange::from(w[1].node.range())),
+                    modifier,
                 }
             })
             .collect::<Vec<ShaderParameter>>();
@@ -244,6 +254,7 @@ impl SymbolTreeParser for HlslStructTreeParser {
                             },
                             description: "".into(),
                             range: f.mode.map_runtime().map(|r| r.range.clone()),
+                            modifier: None,
                         },
                     })
                     .collect::<Vec<ShaderMember>>(),
@@ -646,6 +657,42 @@ mod hlsl_parser_tests {
     }
 
     #[test]
+    fn function_parameter_modifiers() {
+        let file_path = canonicalize(Path::new("./test/hlsl/ok.hlsl")).unwrap();
+        let shader_content = "void f(float a, in float b, out float2 c, inout float3 d, in const float e, in float g = 1.0) {}";
+        let symbols = parse(
+            &HlslFunctionTreeParser { is_field: false },
+            &file_path,
+            shader_content,
+        );
+        let function = symbols.functions.iter().find(|f| f.label == "f").unwrap();
+        let signature = match &function.data {
+            ShaderSymbolData::Functions { signatures } => &signatures[0],
+            data => panic!("Not a function: {:#?}", data),
+        };
+        let modifiers: Vec<(&str, Option<&str>)> = signature
+            .parameters
+            .iter()
+            .map(|p| (p.label.as_str(), p.modifier.as_deref()))
+            .collect();
+        assert_eq!(
+            modifiers,
+            vec![
+                ("a", None),
+                ("b", Some("in")),
+                ("c", Some("out")),
+                ("d", Some("inout")),
+                ("e", Some("in")),
+                ("g", Some("in")),
+            ]
+        );
+        assert_eq!(
+            signature.format("f"),
+            "void f(float a, in float b, out float2 c, inout float3 d, in float e, in float g)"
+        );
+    }
+
+    #[test]
     fn struct_parser() {
         let path = Path::new("dontcare");
         let content = r"
@@ -675,6 +722,7 @@ mod hlsl_parser_tests {
                                     ShaderPosition::new(1, 0),
                                     ShaderPosition::new(2, 0),
                                 )),
+                                modifier: None,
                             },
                         },
                         ShaderMember {
@@ -688,6 +736,7 @@ mod hlsl_parser_tests {
                                     ShaderPosition::new(1, 0),
                                     ShaderPosition::new(2, 0),
                                 )),
+                                modifier: None,
                             },
                         },
                     ],
@@ -742,6 +791,7 @@ mod hlsl_parser_tests {
                                     ShaderPosition::new(1, 0),
                                     ShaderPosition::new(2, 0),
                                 )),
+                                modifier: None,
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
@@ -752,6 +802,7 @@ mod hlsl_parser_tests {
                                     ShaderPosition::new(1, 0),
                                     ShaderPosition::new(2, 0),
                                 )),
+                                modifier: None,
                             },
                         ],
                     }],

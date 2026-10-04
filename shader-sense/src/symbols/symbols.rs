@@ -12,10 +12,21 @@ use crate::{
 pub struct ShaderParameter {
     pub ty: String,
     pub label: String,
+    pub modifier: Option<String>,
     pub count: Option<ShaderSymbolArray>,
     pub description: String,
     #[serde(skip)] // Runtime only
     pub range: Option<ShaderRange>,
+}
+
+impl ShaderParameter {
+    /// Format the parameter as declared, such as `out float2 value`.
+    pub fn format(&self) -> String {
+        match &self.modifier {
+            Some(modifier) => format!("{} {} {}", modifier, self.ty, self.label),
+            None => format!("{} {}", self.ty, self.label),
+        }
+    }
 }
 
 #[allow(non_snake_case)] // for JSON
@@ -38,7 +49,7 @@ impl ShaderSignature {
         let signature = self
             .parameters
             .iter()
-            .map(|p| format!("{} {}", p.ty, p.label))
+            .map(|p| p.format())
             .collect::<Vec<String>>();
         format!("{} {}({})", self.returnType, label, signature.join(", "))
     }
@@ -46,7 +57,7 @@ impl ShaderSignature {
         let signature = self
             .parameters
             .iter()
-            .map(|p| format!("{} {}", p.ty, p.label))
+            .map(|p| p.format())
             .collect::<Vec<String>>();
         format!(
             "{} {}::{}({})",
