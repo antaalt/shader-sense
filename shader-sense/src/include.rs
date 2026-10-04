@@ -13,6 +13,21 @@ pub struct IncludeHandler {
     path_remapping: HashMap<PathBuf, PathBuf>, // remapping of path / virtual path
 }
 
+/// Find the file of a WESL module from the root directory of its package and its path components,
+/// such as `root/a/b.wesl` for `package::a::b`. Fallback to `.wgsl` extension.
+pub fn find_wesl_module_file(root: &Path, components: &[String]) -> Option<PathBuf> {
+    if components.is_empty() {
+        return None;
+    }
+    let mut file_path = root.to_path_buf();
+    file_path.extend(components);
+    ["wesl", "wgsl"]
+        .iter()
+        .map(|extension| file_path.with_extension(extension))
+        .find(|file_path| file_path.is_file())
+        .map(|file_path| canonicalize(&file_path).unwrap_or(file_path))
+}
+
 /// Canonicalize a path, the custom way.
 ///
 /// [`std::fs::canonicalize`] not supported on wasi target, so we emulate it.

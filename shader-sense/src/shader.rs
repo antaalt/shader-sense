@@ -406,9 +406,15 @@ pub struct GlslCompilationParams {
     pub version: Option<GlslProfileVersion>,
 }
 
-/// Wgsl compilation parameters for naga.
+/// Wgsl & Wesl compilation parameters for wesl & naga.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct WgslCompilationParams {}
+pub struct WgslCompilationParams {
+    /// Root directory of the package, used to resolve `package::` imports.
+    /// Default to the directory of the validated file if unset.
+    pub package_root: Option<PathBuf>,
+    /// Root directory of each external package, used to resolve `import name::` imports.
+    pub packages: HashMap<String, PathBuf>,
+}
 
 /// Parameters for includes.
 #[derive(Default, Debug, Clone)]

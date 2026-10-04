@@ -6,7 +6,7 @@ use crate::validator::dxc::Dxc;
 use crate::{
     shader::{ShaderParams, ShaderStage, ShadingLanguage},
     shader_error::{ShaderDiagnosticList, ShaderError},
-    validator::{glslang::Glslang, naga::Naga},
+    validator::{glslang::Glslang, wesl::Wesl},
 };
 
 /// Default include callback for [`Validator::validate_shader`]
@@ -88,7 +88,7 @@ impl Validator {
     /// It will use naga directly.
     pub fn wgsl() -> Self {
         Self {
-            imp: Box::new(Naga::new()),
+            imp: Box::new(Wesl::new()),
         }
     }
     /// Create a validator from the given [`ShadingLanguage`]

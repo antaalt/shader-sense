@@ -35,7 +35,7 @@ impl ServerLanguage {
                     Ok(None)
                 } else {
                     let symbol = &matching_symbols[0];
-                    let label = symbol.format();
+                    let label = symbol.format(cached_file.shading_language);
                     let (description, link) = match &symbol.mode {
                         ShaderSymbolMode::Intrinsic(intrinsic) => {
                             let description = intrinsic.description.clone();

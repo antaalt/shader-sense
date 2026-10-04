@@ -68,6 +68,13 @@ pub struct ServerGlslConfig {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ServerWgslConfig {
+    pub package_root: Option<String>, // Root of the package for `package::` imports.
+    pub packages: Option<HashMap<String, String>>, // Root of external packages for `name::` imports.
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum ServerTraceLevel {
     #[default]
     Off,
@@ -101,6 +108,7 @@ pub struct ServerSerializedConfigOverride {
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>,
     hlsl: Option<ServerHlslConfig>,
     glsl: Option<ServerGlslConfig>,
+    wgsl: Option<ServerWgslConfig>,
 }
 
 /// Serialized configuration for the server to be sent through workspace/configuration lsp request or as input when starting the server.
@@ -123,6 +131,7 @@ pub struct ServerSerializedConfig {
     config_override: Option<String>, // Override configuration file
     hlsl: Option<ServerHlslConfig>,  // Hlsl specific configuration
     glsl: Option<ServerGlslConfig>,  // Glsl specific configuration
+    wgsl: Option<ServerWgslConfig>,  // Wgsl & Wesl specific configuration
 }
 
 /// Configuration computed from both server configuration and engine configuration.
@@ -152,6 +161,12 @@ impl ServerSerializedConfig {
             warn!("Failed to canonicalize setting path {}", err);
             PathBuf::from(path)
         })
+    }
+    fn verify_packages(packages: HashMap<String, String>) -> HashMap<String, PathBuf> {
+        packages
+            .into_iter()
+            .map(|(name, path)| (name, Self::verify_user_path(&path)))
+            .collect()
     }
     pub fn validate(&self) -> Result<(), Vec<String>> {
         // Validation is opt-out, so default is validate, unless specified otherwise.
@@ -244,6 +259,19 @@ impl ServerSerializedConfig {
                 }
             }
         }
+        if let Some(wgsl) = &self.wgsl {
+            let package_roots = wgsl
+                .package_root
+                .iter()
+                .filter(|package_root| !package_root.is_empty())
+                .chain(wgsl.packages.iter().flat_map(|packages| packages.values()));
+            for package_root in package_roots {
+                let package_root_path = Self::verify_user_path(package_root);
+                if !std::fs::exists(package_root_path).unwrap_or(false) {
+                    errors.push(format!("Package folder at {:#?} not found", package_root));
+                }
+            }
+        }
         if errors.is_empty() {
             Ok(())
         } else {
@@ -312,7 +340,20 @@ impl ServerSerializedConfig {
                         .or(previous_config.glsl.version),
                 })
                 .unwrap_or(previous_config.glsl),
-            wgsl: WgslCompilationParams {},
+            wgsl: self
+                .wgsl
+                .map(|wgsl| WgslCompilationParams {
+                    package_root: wgsl
+                        .package_root
+                        .filter(|package_root| !package_root.is_empty())
+                        .map(|package_root| Self::verify_user_path(&package_root))
+                        .or(previous_config.wgsl.package_root.clone()),
+                    packages: wgsl
+                        .packages
+                        .map(|packages| Self::verify_packages(packages))
+                        .unwrap_or(previous_config.wgsl.packages.clone()),
+                })
+                .unwrap_or(previous_config.wgsl),
         };
         // Get engine config if set and override them.
         if let Some(config_override) = self.config_override {
@@ -375,6 +416,20 @@ impl ServerSerializedConfig {
                 if let Some(target_client) = override_glsl.target_client {
                     config.glsl.client = target_client;
                 }
+            }
+            if let Some(override_wgsl) = override_config.wgsl {
+                if let Some(package_root) = override_wgsl
+                    .package_root
+                    .filter(|package_root| !package_root.is_empty())
+                {
+                    config.wgsl.package_root = Some(Self::verify_user_path(&package_root));
+                }
+                config.wgsl.packages.extend(
+                    override_wgsl
+                        .packages
+                        .map(Self::verify_packages)
+                        .unwrap_or_default(),
+                );
             }
             if let Some(override_hlsl) = override_config.hlsl {
                 if let Some(version) = override_hlsl.version {
@@ -773,6 +828,28 @@ mod tests {
                     profile: GlslProfile::Es
                 })
         );
+    }
+
+    #[test]
+    fn test_wgsl_config() {
+        let cfg: ServerSerializedConfig = serde_json::from_str(
+            r#"{
+            "wgsl": {
+                "packageRoot": "/shaders",
+                "packages": { "bevy": "/deps/bevy" }
+            }
+        }"#,
+        )
+        .unwrap();
+        let cfg = cfg.compute_engine_config(ServerConfig::default());
+        let params = cfg.into_shader_params(None, None);
+        assert!(params.compilation.wgsl.package_root.is_some());
+        assert!(params.compilation.wgsl.packages.contains_key("bevy"));
+        // Unset package root is kept from previous config.
+        let cfg_update: ServerSerializedConfig =
+            serde_json::from_str(r#"{ "wgsl": { "packageRoot": null } }"#).unwrap();
+        let cfg_update = cfg_update.compute_engine_config(cfg.clone());
+        assert!(cfg_update.wgsl.package_root == cfg.wgsl.package_root);
     }
 
     #[test]

@@ -39,7 +39,7 @@ impl ServerLanguage {
                 // https://github.com/rust-lang/rust/issues/102777
                 DocumentSymbol {
                     name: symbol.label.clone(),
-                    detail: Some(symbol.format()),
+                    detail: Some(symbol.format(cached_file.shading_language)),
                     kind: match symbol.get_type() {
                         ShaderSymbolType::Types => SymbolKind::TYPE_PARAMETER,
                         ShaderSymbolType::Constants => SymbolKind::CONSTANT,

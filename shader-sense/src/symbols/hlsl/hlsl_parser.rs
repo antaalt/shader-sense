@@ -687,7 +687,7 @@ mod hlsl_parser_tests {
             ]
         );
         assert_eq!(
-            signature.format("f"),
+            signature.format("f", ShadingLanguage::Hlsl),
             "void f(float a, in float b, out float2 c, inout float3 d, in float e, in float g)"
         );
     }

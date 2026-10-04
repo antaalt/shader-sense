@@ -254,7 +254,7 @@ pub fn main() {
                             .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
                         version: None,
                     },
-                    wgsl: WgslCompilationParams {},
+                    wgsl: WgslCompilationParams::default(),
                 },
             };
 
@@ -372,7 +372,7 @@ pub fn main() {
                                     runtime.range.start.line,
                                     runtime.range.start.pos
                                 ),
-                                _ => symbol.format(),
+                                _ => symbol.format(shading_language),
                             };
                             if !symbol_type_to_print.contains(&symbol.get_type()) {
                                 continue;
@@ -392,7 +392,12 @@ pub fn main() {
                                 ShaderSymbolType::Macros => "✏️  Macro".yellow(),
                             };
                             found_some_symbols = true;
-                            println!("{} {} {}", icon, header.blue(), symbol.format().italic());
+                            println!(
+                                "{} {} {}",
+                                icon,
+                                header.blue(),
+                                symbol.format(shading_language).italic()
+                            );
                         }
                         if !found_some_symbols {
                             fn get_type_string(ty: &ShaderSymbolType) -> &'static str {
