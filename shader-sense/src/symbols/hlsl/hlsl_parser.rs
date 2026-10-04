@@ -71,7 +71,7 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
         let scope_stack = self.compute_scope_stack(scopes, &range);
         // Query internal scope
         let scope_node = symbol_match.captures[symbol_match.captures.len() - 1].node;
-        let scope_range = ShaderRange::from(scope_node.range());
+        let scope_range = ShaderScope::new(ShaderRange::from(scope_node.range()));
         let parameter_scope_stack = {
             let mut s = scope_stack.clone();
             s.push(scope_range.clone());
@@ -404,7 +404,7 @@ impl SymbolTreeParser for HlslEnumTreeParser {
             mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
                 file_path.into(),
                 range,
-                Some(scope_range),
+                Some(ShaderScope::new(scope_range)),
                 scope_stack,
             )),
         });
@@ -810,10 +810,10 @@ mod hlsl_parser_tests {
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
                     canonicalize(path).unwrap(),
                     ShaderRange::new(ShaderPosition::new(1, 17), ShaderPosition::new(1, 25)),
-                    Some(ShaderScope::new(
+                    Some(ShaderScope::new(ShaderRange::new(
                         ShaderPosition::new(1, 49),
                         ShaderPosition::new(2, 13),
-                    )),
+                    ))),
                     vec![],
                 )),
             },
@@ -859,10 +859,10 @@ mod hlsl_parser_tests {
                 mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
                     canonicalize(path).unwrap(),
                     ShaderRange::new(ShaderPosition::new(1, 23), ShaderPosition::new(1, 36)),
-                    Some(ShaderScope::new(
+                    Some(ShaderScope::new(ShaderRange::new(
                         ShaderPosition::new(1, 37),
                         ShaderPosition::new(4, 13),
-                    )),
+                    ))),
                     vec![],
                 )),
             },

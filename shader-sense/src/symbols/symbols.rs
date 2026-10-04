@@ -69,7 +69,26 @@ impl ShaderSignature {
     }
 }
 
-pub type ShaderScope = ShaderRange;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaderScope {
+    pub range: ShaderRange,
+    pub namespace: Option<String>,
+}
+
+impl ShaderScope {
+    pub fn new(range: ShaderRange) -> ShaderScope {
+        ShaderScope {
+            range,
+            namespace: None,
+        }
+    }
+    pub fn new_namespace(range: ShaderRange, namespace: String) -> ShaderScope {
+        ShaderScope {
+            range,
+            namespace: Some(namespace),
+        }
+    }
+}
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderMember {

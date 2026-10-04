@@ -170,7 +170,7 @@ impl<'a> ShaderSymbolListRef<'a> {
                     if is_already_defined {
                         // If we are in main file, check if scope in range.
                         for symbol_scope in &runtime.scope_stack {
-                            if !symbol_scope.contain(&cursor_position.position) {
+                            if !symbol_scope.range.contain(&cursor_position.position) {
                                 return false; // scope not in range
                             }
                         }

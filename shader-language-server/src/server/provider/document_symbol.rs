@@ -1,5 +1,6 @@
 use lsp_types::{DocumentSymbol, SymbolKind, Url};
-use shader_sense::symbols::symbols::{ShaderScope, ShaderSymbolMode, ShaderSymbolType};
+use shader_sense::position::ShaderRange;
+use shader_sense::symbols::symbols::{ShaderSymbolMode, ShaderSymbolType};
 
 use crate::server::common::{shader_range_to_location, ServerLanguageError};
 use crate::server::ServerLanguage;
@@ -29,7 +30,9 @@ impl ServerLanguage {
                 let label_runtime = symbol.mode.unwrap_runtime();
                 // Content expected to englobe label.
                 let content_range = match &label_runtime.scope {
-                    Some(scope) => ShaderScope::join(scope.clone(), label_runtime.range.clone()),
+                    Some(scope) => {
+                        ShaderRange::join(scope.range.clone(), label_runtime.range.clone())
+                    }
                     None => label_runtime.range.clone(),
                 };
                 #[allow(deprecated)]

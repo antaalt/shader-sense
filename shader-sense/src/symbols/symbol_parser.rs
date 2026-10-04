@@ -304,7 +304,7 @@ pub trait SymbolTreeParser {
         scopes
             .iter()
             .filter_map(|e| {
-                if e.contain_bounds(&range) {
+                if e.range.contain_bounds(&range) {
                     Some(e.clone())
                 } else {
                     None

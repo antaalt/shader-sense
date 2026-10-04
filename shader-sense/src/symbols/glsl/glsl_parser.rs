@@ -89,7 +89,7 @@ impl SymbolTreeParser for GlslFunctionTreeParser {
             mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
                 file_path.into(),
                 range,
-                Some(ShaderRange::from(scope_node.range())),
+                Some(ShaderScope::new(ShaderRange::from(scope_node.range()))),
                 scope_stack,
             )),
         });
