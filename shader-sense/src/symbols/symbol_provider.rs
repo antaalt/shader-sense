@@ -38,7 +38,7 @@ pub struct SymbolProvider {
     symbol_parsers: Vec<(Box<dyn SymbolTreeParser>, tree_sitter::Query)>,
     shading_language: ShadingLanguage,
     scope_query: Query,
-    namespace_query: Query,
+    namespace_query: Option<Query>,
     error_query: Query,
 
     preprocessor_parsers: Vec<(Box<dyn SymbolTreePreprocessorParser>, tree_sitter::Query)>,
@@ -157,7 +157,11 @@ impl SymbolProvider {
                 })
                 .collect(),
             scope_query: tree_sitter::Query::new(&language, scope_query).unwrap(),
-            namespace_query: tree_sitter::Query::new(&language, namespace_query).unwrap(),
+            namespace_query: if shading_language == ShadingLanguage::Hlsl {
+                Some(tree_sitter::Query::new(&language, namespace_query).unwrap())
+            } else {
+                None
+            },
             error_query: tree_sitter::Query::new(&language, error_query).unwrap(),
             preprocessor_parsers: preprocessor_parsers
                 .into_iter()
@@ -207,44 +211,46 @@ impl SymbolProvider {
                 _ => unreachable!("Query should not return more than 3 match."),
             });
         }
-        // Namespaces
-        let mut query_cursor = QueryCursor::new();
-        let mut all_namespace_matches = query_cursor.matches(
-            &self.namespace_query,
-            shader_module.tree.root_node(),
-            shader_module.content.as_bytes(),
-        );
-        while let Some(symbol_match) = all_namespace_matches.next() {
-            scopes.push(match symbol_match.captures.len() {
-                // one body
-                2 => ShaderScope::new_namespace(
-                    ShaderRange::from(symbol_match.captures[1].node.range()),
-                    get_name(&shader_module.content, symbol_match.captures[0].node).into(),
-                ),
-                // a bit weird, a body and single curly brace ? mergin them to be safe.
-                3 => ShaderScope::new_namespace(
-                    ShaderRange::join(
+        // Namespaces are only supported in HLSL.
+        if let Some(namespace_query) = &self.namespace_query {
+            let mut query_cursor = QueryCursor::new();
+            let mut all_namespace_matches = query_cursor.matches(
+                namespace_query,
+                shader_module.tree.root_node(),
+                shader_module.content.as_bytes(),
+            );
+            while let Some(symbol_match) = all_namespace_matches.next() {
+                scopes.push(match symbol_match.captures.len() {
+                    // one body
+                    2 => ShaderScope::new_namespace(
                         ShaderRange::from(symbol_match.captures[1].node.range()),
-                        ShaderRange::from(symbol_match.captures[2].node.range()),
-                    ),
-                    get_name(&shader_module.content, symbol_match.captures[0].node).into(),
-                ),
-                // Remove curly braces from scope.
-                4 => {
-                    let curly_start = symbol_match.captures[2].node.range();
-                    let curly_end = symbol_match.captures[3].node.range();
-                    ShaderScope::new_namespace(
-                        ShaderRange::from(tree_sitter::Range {
-                            start_byte: curly_start.end_byte,
-                            end_byte: curly_end.start_byte,
-                            start_point: curly_start.end_point,
-                            end_point: curly_end.start_point,
-                        }),
                         get_name(&shader_module.content, symbol_match.captures[0].node).into(),
-                    )
-                }
-                _ => unreachable!("Query should not return more than 3 match."),
-            });
+                    ),
+                    // a bit weird, a body and single curly brace ? mergin them to be safe.
+                    3 => ShaderScope::new_namespace(
+                        ShaderRange::join(
+                            ShaderRange::from(symbol_match.captures[1].node.range()),
+                            ShaderRange::from(symbol_match.captures[2].node.range()),
+                        ),
+                        get_name(&shader_module.content, symbol_match.captures[0].node).into(),
+                    ),
+                    // Remove curly braces from scope.
+                    4 => {
+                        let curly_start = symbol_match.captures[2].node.range();
+                        let curly_end = symbol_match.captures[3].node.range();
+                        ShaderScope::new_namespace(
+                            ShaderRange::from(tree_sitter::Range {
+                                start_byte: curly_start.end_byte,
+                                end_byte: curly_end.start_byte,
+                                start_point: curly_start.end_point,
+                                end_point: curly_end.start_point,
+                            }),
+                            get_name(&shader_module.content, symbol_match.captures[0].node).into(),
+                        )
+                    }
+                    _ => unreachable!("Query should not return more than 3 match."),
+                });
+            }
         }
         scopes
     }
