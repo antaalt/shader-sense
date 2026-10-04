@@ -19,4 +19,5 @@ void main() {
     float oui = 0.f;
 #endif
     INLINE_PROCEDURAL_STRUCT();
+    TestMacro testMacro = (TestMacro)0;
 }

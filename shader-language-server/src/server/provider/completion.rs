@@ -257,7 +257,7 @@ fn convert_completion_item(
         let parameters = signatures[0]
             .parameters
             .iter()
-            .map(|p| format!("- `{} {}` {}", p.ty, p.label, p.description))
+            .map(|p| format!("- `{}` {}", p.format(), p.description))
             .collect::<Vec<String>>();
         let parameters_markdown = if parameters.is_empty() {
             "".into()

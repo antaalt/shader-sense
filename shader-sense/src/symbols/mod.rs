@@ -126,6 +126,41 @@ mod tests {
         )));
     }
     #[test]
+    fn intrinsics_hlsl_modifiers() {
+        let intrinsics = ShaderSymbolList::parse_from_json(String::from(include_str!(
+            "hlsl/hlsl-intrinsics.json"
+        )));
+        let get_modifiers = |label: &str| -> Vec<(String, Option<String>)> {
+            let function = intrinsics
+                .functions
+                .iter()
+                .find(|f| f.label == label)
+                .unwrap_or_else(|| panic!("Function {} not found", label));
+            match &function.data {
+                ShaderSymbolData::Functions { signatures } => signatures[0]
+                    .parameters
+                    .iter()
+                    .map(|p| (p.label.clone(), p.modifier.clone()))
+                    .collect(),
+                _ => panic!("{} is not a function", label),
+            }
+        };
+        assert_eq!(
+            get_modifiers("sincos"),
+            vec![
+                ("x".into(), None),
+                ("s".into(), Some("out".into())),
+                ("c".into(), Some("out".into()))
+            ]
+        );
+        // Raytracing intrinsics are functions.
+        let trace_ray = get_modifiers("TraceRay");
+        assert_eq!(
+            trace_ray.last(),
+            Some(&("Payload".into(), Some("inout".into())))
+        );
+    }
+    #[test]
     fn intrinsics_wgsl_ok() {
         // Ensure parsing of intrinsics is OK
         let _ = ShaderSymbolList::parse_from_json(String::from(include_str!(
@@ -412,7 +447,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_macro_expansion() {
+    fn test_macro_expansion_struct() {
         let file_path = Path::new("./test/hlsl/macro-struct.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
@@ -451,6 +486,194 @@ mod tests {
             .iter()
             .find(|t| t.label == "TestMacro")
             .is_some());
+    }
+
+    // Tests for experimental macro expansion, written for the expected behaviour of the feature.
+    // macro-expansion.hlsl declares symbols through function-like macros, with a nested one,
+    // and token pasting. gFallback is used in PSMain but never declared.
+
+    fn query_macro_expansion_symbols() -> (
+        PathBuf,
+        crate::symbols::shader_module::ShaderModule,
+        ShaderSymbolList,
+    ) {
+        let file_path = canonicalize(Path::new("./test/hlsl/macro-expansion.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+        let compilation = ShaderCompilationParams {
+            experimental_macro_expansion: true,
+            ..Default::default()
+        };
+        let symbols = symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams {
+                    compilation: compilation.clone(),
+                    ..Default::default()
+                },
+                &mut default_include_callback::<HlslShadingLanguageTag>,
+                None,
+            )
+            .unwrap();
+        // Same symbols as the server: intrinsics & file symbols, with inactive regions filtered.
+        let mut all_symbols = ShaderIntrinsics::get(ShadingLanguage::Hlsl)
+            .get_intrinsics_symbol(&compilation)
+            .to_owned();
+        all_symbols.append(symbols.get_all_symbols().into());
+        (file_path, shader_module, all_symbols)
+    }
+
+    fn find_unique<'a>(
+        symbols: &'a Vec<crate::symbols::symbols::ShaderSymbol>,
+        label: &str,
+    ) -> &'a crate::symbols::symbols::ShaderSymbol {
+        let found: Vec<_> = symbols.iter().filter(|s| s.label == label).collect();
+        assert_eq!(
+            found.len(),
+            1,
+            "Expected a single symbol {}, found {:#?}",
+            label,
+            found
+        );
+        found[0]
+    }
+
+    fn assert_defined_at(
+        symbol: &crate::symbols::symbols::ShaderSymbol,
+        file_path: &Path,
+        line: u32,
+    ) {
+        let runtime = symbol
+            .mode
+            .map_runtime()
+            .unwrap_or_else(|| panic!("{} is not a runtime symbol", symbol.label));
+        assert_eq!(
+            runtime.file_path, file_path,
+            "{} is defined in the wrong file",
+            symbol.label
+        );
+        assert_eq!(
+            runtime.range.start.line, line,
+            "{} should be defined at line {}, found {:?}",
+            symbol.label, line, runtime.range
+        );
+    }
+
+    #[test]
+    fn test_macro_expansion_symbols() {
+        let (_, _, symbols) = query_macro_expansion_symbols();
+        // Variables declared through macros, with their expanded type.
+        for (label, expected_ty) in [
+            // TODO: No template <Material> for ConstantBuffer
+            ("gMaterial", "ConstantBuffer"),
+            ("gNested", "ConstantBuffer"), // Nested macro CBUFFER_SLOT0 -> CBUFFER
+            ("gAlbedo", "Texture2D"),
+            ("gAlbedoSampler", "SamplerState"), // Token pasting Name##Sampler
+            ("gBatch", "ConstantBuffer"),
+        ] {
+            match &find_unique(&symbols.variables, label).data {
+                ShaderSymbolData::Variables { ty, count: _ } => {
+                    assert_eq!(ty, expected_ty, "Wrong type for {}", label)
+                }
+                data => panic!("{} is not a variable: {:#?}", label, data),
+            }
+        }
+        // Undeclared variable must not exist.
+        assert!(
+            !symbols.variables.iter().any(|v| v.label == "gFallback"),
+            "gFallback is never declared"
+        );
+        // Struct declared through token pasting Name##Data.
+        match &find_unique(&symbols.types, "VertexData").data {
+            ShaderSymbolData::Struct { members, .. } => {
+                let members: Vec<(&str, &str)> = members
+                    .iter()
+                    .map(|m| (m.parameters.label.as_str(), m.parameters.ty.as_str()))
+                    .collect();
+                assert_eq!(members, vec![("value", "float4")]);
+            }
+            data => panic!("VertexData is not a struct: {:#?}", data),
+        }
+    }
+
+    #[test]
+    fn test_macro_expansion_locations() {
+        // Expanded symbols should be located at the macro call in the file, not inside the expanded text.
+        let (file_path, _, symbols) = query_macro_expansion_symbols();
+        for (label, line) in [
+            ("gMaterial", 20),
+            ("gAlbedo", 22),
+            ("gAlbedoSampler", 22),
+            ("gNested", 23),
+            ("gBatch", 24),
+        ] {
+            assert_defined_at(find_unique(&symbols.variables, label), &file_path, line);
+        }
+        let vertex_data = find_unique(&symbols.types, "VertexData");
+        assert_defined_at(vertex_data, &file_path, 21);
+        match &vertex_data.data {
+            ShaderSymbolData::Struct { members, .. } => {
+                let range = members[0].parameters.range.as_ref().unwrap();
+                assert_eq!(
+                    range.start.line, 21,
+                    "VertexData::value should be at line 21"
+                );
+            }
+            _ => panic!("VertexData is not a struct"),
+        }
+    }
+
+    #[test]
+    fn test_macro_expansion_definitions() {
+        // Go to definition from PSMain, as textDocument/definition does.
+        let (file_path, shader_module, symbols) = query_macro_expansion_symbols();
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_list = symbols.as_ref();
+        // (position of the word, expected symbol label, expected definition line)
+        // TODO: Cannot view member of ConstantBuffer<DataType> as it need specific treatment.
+        let expected_definitions = [
+            ((29, 15), "gMaterial", 20),
+            //((29, 25), "roughness", 16), // gMaterial.roughness, member of Material
+            //((30, 25), "metallic", 17),  // gMaterial.metallic
+            ((34, 5), "VertexData", 21),
+            ((35, 15), "v", 34),
+            ((35, 19), "value", 21), // v.value, member of VertexData
+            ((38, 4), "gAlbedo", 22),
+            ((38, 20), "gAlbedoSampler", 22),
+            ((45, 14), "gBatch", 24),
+            //((45, 22), "roughness", 16), // gBatch.roughness, member of Material
+        ];
+        for ((line, pos), label, definition_line) in expected_definitions {
+            let word = symbol_provider
+                .get_word_range_at_position(&shader_module, &ShaderPosition::new(line, pos))
+                .unwrap_or_else(|err| panic!("No word found at {}:{}: {:?}", line, pos, err));
+            assert_eq!(word.get_word(), label, "Wrong word at {}:{}", line, pos);
+            let found = word.find_symbol_from_parent(file_path.clone(), &symbol_list);
+            assert_eq!(
+                found.len(),
+                1,
+                "Expected a single definition for {} at {}:{}, found {:#?}",
+                label,
+                line,
+                pos,
+                found
+            );
+            assert_eq!(found[0].label, label);
+            assert_defined_at(&found[0], &file_path, definition_line);
+        }
+        // gFallback is never declared, so it has no definition.
+        let word = symbol_provider
+            .get_word_range_at_position(&shader_module, &ShaderPosition::new(42, 15))
+            .unwrap();
+        assert_eq!(word.get_word(), "gFallback");
+        assert!(word
+            .find_symbol_from_parent(file_path.clone(), &symbol_list)
+            .is_empty());
     }
 
     #[test]

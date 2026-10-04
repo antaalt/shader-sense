@@ -80,7 +80,7 @@ impl SymbolTreeParser for WgslFunctionTreeParser {
         let scope_range = ShaderRange::from(body_node.range());
         let parameter_scope_stack = {
             let mut s = scope_stack.clone();
-            s.push(scope_range.clone());
+            s.push(ShaderScope::new(scope_range.clone()));
             s
         };
         // Get parameters & add them as function scope variable.
@@ -116,6 +116,7 @@ impl SymbolTreeParser for WgslFunctionTreeParser {
                     count: None,
                     description: "".into(),
                     range: Some(ShaderRange::from(name_node.range())),
+                    modifier: None,
                 });
             }
         }
@@ -134,7 +135,7 @@ impl SymbolTreeParser for WgslFunctionTreeParser {
             mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
                 file_path.into(),
                 range,
-                Some(scope_range),
+                Some(ShaderScope::new(scope_range)),
                 scope_stack,
             )),
         });
@@ -177,6 +178,7 @@ impl SymbolTreeParser for WgslStructTreeParser {
                     count: None,
                     description: "".into(),
                     range: Some(ShaderRange::from(name_node.range())),
+                    modifier: None,
                 })
             })
             .collect::<Vec<ShaderParameter>>();

@@ -31,6 +31,7 @@ impl GlslIntrinsicParser {
                             count: None,
                             description: "".into(),
                             range: None,
+                            modifier: None,
                         }],
                     }],
                 },
@@ -76,6 +77,7 @@ impl GlslIntrinsicParser {
                                 count: None,
                                 description: "".into(),
                                 range: None,
+                                modifier: None,
                             }],
                         },
                         ShaderSignature {
@@ -88,6 +90,7 @@ impl GlslIntrinsicParser {
                                     count: None,
                                     description: "".into(),
                                     range: None,
+                                    modifier: None,
                                 })
                                 .collect(),
                         },
@@ -124,6 +127,7 @@ impl GlslIntrinsicParser {
                                 count: None,
                                 description: "".into(),
                                 range: None,
+                                modifier: None,
                             }],
                         },
                         ShaderSignature {
@@ -138,6 +142,7 @@ impl GlslIntrinsicParser {
                                             count: None,
                                             description: "".into(),
                                             range: None,
+                                            modifier: None,
                                         })
                                         .collect::<Vec<ShaderParameter>>()
                                 })

@@ -34,10 +34,10 @@ impl ServerLanguage {
         let mut folded_scopes: Vec<FoldingRange> = scopes
             .iter()
             .map(|s| FoldingRange {
-                start_line: s.start.line,
-                start_character: Some(s.start.pos),
-                end_line: s.end.line,
-                end_character: Some(s.end.pos),
+                start_line: s.range.start.line,
+                start_character: Some(s.range.start.pos),
+                end_line: s.range.end.line,
+                end_character: Some(s.range.end.pos),
                 kind: Some(FoldingRangeKind::Region),
                 collapsed_text: None,
             })

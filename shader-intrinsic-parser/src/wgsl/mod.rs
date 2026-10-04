@@ -148,6 +148,7 @@ impl SpecSignature {
                     count: None,
                     description: "".into(),
                     range: None,
+                    modifier: None,
                 })
                 .collect(),
         }

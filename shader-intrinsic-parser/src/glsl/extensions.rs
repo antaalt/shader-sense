@@ -41,21 +41,24 @@ impl GlslIntrinsicParser {
                             label: "x".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter{
                             ty: "uint".into(),
                             label: "y".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter{
                             ty: "uint".into(),
                             label: "z".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                     ]
                 }]
@@ -82,14 +85,16 @@ impl GlslIntrinsicParser {
                             label: "vertexCount".into(),
                             count: None,
                             description: "Number of vertex to output for current thread.".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter{
                             ty: "uint".into(),
                             label: "primitiveCount".into(),
                             count: None,
                             description: "Number of primitive to output for current thread.".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                     ]
                 }]
@@ -118,7 +123,8 @@ impl GlslIntrinsicParser {
                             label: "gl_Position".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -128,7 +134,8 @@ impl GlslIntrinsicParser {
                             label: "gl_PointSize".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -138,7 +145,8 @@ impl GlslIntrinsicParser {
                             label: "gl_ClipDistance".into(),
                             count: Some(ShaderSymbolArray::Unsized),
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -148,7 +156,8 @@ impl GlslIntrinsicParser {
                             label: "gl_CullDistance".into(),
                             count: Some(ShaderSymbolArray::Unsized),
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                 ],
@@ -193,7 +202,8 @@ impl GlslIntrinsicParser {
                             label: "gl_PrimitiveID".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -203,7 +213,8 @@ impl GlslIntrinsicParser {
                             label: "gl_Layer".into(),
                             count: None,
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -213,7 +224,8 @@ impl GlslIntrinsicParser {
                             label: "gl_ViewportIndex".into(),
                             count: Some(ShaderSymbolArray::Unsized),
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -223,7 +235,8 @@ impl GlslIntrinsicParser {
                             label: "gl_CullPrimitiveEXT".into(),
                             count: Some(ShaderSymbolArray::Unsized),
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                     ShaderMember {
@@ -233,7 +246,8 @@ impl GlslIntrinsicParser {
                             label: "gl_PrimitiveShadingRateEXT".into(),
                             count: Some(ShaderSymbolArray::Unsized),
                             description: "".into(),
-                            range: None
+                            range: None,
+                            modifier: None
                         }
                     },
                 ],

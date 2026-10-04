@@ -7,13 +7,13 @@ use wgsl_parser::get_wgsl_parsers;
 use wgsl_regions::WgslRegionFinder;
 use wgsl_word::WgslSymbolWordProvider;
 
+use crate::shader::ShadingLanguage;
+
 use super::symbol_provider::SymbolProvider;
 
-pub(super) fn create_wgsl_symbol_provider(
-    tree_sitter_language: &tree_sitter::Language,
-) -> SymbolProvider {
+pub(super) fn create_wgsl_symbol_provider() -> SymbolProvider {
     SymbolProvider::new(
-        tree_sitter_language,
+        ShadingLanguage::Wgsl,
         get_wgsl_parsers(),
         vec![],
         Box::new(WgslRegionFinder {}),

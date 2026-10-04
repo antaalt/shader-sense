@@ -50,7 +50,8 @@ impl HlslIntrinsicParser {
                         label: "Origin".into(), 
                         count: None,
                         description: "The origin of the ray.".into(), 
-                        range: None
+                        range: None,
+                        modifier: None
                     }
                 },
                 ShaderMember {
@@ -60,7 +61,8 @@ impl HlslIntrinsicParser {
                         label: "TMin".into(), 
                         count: None,
                         description: "The minimum extent of the ray.".into(), 
-                        range: None
+                        range: None,
+                        modifier: None
                     }
                 },
                 ShaderMember {
@@ -70,7 +72,8 @@ impl HlslIntrinsicParser {
                         label: "Direction".into(), 
                         count: None,
                         description: "The direction of the ray.".into(), 
-                        range: None
+                        range: None,
+                        modifier: None
                     }
                 },
                 ShaderMember {
@@ -80,7 +83,8 @@ impl HlslIntrinsicParser {
                         label: "TMax".into(), 
                         count: None,
                         description: "The maximum extent of the ray.".into(), 
-                        range: None
+                        range: None,
+                        modifier: None
                     }
                 }],
                 methods: vec![]
@@ -105,7 +109,8 @@ impl HlslIntrinsicParser {
                         label: "barycentrics".into(), 
                         count: None,
                         description: "Any hit and closest hit shaders invoked using fixed-function triangle intersection must use this structure for hit attributes. Given attributes a0, a1 and a2 for the 3 vertices of a triangle, barycentrics.x is the weight for a1 and barycentrics.y is the weight for a2. For example, the app can interpolate by doing: a = a0 + barycentrics.x * (a1-a0) + barycentrics.y* (a2 - a0).".into(), 
-                        range: None
+                        range: None,
+                        modifier: None
                     }
                 }],
                 methods: vec![]
@@ -113,7 +118,7 @@ impl HlslIntrinsicParser {
         });
     }
     fn add_raytracing_intrinsics(&self, symbols: &mut ShaderSymbolList) {
-        symbols.types.push(ShaderSymbol {
+        symbols.functions.push(ShaderSymbol {
             label: "AcceptHitAndEndSearch".into(),
             requirement: Some(RequirementParameter::Hlsl(HlslRequirementParameter {
                 stages: Some(ShaderStageMask::ANY_HIT),
@@ -132,7 +137,7 @@ impl HlslIntrinsicParser {
                 Some("https://learn.microsoft.com/en-us/windows/win32/direct3d12/accepthitandendsearch-function".into())
             )),
         });
-        symbols.types.push(ShaderSymbol {
+        symbols.functions.push(ShaderSymbol {
             label: "CallShader".into(),
             requirement: Some(RequirementParameter::Hlsl(HlslRequirementParameter {
                 stages: Some(ShaderStageMask::ANY_HIT | ShaderStageMask::CLOSEST_HIT | ShaderStageMask::MISS | ShaderStageMask::RAY_GENERATION),
@@ -147,14 +152,16 @@ impl HlslIntrinsicParser {
                             label: "ShaderIndex".into(), 
                             count: None,
                             description: "An unsigned integer representing the index into the callable shader table specified in the call to DispatchRays.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "T".into(), 
                             label: "Parameter".into(), 
                             count: None,
                             description: "The user-defined parameters to pass to the callable shader. This parameter structure must match the parameter structure used in the callable shader pointed to in the shader table.".into(), 
-                            range: None
+                            range: None,
+                            modifier: Some("inout".into())
                         }],
                     }
                 ]
@@ -164,7 +171,7 @@ impl HlslIntrinsicParser {
                 Some("https://learn.microsoft.com/en-us/windows/win32/direct3d12/callshader-function".into())
             )),
         });
-        symbols.types.push(ShaderSymbol {
+        symbols.functions.push(ShaderSymbol {
             label: "IgnoreHit".into(),
             requirement: Some(RequirementParameter::Hlsl(HlslRequirementParameter {
                 stages: Some(ShaderStageMask::ANY_HIT),
@@ -183,7 +190,7 @@ impl HlslIntrinsicParser {
                 Some("https://learn.microsoft.com/en-us/windows/win32/direct3d12/ignorehit-function".into())
             )),
         });
-        symbols.types.push(ShaderSymbol {
+        symbols.functions.push(ShaderSymbol {
             label: "ReportHit".into(),
             requirement: Some(RequirementParameter::Hlsl(HlslRequirementParameter {
                 stages: Some(ShaderStageMask::INTERSECT),
@@ -198,21 +205,24 @@ impl HlslIntrinsicParser {
                             label: "THit".into(), 
                             count: None,
                             description: "A float value specifying the parametric distance of the intersection..".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "uint".into(), 
                             label: "HitKind".into(), 
                             count: None,
                             description: "An unsigned integer that identifies the type of hit that occurred. This is a user-specified value in the range of 0-127. The value can be read by any hit or closest hit shaders with the HitKind intrinsic.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "T".into(), 
                             label: "Attributes".into(), 
                             count: None,
                             description: "The user-defined Intersection Attribute Structure structure specifying the intersection attributes.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         }],
                     }
                 ]
@@ -222,7 +232,7 @@ impl HlslIntrinsicParser {
                 Some("https://learn.microsoft.com/en-us/windows/win32/direct3d12/reporthit-function".into())
             )),
         });
-        symbols.types.push(ShaderSymbol {
+        symbols.functions.push(ShaderSymbol {
             label: "TraceRay".into(),
             mode: ShaderSymbolMode::Intrinsic(ShaderSymbolIntrinsic::new(
                 "Sends a ray into a search for hits in an acceleration structure.".into(), 
@@ -241,49 +251,56 @@ impl HlslIntrinsicParser {
                             label: "AccelerationStructure".into(), 
                             count: None,
                             description: "The top-level acceleration structure to use. Specifying a NULL acceleration structure forces a miss.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "uint".into(), 
                             label: "RayFlags".into(), 
                             count: None,
                             description: "Valid combination of ray_flag values. Only defined ray flags are propagated by the system, i.e. are visible to the RayFlags shader intrinsic.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "uint".into(), 
                             label: "InstanceInclusionMask".into(), 
                             count: None,
                             description: "An unsigned integer, the bottom 8 bits of which are used to include or reject geometry instances based on the InstanceMask in each instance.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "uint".into(), 
                             label: "RayContributionToHitGroupIndex".into(), 
                             count: None,
                             description: "An unsigned integer specifying the offset to add into addressing calculations within shader tables for hit group indexing. Only the bottom 4 bits of this value are used.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "uint".into(), 
                             label: "MultiplierForGeometryContributionToHitGroupIndex".into(), 
                             count: None,
                             description: "An unsigned integer specifying the stride to multiply by GeometryContributionToHitGroupIndex, which is just the 0 based index the geometry was supplied by the app into its bottom-level acceleration structure. Only the bottom 16 bits of this multiplier value are used.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "RayDesc".into(), 
                             label: "Ray".into(), 
                             count: None,
                             description: "A RayDesc representing the ray to be traced.".into(), 
-                            range: None
+                            range: None,
+                            modifier: None
                         },
                         ShaderParameter {
                             ty: "T".into(), 
                             label: "Payload".into(), 
                             count: None,
                             description: "A user defined ray payload accessed both for both input and output by shaders invoked during raytracing. After TraceRay completes, the caller can access the payload as well.".into(), 
-                            range: None
+                            range: None,
+                            modifier: Some("inout".into())
                         }],
                     }
                 ]

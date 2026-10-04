@@ -198,8 +198,8 @@ impl ServerLanguage {
                 if let ShaderSymbolMode::Runtime(runtime) = &symbol.mode {
                     if let Some(scope) = &runtime.scope {
                         if runtime.file_path.as_os_str() == cached_file.file_path.as_os_str() {
-                            let content_start = scope.start.to_byte_offset(&content)?;
-                            let content_end = scope.end.to_byte_offset(&content)?;
+                            let content_start = scope.range.start.to_byte_offset(&content)?;
+                            let content_end = scope.range.end.to_byte_offset(&content)?;
                             match &symbol.data {
                                 ShaderSymbolData::Functions { signatures } => {
                                     assert!(

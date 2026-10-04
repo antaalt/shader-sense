@@ -14,10 +14,21 @@ use crate::{
 pub struct ShaderParameter {
     pub ty: String,
     pub label: String,
+    pub modifier: Option<String>,
     pub count: Option<ShaderSymbolArray>,
     pub description: String,
     #[serde(skip)] // Runtime only
     pub range: Option<ShaderRange>,
+}
+
+impl ShaderParameter {
+    /// Format the parameter as declared, such as `out float2 value`.
+    pub fn format(&self) -> String {
+        match &self.modifier {
+            Some(modifier) => format!("{} {} {}", modifier, self.ty, self.label),
+            None => format!("{} {}", self.ty, self.label),
+        }
+    }
 }
 
 #[allow(non_snake_case)] // for JSON
@@ -42,7 +53,7 @@ impl ShaderSignature {
                 let signature = self
                     .parameters
                     .iter()
-                    .map(|p| format!("{} {}", p.ty, p.label))
+                    .map(|p| p.format())
                     .collect::<Vec<String>>();
                 format!("{} {}({})", self.returnType, label, signature.join(", "))
             }
@@ -50,7 +61,7 @@ impl ShaderSignature {
                 let signature = self
                     .parameters
                     .iter()
-                    .map(|p| format!("{}: {}", p.label, p.ty))
+                    .map(|p| p.format())
                     .collect::<Vec<String>>();
                 format!(
                     "fn {}({}) -> {}",
@@ -72,7 +83,7 @@ impl ShaderSignature {
                 let signature = self
                     .parameters
                     .iter()
-                    .map(|p| format!("{} {}", p.ty, p.label))
+                    .map(|p| p.format())
                     .collect::<Vec<String>>();
                 format!(
                     "{} {}::{}({})",
@@ -86,7 +97,7 @@ impl ShaderSignature {
                 let signature = self
                     .parameters
                     .iter()
-                    .map(|p| format!("{}: {}", p.label, p.ty))
+                    .map(|p| p.format())
                     .collect::<Vec<String>>();
                 format!(
                     "fn {}::{}({}) -> {}",
@@ -100,7 +111,26 @@ impl ShaderSignature {
     }
 }
 
-pub type ShaderScope = ShaderRange;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaderScope {
+    pub range: ShaderRange,
+    pub namespace: Option<String>,
+}
+
+impl ShaderScope {
+    pub fn new(range: ShaderRange) -> ShaderScope {
+        ShaderScope {
+            range,
+            namespace: None,
+        }
+    }
+    pub fn new_namespace(range: ShaderRange, namespace: String) -> ShaderScope {
+        ShaderScope {
+            range,
+            namespace: Some(namespace),
+        }
+    }
+}
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderMember {

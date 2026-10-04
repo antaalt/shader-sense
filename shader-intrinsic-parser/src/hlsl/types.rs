@@ -37,6 +37,7 @@ pub fn new_hlsl_scalar(
                     count: None,
                     description: "".into(),
                     range: None,
+                    modifier: None,
                 }],
             }],
         },
@@ -63,6 +64,7 @@ impl HlslIntrinsicParser {
                                 description: "A Sampler state. This is an object declared in an effect file that contains state assignments.".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             },
                             ShaderParameter {
                                 ty: match context {
@@ -75,6 +77,7 @@ impl HlslIntrinsicParser {
                                 description: "The linear interpolation value or values, which is a floating-point number between 0.0 and 1.0 inclusive. The number of components is dependent on the texture-object type. ".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             }
                         ]
                     },
@@ -93,6 +96,7 @@ impl HlslIntrinsicParser {
                                 description: "A Sampler state. This is an object declared in an effect file that contains state assignments.".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             },
                             ShaderParameter {
                                 ty: match context {
@@ -105,6 +109,7 @@ impl HlslIntrinsicParser {
                                 description: "The linear interpolation value or values, which is a floating-point number between 0.0 and 1.0 inclusive. The number of components is dependent on the texture-object type. ".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             }
                         ]
                     },
@@ -126,6 +131,7 @@ impl HlslIntrinsicParser {
                                     description: "A Sampler state. This is an object declared in an effect file that contains state assignments.".into(),
                                     count: None,
                                     range: None,
+                                    modifier: None,
                                 },
                                 ShaderParameter {
                                     ty: match context {
@@ -138,6 +144,7 @@ impl HlslIntrinsicParser {
                                     description: "The texture coordinates. The argument type is dependent on the texture-object type. ".into(),
                                     count: None,
                                     range: None,
+                                    modifier: None,
                                 }
                             ]
                         },
@@ -153,6 +160,7 @@ impl HlslIntrinsicParser {
                             description: "An optional texture coordinate offset, which can be used for any texture-object type; the offset is applied to the location before sampling. The argument type is dependent on the texture-object type. For shaders targeting Shader Model 5.0 and above, the 6 least significant bits of each offset value is honored as a signed value, yielding [-32..31] range. For previous shader model shaders, offsets need to be immediate integers between -8 and 7.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         });
                     }
                     methods.push(method);
@@ -185,6 +193,7 @@ impl HlslIntrinsicParser {
                         description: "The resource width, in texels.".into(),
                         count: None,
                         range: None,
+                        modifier: Some("out".into()),
                     }],
                 },
                 range: None,
@@ -196,6 +205,7 @@ impl HlslIntrinsicParser {
                     description: "The resource height, in texels.".into(),
                     count: None,
                     range: None,
+                    modifier: Some("out".into()),
                 });
             }
             if dimensions > 2 {
@@ -205,6 +215,7 @@ impl HlslIntrinsicParser {
                     description: "The resource depth, in texels.".into(),
                     count: None,
                     range: None,
+                    modifier: Some("out".into()),
                 });
             }
             if has_layers {
@@ -214,6 +225,7 @@ impl HlslIntrinsicParser {
                     description: "The height of the texture.".into(),
                     count: None,
                     range: None,
+                    modifier: Some("out".into()),
                 });
             }
             if has_mips {
@@ -227,6 +239,7 @@ impl HlslIntrinsicParser {
                             .into(),
                     count: None,
                     range: None,
+                    modifier: None,
                 };
                 let nb_level = ShaderParameter {
                     ty: "uint".into(),
@@ -234,6 +247,7 @@ impl HlslIntrinsicParser {
                     description: "The number of mipmap levels (requires MipLevel also).".into(),
                     count: None,
                     range: None,
+                    modifier: Some("out".into()),
                 };
                 base_get.signature.parameters = [
                     vec![mip_level],
@@ -257,6 +271,7 @@ impl HlslIntrinsicParser {
                             description: "The zero-based sample index.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         }],
                     },
                     range: None,
@@ -284,6 +299,7 @@ impl HlslIntrinsicParser {
                                 description: "The texture coordinates; the last component specifies the mipmap level. This method uses a 0-based coordinate system and not a 0.0-1.0 UV system. The argument type is dependent on the texture-object type.".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             }
                         ]
                     },
@@ -296,6 +312,7 @@ impl HlslIntrinsicParser {
                         description: "A sampling index. Required for multi-sample textures. Not supported for other textures.".into(),
                         count: None,
                         range: None,
+                        modifier: None,
                     }),
                     _ => {}
                 }
@@ -310,6 +327,7 @@ impl HlslIntrinsicParser {
                     description: "A sampling index. Required for multi-sample textures. Not supported for other textures.".into(),
                     count: None,
                     range: None,
+                    modifier: None,
                 });
                 methods.push(method);
             }
@@ -337,6 +355,7 @@ impl HlslIntrinsicParser {
                                     description: "A Sampler state. This is an object declared in an effect file that contains state assignments.".into(),
                                     count: None,
                                     range: None,
+                                    modifier: None,
                                 },
                                 ShaderParameter {
                                     ty: match context {
@@ -350,6 +369,7 @@ impl HlslIntrinsicParser {
                                     description: "The texture coordinates. The argument type is dependent on the texture-object type. If the texture object is an array, the last component is the array index.".into(),
                                     count: None,
                                     range: None,
+                                    modifier: None,
                                 },
                             ]
                         },
@@ -362,6 +382,7 @@ impl HlslIntrinsicParser {
                             description: "The bias value, which is a floating-point number between -16.0 and 15.99, is applied to a mip level before sampling.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         }),
                         "SampleCmp" | "SampleCmpLevelZero" => method.signature.parameters.push(ShaderParameter {
                             ty: "float".into(),
@@ -369,6 +390,7 @@ impl HlslIntrinsicParser {
                             description: "A floating-point value to use as a comparison value.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         }),
                         "SampleGrad" => {
                             method.signature.parameters.push(ShaderParameter {
@@ -382,6 +404,7 @@ impl HlslIntrinsicParser {
                                 description: "The rate of change of the surface geometry in the x direction. The argument type is dependent on the texture-object type.".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             });
                             method.signature.parameters.push(ShaderParameter {
                                 ty: match context {
@@ -394,6 +417,7 @@ impl HlslIntrinsicParser {
                                 description: "The rate of change of the surface geometry in the y direction. The argument type is dependent on the texture-object type.".into(),
                                 count: None,
                                 range: None,
+                                modifier: None,
                             });
                         },
                         "SampleLevel" => method.signature.parameters.push(ShaderParameter {
@@ -402,6 +426,7 @@ impl HlslIntrinsicParser {
                             description: "A number that specifies the mipmap level (internally clamped to the smallest map level). If the value is = 0, the zero'th (biggest map) is used. The fractional value (if supplied) is used to interpolate between two mipmap levels.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         }),
                         _ => {} // Nothing
                     }
@@ -418,6 +443,7 @@ impl HlslIntrinsicParser {
                             description: "An optional texture coordinate offset, which can be used for any texture-object type; the offset is applied to the location before sampling. The texture offsets need to be static. The argument type is dependent on the texture-object type. For more info, see Applying texture coordinate offsets.".into(),
                             count: None,
                             range: None,
+                            modifier: None,
                         }),
                     }
                     methods.push(method);
@@ -452,7 +478,8 @@ impl HlslIntrinsicParser {
                                 label: "dim".into(),
                                 count: None,
                                 description: "The length, in bytes, of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -468,7 +495,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -647,7 +675,8 @@ impl HlslIntrinsicParser {
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -663,13 +692,15 @@ impl HlslIntrinsicParser {
                                 label: "numStructs".into(),
                                 count: None,
                                 description: "The number of structures in the resource.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "stride".into(),
                                 count: None,
                                 description: "The number of bytes in each element.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -702,7 +733,8 @@ impl HlslIntrinsicParser {
                                 label: "dim".into(),
                                 count: None,
                                 description: "The length, in bytes, of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -718,7 +750,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -734,7 +767,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -750,7 +784,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -766,7 +801,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -809,13 +845,15 @@ impl HlslIntrinsicParser {
                                 label: "numStructs".into(),
                                 count: None,
                                 description: "The number of structures in the resource.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "stride".into(),
                                 count: None,
                                 description: "The number of bytes in each element.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -882,7 +920,8 @@ impl HlslIntrinsicParser {
                                 label: "dim".into(),
                                 count: None,
                                 description: "The length, in bytes, of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -898,7 +937,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -931,7 +971,8 @@ impl HlslIntrinsicParser {
                                 label: "dim".into(),
                                 count: None,
                                 description: "The length, in bytes, of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -948,21 +989,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -978,21 +1022,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1008,28 +1055,32 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "compare_value".into(),
                                 count: None,
                                 description: "The comparison value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1045,21 +1096,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "compare_value".into(),
                                 count: None,
                                 description: "The comparison value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1075,21 +1129,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1105,21 +1162,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1135,21 +1195,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1165,21 +1228,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1195,21 +1261,24 @@ impl HlslIntrinsicParser {
                                 label: "dest".into(),
                                 count: None,
                                 description: "The destination address.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "value".into(),
                                 count: None,
                                 description: "The input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             },
                             ShaderParameter {
                                 ty: "uint".into(),
                                 label: "original_value".into(),
                                 count: None,
                                 description: "The original value as output.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1226,7 +1295,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1242,7 +1312,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1258,7 +1329,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1274,7 +1346,8 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1291,13 +1364,15 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "values".into(),
                                 count: None,
                                 description: "Input value.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1313,13 +1388,15 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }, ShaderParameter {
                                 ty: "uint2".into(),
                                 label: "values".into(),
                                 count: None,
                                 description: "Two input values.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1335,13 +1412,15 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }, ShaderParameter {
                                 ty: "uint3".into(),
                                 label: "values".into(),
                                 count: None,
                                 description: "Three input values.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1357,13 +1436,15 @@ impl HlslIntrinsicParser {
                                 label: "address".into(),
                                 count: None,
                                 description: "The input address in bytes, which must be a multiple of 4.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }, ShaderParameter {
                                 ty: "uint4".into(),
                                 label: "values".into(),
                                 count: None,
                                 description: "Four input values.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1396,13 +1477,15 @@ impl HlslIntrinsicParser {
                                 label: "numStructs".into(),
                                 count: None,
                                 description: "The number of structures in the resource.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "stride".into(),
                                 count: None,
                                 description: "The stride, in bytes, of each structure element.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1418,7 +1501,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the buffer.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1471,7 +1555,8 @@ impl HlslIntrinsicParser {
                                 label: "width".into(),
                                 count: None,
                                 description: "The resource width, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1487,7 +1572,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1519,13 +1605,15 @@ impl HlslIntrinsicParser {
                                 label: "width".into(),
                                 count: None,
                                 description: "The resource width, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "elements".into(),
                                 count: None,
                                 description: "The number of elements in the array.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1541,7 +1629,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1574,13 +1663,15 @@ impl HlslIntrinsicParser {
                                 label: "width".into(),
                                 count: None,
                                 description: "The resource width, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "height".into(),
                                 count: None,
                                 description: "The resource height, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1596,7 +1687,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1629,19 +1721,22 @@ impl HlslIntrinsicParser {
                                 label: "width".into(),
                                 count: None,
                                 description: "The resource width, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "height".into(),
                                 count: None,
                                 description: "The resource height, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "elements".into(),
                                 count: None,
                                 description: "The number of elements in the array.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1657,7 +1752,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1689,19 +1785,22 @@ impl HlslIntrinsicParser {
                                 label: "width".into(),
                                 count: None,
                                 description: "The resource width, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "height".into(),
                                 count: None,
                                 description: "The resource height, in texels".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "depth".into(),
                                 count: None,
                                 description: "The resource depth, in texels.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1717,7 +1816,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1751,13 +1851,15 @@ impl HlslIntrinsicParser {
                                 label: "numStructs".into(),
                                 count: None,
                                 description: "The number of structures in the resource.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }, ShaderParameter {
                                 ty: "uint".into(),
                                 label: "stride".into(),
                                 count: None,
                                 description: "The stride, in bytes, of each structure element.".into(),
-                                range: None
+                                range: None,
+                                modifier: Some("out".into())
                             }]
                         },
                         range: None,
@@ -1773,7 +1875,8 @@ impl HlslIntrinsicParser {
                                 label: "location".into(),
                                 count: None,
                                 description: "The location of the texture.".into(),
-                                range: None
+                                range: None,
+                                modifier: None
                             }]
                         },
                         range: None,
@@ -1993,6 +2096,7 @@ impl HlslIntrinsicParser {
                                 count: None,
                                 description: "".into(),
                                 range:None,
+                                modifier: None,
                             }],
                         },
                         ShaderSignature {
@@ -2004,6 +2108,7 @@ impl HlslIntrinsicParser {
                                 count: None,
                                 description: "".into(),
                                 range:None,
+                                modifier: None,
                             }).collect(),
                         }
                     ]},
@@ -2035,6 +2140,7 @@ impl HlslIntrinsicParser {
                                     count: None,
                                     description: "".into(),
                                     range:None,
+                                    modifier: None,
                                 }],
                             },
                             ShaderSignature {
@@ -2047,6 +2153,7 @@ impl HlslIntrinsicParser {
                                         count: None,
                                         description: "".into(),
                                         range:None,
+                                        modifier: None,
                                     }).collect::<Vec<ShaderParameter>>()
                                 ).collect::<Vec<Vec<ShaderParameter>>>().concat(),
                             }

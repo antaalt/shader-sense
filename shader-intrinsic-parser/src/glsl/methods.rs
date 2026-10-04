@@ -65,6 +65,7 @@ impl GlslIntrinsicParser {
                                             count: None,
                                             description: "".into(),
                                             range: None,
+                                            modifier: None,
                                         })
                                     }
                                     None => None,
