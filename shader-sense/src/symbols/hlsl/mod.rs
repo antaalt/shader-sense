@@ -218,4 +218,123 @@ mod tests {
         assert!(word.get_parent().unwrap().get_word() == "testArray");
         assert!(word.get_parent().unwrap().get_parent().unwrap().get_word() == "container");
     }
+
+    #[test]
+    fn test_namespace() {
+        use crate::{
+            include::canonicalize,
+            symbols::{symbol_list::ShaderSymbolList, symbols::ShaderScope},
+        };
+        let file_path = canonicalize(Path::new("./test/hlsl/namespace.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+
+        // Namespace scopes are retrieved with their name, inside their curly braces.
+        let namespace_scopes: Vec<ShaderScope> = symbol_provider
+            .query_file_scopes(&shader_module)
+            .into_iter()
+            .filter(|scope| scope.namespace.is_some())
+            .collect();
+        let expected_scopes = vec![
+            ShaderScope::new_namespace(
+                ShaderRange::new(ShaderPosition::new(1, 16), ShaderPosition::new(5, 0)),
+                "Test".into(),
+            ),
+            // Same namespace reopened.
+            ShaderScope::new_namespace(
+                ShaderRange::new(ShaderPosition::new(11, 16), ShaderPosition::new(16, 0)),
+                "Test".into(),
+            ),
+        ];
+        assert_eq!(namespace_scopes, expected_scopes);
+
+        let symbols = symbol_provider
+            .query_symbols(
+                &shader_module,
+                ShaderParams::default(),
+                &mut default_include_callback::<HlslShadingLanguageTag>,
+                None,
+            )
+            .unwrap();
+        let symbols: ShaderSymbolList = symbols.get_all_symbols().into();
+
+        // Functions declared in the namespace hold it in their scope stack.
+        let get_namespaces = |label: &str| -> Vec<String> {
+            let function = symbols
+                .functions
+                .iter()
+                .find(|f| f.label == label)
+                .unwrap_or_else(|| panic!("Function {} not found", label));
+            function
+                .mode
+                .map_runtime()
+                .unwrap()
+                .scope_stack
+                .iter()
+                .filter_map(|scope| scope.namespace.clone())
+                .collect()
+        };
+        assert_eq!(get_namespaces("test"), vec!["Test"]);
+        assert_eq!(get_namespaces("other"), vec!["Test"]);
+        assert!(get_namespaces("main").is_empty());
+        assert!(get_namespaces("qualified").is_empty());
+
+        // Namespace is used to resolve symbols.
+        let symbol_list = symbols.as_ref();
+        let find_definition = |line: u32, pos: u32, expected_word: &str| {
+            let word = symbol_provider
+                .get_word_range_at_position(&shader_module, &ShaderPosition::new(line, pos))
+                .unwrap_or_else(|err| panic!("No word at {}:{}: {:?}", line, pos, err));
+            assert_eq!(
+                word.get_word(),
+                expected_word,
+                "Wrong word at {}:{}",
+                line,
+                pos
+            );
+            word.find_symbol_from_parent(file_path.clone(), &symbol_list)
+        };
+        let assert_resolves_to_test = |found: Vec<_>, context: &str| {
+            let found: Vec<&crate::symbols::symbols::ShaderSymbol> = found.iter().collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "{}: expected Test::test, found {:#?}",
+                context,
+                found
+            );
+            assert_eq!(found[0].label, "test");
+            assert_eq!(
+                found[0].mode.map_runtime().unwrap().range.start.line,
+                2,
+                "{}: should resolve to Test::test at line 2",
+                context
+            );
+        };
+        // Unqualified call outside of the namespace does not resolve.
+        assert!(
+            find_definition(8, 5, "test").is_empty(),
+            "test is not visible outside of namespace Test without qualification"
+        );
+        // TODO: Unqualified call in the same namespace, reopened, should resolve.
+        // Symbol visibility only checks the scope range, so test is only visible in the first
+        // `namespace Test { }` block. It should compare the namespace name instead of its range.
+        //assert_resolves_to_test(find_definition(14, 9, "test"), "Call in reopened namespace");
+        let _ = assert_resolves_to_test;
+        // Qualified call is parsed with its namespace as parent.
+        let word = symbol_provider
+            .get_word_range_at_position(&shader_module, &ShaderPosition::new(19, 11))
+            .unwrap();
+        assert_eq!(word.get_parent().map(|p| p.get_word()), Some("Test"));
+        // TODO: Qualified call should resolve.
+        // There is no accessor for namespace yet: find_symbol_from_parent looks for a symbol named
+        // Test as root, which does not exist as namespaces are only scopes. It should instead look
+        // for test in symbols whose scope stack holds the namespace Test.
+        //assert_resolves_to_test(find_definition(19, 11, "test"), "Qualified call Test::test");
+    }
 }
