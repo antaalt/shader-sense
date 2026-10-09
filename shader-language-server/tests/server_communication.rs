@@ -641,6 +641,15 @@ fn test_compilation_glsl_spirv() {
         },
         |result| validate_compilation_result(result, true, CompilationType::Spirv, 627),
     );
+    // Explicitly requesting SPIRV should return the same result.
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: None,
+            compilation_type: Some(CompilationType::Spirv),
+        },
+        |result| validate_compilation_result(result, false, CompilationType::Spirv, 360),
+    );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
     });

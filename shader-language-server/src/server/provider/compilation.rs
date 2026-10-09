@@ -126,12 +126,12 @@ impl ServerLanguage {
                 CompilationType::Spirv => match shading_language {
                     ShadingLanguage::Glsl => {
                         if self.config.is_generating_spirv(ShadingLanguage::Glsl) {
+                            Ok(get_cached_result(language_data, disassemble, cached_file)?)
+                            // Glsl already compile to SPIRV
+                        } else {
                             Err(ServerLanguageError::InvalidParams(format!(
                                 "Cannot request compilation to SPIRV for GLSL with no SPIRV version set."
                             )))
-                        } else {
-                            Ok(get_cached_result(language_data, disassemble, cached_file)?)
-                            // Glsl already compile to SPIRV
                         }
                     }
                     ShadingLanguage::Hlsl => {
