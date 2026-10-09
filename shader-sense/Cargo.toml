@@ -29,6 +29,7 @@ tree-sitter-language = "0.1.0"
 tree-sitter-glsl = "0.2.0"
 tree-sitter-hlsl = "0.2.0"
 tree-sitter-wesl = "0.1.0"
+rspirv = "0.13.0"
 # Slang support with tree-sitter-slang 0.3.1.
 # Metal does not have rust lib neither tree-sitter
 # Cg too old

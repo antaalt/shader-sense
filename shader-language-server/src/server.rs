@@ -449,6 +449,7 @@ impl ServerLanguage {
                 debug!("Params: {}", self.debug(&async_request.params));
                 let compilation_request_result = self.recolt_compilation_result(
                     &async_request.params.text_document.uri,
+                    async_request.params.disassemble,
                     async_request.params.compilation_type,
                 )?;
                 self.connection.send_response::<CompilationRequest>(

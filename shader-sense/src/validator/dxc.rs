@@ -1,6 +1,7 @@
 //! Validation for hlsl with DXC via [`hassle_rs`]
 
 use hassle_rs::*;
+use rspirv::binary::Disassemble;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -555,6 +556,41 @@ impl ValidatorImpl for Dxc {
                     Err(error) => Err(error),
                 }
             }
+        }
+    }
+    fn disassemble(&self, compilation_result: &CompilationResult) -> Result<String, ShaderError> {
+        match compilation_result {
+            CompilationResult::Spirv(spirv_bytes) => {
+                // TODO: cache loader.
+                let mut loader = rspirv::dr::Loader::new();
+                rspirv::binary::Parser::new(&spirv_bytes, &mut loader)
+                    .parse()
+                    .map_err(|err| {
+                        ShaderError::InternalErr(format!("Failed to disassemble SPIRV: {err}"))
+                    })?;
+                let module = loader.module();
+                Ok(module.disassemble())
+            }
+            CompilationResult::Dxil(dxil_bytes) => {
+                // Disassemble DXIL to a human readable version.
+                let dxil_blob = self
+                    .library
+                    .create_blob_with_encoding(&dxil_bytes)
+                    .map_err(|err| ShaderError::InternalErr(err.to_string()))?;
+                match self.compiler.disassemble(&dxil_blob.into()) {
+                    Ok(disassemble) => Ok(self
+                        .library
+                        .get_blob_as_string(&disassemble.into())
+                        .map_err(|err| ShaderError::InternalErr(err.to_string()))?),
+                    Err(err) => Err(ShaderError::InternalErr(format!(
+                        "Failed to disassemble dxil: {}",
+                        err
+                    ))),
+                }
+            }
+            res => Err(ShaderError::InternalErr(format!(
+                "DXC cannot disassemble {res:?}."
+            ))),
         }
     }
     fn support(&self, _shader_stage: ShaderStage) -> bool {

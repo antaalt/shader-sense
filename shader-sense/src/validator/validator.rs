@@ -23,6 +23,16 @@ pub enum CompilationResult {
     Wgsl(String),
 }
 
+impl CompilationResult {
+    pub fn support_disassembly(&self) -> bool {
+        match self {
+            CompilationResult::Spirv(_) | CompilationResult::Dxil(_) => true,
+            // Wgsl already a human readable string.
+            CompilationResult::None | CompilationResult::Wgsl(_) => false,
+        }
+    }
+}
+
 /// Trait that all validator must implement to validate files.
 pub trait ValidatorImpl {
     fn validate_shader(
@@ -32,6 +42,8 @@ pub trait ValidatorImpl {
         params: &ShaderParams,
         include_callback: &mut dyn FnMut(&Path) -> Option<String>,
     ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError>;
+
+    fn disassemble(&self, compilation_result: &CompilationResult) -> Result<String, ShaderError>;
 
     fn support(&self, shader_stage: ShaderStage) -> bool;
 

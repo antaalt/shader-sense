@@ -635,6 +635,11 @@ impl ValidatorImpl for Wesl {
             }
         }
     }
+    fn disassemble(&self, _compilation_result: &CompilationResult) -> Result<String, ShaderError> {
+        Err(ShaderError::InternalErr(format!(
+            "Cannot disassemble WGSL as its already a human readable language."
+        )))
+    }
     fn support(&self, shader_stage: ShaderStage) -> bool {
         match shader_stage {
             ShaderStage::Vertex | ShaderStage::Fragment | ShaderStage::Compute => true,

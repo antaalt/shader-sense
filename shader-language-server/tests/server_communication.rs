@@ -8,6 +8,8 @@ use std::iter::zip;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::str::FromStr;
 
+use base64::engine::general_purpose;
+use base64::Engine;
 use lsp_server::ErrorCode;
 use lsp_types::notification::Cancel;
 use lsp_types::request::{
@@ -25,7 +27,10 @@ use lsp_types::{
     SemanticTokensResult, TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams,
     WorkspaceSymbolResponse,
 };
-use shader_language_server::server::provider::compilation::CompilationRequest;
+use serde_json::json;
+use shader_language_server::server::provider::compilation::{
+    CompilationRequest, CompilationRequestResult,
+};
 use shader_language_server::server::provider::compilation::{
     CompilationRequestParams, CompilationType,
 };
@@ -526,6 +531,69 @@ fn test_semantic_tokens() {
     });
 }
 
+fn is_valid_dxil(dxil_bytes: &Vec<u8>) -> bool {
+    const DXIL_MAGIC_NUMBER: u32 = 0x43425844;
+    const DXIL_MAGIC_LE: [u8; 4] = DXIL_MAGIC_NUMBER.to_le_bytes();
+    const DXIL_MAGIC_BE: [u8; 4] = DXIL_MAGIC_NUMBER.to_be_bytes();
+    let magic_bytes: [u8; 4] = dxil_bytes[0..4].try_into().unwrap();
+    DXIL_MAGIC_BE == magic_bytes || DXIL_MAGIC_LE == magic_bytes
+}
+
+fn is_valid_spirv(spirv_bytes: &Vec<u8>) -> bool {
+    const SPIRV_MAGIC_NUMBER: u32 = 0x07230203;
+    const SPIRV_MAGIC_LE: [u8; 4] = SPIRV_MAGIC_NUMBER.to_le_bytes();
+    const SPIRV_MAGIC_BE: [u8; 4] = SPIRV_MAGIC_NUMBER.to_be_bytes();
+    let magic_bytes: [u8; 4] = spirv_bytes[0..4].try_into().unwrap();
+    SPIRV_MAGIC_BE == magic_bytes || SPIRV_MAGIC_LE == magic_bytes
+}
+
+fn validate_compilation_result(
+    result: Option<CompilationRequestResult>,
+    disassemble: bool,
+    compilation_type: CompilationType,
+    expected_len: usize,
+) {
+    let compilation = result.unwrap();
+    assert!(
+        compilation.compilation_type == compilation_type,
+        "Invalid compilation type: {:?}",
+        compilation.compilation_type
+    );
+    // Validate SPIRV
+    if disassemble {
+        assert!(
+            match compilation_type {
+                CompilationType::Spirv => compilation.data.starts_with("; SPIR-V"),
+                CompilationType::Dxil => compilation.data.starts_with(";\n; Input signature:"),
+                CompilationType::Wgsl => false, // Cannot disassemble wgsl
+            },
+            "Invalid disassembly start: {:?}",
+            compilation.data
+        );
+        assert!(
+            compilation.data.len() == expected_len,
+            "Invalid disassembly length: {}",
+            compilation.data.len()
+        );
+    } else {
+        let bytes = general_purpose::STANDARD.decode(&compilation.data).unwrap();
+        assert!(
+            match compilation_type {
+                CompilationType::Spirv => is_valid_spirv(&bytes),
+                CompilationType::Dxil => is_valid_dxil(&bytes),
+                CompilationType::Wgsl => unimplemented!(),
+            },
+            "Invalid magic bytes: {:?}",
+            bytes
+        );
+        assert!(
+            bytes.len() == expected_len,
+            "Invalid compilation length: {}",
+            bytes.len()
+        );
+    }
+}
+
 #[test]
 fn test_compilation_glsl_spirv() {
     let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
@@ -564,21 +632,18 @@ fn test_compilation_glsl_spirv() {
     server.send_request::<CompilationRequest>(
         &CompilationRequestParams {
             text_document: file.identifier(),
+            disassemble: None,
             compilation_type: None,
         },
-        |result| {
-            let compilation = result.unwrap();
-            assert!(
-                compilation.compilation_type == CompilationType::Spirv,
-                "Invalid compilation type: {:?}",
-                compilation.compilation_type
-            );
-            assert!(
-                compilation.data.len() == 360,
-                "Invalid compilation length: {}",
-                compilation.data.len()
-            );
+        |result| validate_compilation_result(result, false, CompilationType::Spirv, 360),
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: Some(true),
+            compilation_type: None,
         },
+        |result| validate_compilation_result(result, true, CompilationType::Spirv, 627),
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
@@ -586,7 +651,7 @@ fn test_compilation_glsl_spirv() {
 }
 
 #[test]
-fn test_compilation_hlsl_dxil() {
+fn test_compilation_hlsl() {
     if use_wasi_server() {
         return; // No DXC with WASI server
     }
@@ -626,21 +691,31 @@ fn test_compilation_hlsl_dxil() {
     server.send_request::<CompilationRequest>(
         &CompilationRequestParams {
             text_document: file.identifier(),
+            disassemble: None,
             compilation_type: None,
         },
-        |result| {
-            let compilation = result.unwrap();
-            assert!(
-                compilation.compilation_type == CompilationType::Dxil,
-                "Invalid compilation type: {:?}",
-                compilation.compilation_type
-            );
-            assert!(
-                compilation.data.len() == 2672,
-                "Invalid compilation length: {}",
-                compilation.data.len()
-            );
+        |result| validate_compilation_result(result, false, CompilationType::Dxil, 2672),
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: Some(true),
+            compilation_type: None,
         },
+        |result| validate_compilation_result(result, true, CompilationType::Dxil, 2797),
+    );
+    server.update_configuration(json!({
+        "hlsl": {
+            "spirv": true
+        }
+    }));
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: None,
+            compilation_type: None,
+        },
+        |result| validate_compilation_result(result, false, CompilationType::Spirv, 336),
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),

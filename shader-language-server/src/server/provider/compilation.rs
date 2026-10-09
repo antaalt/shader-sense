@@ -1,7 +1,9 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use lsp_types::{request::Request, TextDocumentIdentifier, Url};
 use serde::{Deserialize, Serialize};
 use shader_sense::{
     shader::ShadingLanguage,
+    shader_error::ShaderError,
     validator::{
         validator::CompilationResult,
         wesl::{spirv_to_wgsl, wgsl_to_spirv},
@@ -9,7 +11,8 @@ use shader_sense::{
 };
 
 use crate::server::{
-    common::ServerLanguageError, server_file_cache::ServerFileCache, ServerLanguage,
+    common::ServerLanguageError, server_file_cache::ServerFileCache,
+    server_language_data::ServerLanguageData, ServerLanguage,
 };
 
 /// Custom LSP request (client -> server), method `textDocument/compilationResult`.
@@ -31,6 +34,7 @@ pub enum CompilationRequest {}
 pub struct CompilationRequestParams {
     #[serde(flatten)]
     pub text_document: TextDocumentIdentifier,
+    pub disassemble: Option<bool>, // Disassemble compilation result
     pub compilation_type: Option<CompilationType>, // requested compilation type
 }
 
@@ -45,8 +49,7 @@ pub enum CompilationType {
 #[serde(rename_all = "camelCase")]
 pub struct CompilationRequestResult {
     pub compilation_type: CompilationType,
-    #[serde(with = "base64_bytes")] // Compress the data
-    pub data: Vec<u8>,
+    pub data: String, // compilation as base64 string, or disassembled result as string
 }
 
 impl Request for CompilationRequest {
@@ -59,31 +62,61 @@ impl ServerLanguage {
     pub fn recolt_compilation_result(
         &self,
         uri: &Url,
+        disassemble: Option<bool>,
         compilation_type: Option<CompilationType>,
     ) -> Result<Option<CompilationRequestResult>, ServerLanguageError> {
         let cached_file = self.get_cachable_file(&uri)?;
-        fn get_cached_result(cached_file: &ServerFileCache) -> Option<CompilationRequestResult> {
+        let language_data = self.get_language_data(&cached_file.shading_language)?;
+        fn get_result(
+            language_data: &ServerLanguageData,
+            disassemble: Option<bool>,
+            compilation_result: &CompilationResult,
+        ) -> Result<String, ShaderError> {
+            if disassemble.unwrap_or(false) {
+                if compilation_result.support_disassembly() {
+                    Ok(language_data.validator.disassemble(compilation_result)?)
+                } else {
+                    Err(ShaderError::InternalErr(format!(
+                        "Compilation result {compilation_result:?} does not support disassembly."
+                    )))
+                }
+            } else {
+                match &compilation_result {
+                    CompilationResult::None => Err(ShaderError::InternalErr(format!(
+                        "Failed compilation of shader. Check diagnostics."
+                    ))),
+                    CompilationResult::Dxil(dxil) => Ok(BASE64.encode(dxil)),
+                    CompilationResult::Spirv(spirv) => Ok(BASE64.encode(spirv)),
+                    // Do not encode wgsl as its a string already.
+                    CompilationResult::Wgsl(wgsl) => Ok(wgsl.clone()),
+                }
+            }
+        }
+        fn get_cached_result(
+            language_data: &ServerLanguageData,
+            disassemble: Option<bool>,
+            cached_file: &ServerFileCache,
+        ) -> Result<Option<CompilationRequestResult>, ShaderError> {
             if let Some(data) = &cached_file.data {
                 if let CompilationResult::None = data.compilation_cache {
-                    None
+                    Err(ShaderError::InternalErr(format!(
+                        "Cached compilation set to None. Probably failed compilation. Check diagnostics"
+                    )))
                 } else {
-                    Some(CompilationRequestResult {
+                    Ok(Some(CompilationRequestResult {
                         compilation_type: match &data.compilation_cache {
                             CompilationResult::None => unreachable!(),
                             CompilationResult::Dxil(_) => CompilationType::Dxil,
                             CompilationResult::Spirv(_) => CompilationType::Spirv,
                             CompilationResult::Wgsl(_) => CompilationType::Wgsl,
                         },
-                        data: match &data.compilation_cache {
-                            CompilationResult::None => Vec::new(),
-                            CompilationResult::Dxil(dxil) => dxil.clone(),
-                            CompilationResult::Spirv(spirv) => spirv.clone(),
-                            CompilationResult::Wgsl(wgsl) => wgsl.clone().into_bytes(),
-                        },
-                    })
+                        data: get_result(language_data, disassemble, &data.compilation_cache)?,
+                    }))
                 }
             } else {
-                None
+                Err(ShaderError::InternalErr(format!(
+                    "No cached compilation result available."
+                )))
             }
         }
         if let Some(compilation_type) = compilation_type {
@@ -92,16 +125,22 @@ impl ServerLanguage {
                 CompilationType::Spirv => match shading_language {
                     ShadingLanguage::Glsl => {
                         if self.config.is_generating_spirv(ShadingLanguage::Glsl) {
-                            Err(ServerLanguageError::InvalidParams(format!("Cannot request compilation to SPIRV for GLSL with no SPIRV version set.")))
+                            Err(ServerLanguageError::InvalidParams(format!(
+                                "Cannot request compilation to SPIRV for GLSL with no SPIRV version set."
+                            )))
                         } else {
-                            Ok(get_cached_result(cached_file)) // Glsl already compile to SPIRV
+                            Ok(get_cached_result(language_data, disassemble, cached_file)?)
+                            // Glsl already compile to SPIRV
                         }
                     }
                     ShadingLanguage::Hlsl => {
                         if self.config.is_generating_spirv(ShadingLanguage::Hlsl) {
-                            Ok(get_cached_result(cached_file)) // Hlsl generate spirv already
+                            Ok(get_cached_result(language_data, disassemble, cached_file)?)
+                        // Hlsl generate spirv already
                         } else {
-                            Err(ServerLanguageError::InvalidParams(format!("Cannot request SPIRV compilation for HLSL without enabling the spirv generation.")))
+                            Err(ServerLanguageError::InvalidParams(format!(
+                                "Cannot request SPIRV compilation for HLSL without enabling the spirv generation."
+                            )))
                         }
                     }
                     ShadingLanguage::Wgsl => {
@@ -110,7 +149,11 @@ impl ServerLanguage {
                                 match wgsl_to_spirv(&wgsl) {
                                     Ok(spirv) => Ok(Some(CompilationRequestResult {
                                         compilation_type: CompilationType::Spirv,
-                                        data: spirv,
+                                        data: get_result(
+                                            language_data,
+                                            disassemble,
+                                            &CompilationResult::Spirv(spirv),
+                                        )?,
                                     })),
                                     Err(err) => Err(ServerLanguageError::ShaderError(err)),
                                 }
@@ -129,9 +172,12 @@ impl ServerLanguage {
                 CompilationType::Dxil => match shading_language {
                     ShadingLanguage::Hlsl => {
                         if self.config.is_generating_spirv(ShadingLanguage::Hlsl) {
-                            Err(ServerLanguageError::InvalidParams(format!("Cannot request DXIL compilation for HLSL with spirv generation enabled.")))
+                            Err(ServerLanguageError::InvalidParams(format!(
+                                "Cannot request DXIL compilation for HLSL with spirv generation enabled."
+                            )))
                         } else {
-                            Ok(get_cached_result(cached_file)) // HLSL generate DXIL already
+                            Ok(get_cached_result(language_data, disassemble, cached_file)?)
+                            // HLSL generate DXIL already
                         }
                     }
                     ShadingLanguage::Glsl | ShadingLanguage::Wgsl => {
@@ -149,7 +195,7 @@ impl ServerLanguage {
                                     match spirv_to_wgsl(&spirv) {
                                         Ok(wgsl) => Ok(Some(CompilationRequestResult {
                                             compilation_type: CompilationType::Wgsl,
-                                            data: wgsl.into_bytes(),
+                                            data: wgsl,
                                         })),
                                         Err(err) => Err(ServerLanguageError::ShaderError(err)),
                                     }
@@ -164,14 +210,19 @@ impl ServerLanguage {
                                 )))
                             }
                         } else {
-                            Err(ServerLanguageError::InvalidParams(format!("Cannot request compilation to WGSL for {:?} when not generating SPIRV.", shading_language)))
+                            Err(ServerLanguageError::InvalidParams(format!(
+                                "Cannot request compilation to WGSL for {:?} when not generating SPIRV.",
+                                shading_language
+                            )))
                         }
                     }
-                    ShadingLanguage::Wgsl => Ok(get_cached_result(cached_file)), // No cross compilation required
+                    ShadingLanguage::Wgsl => {
+                        Ok(get_cached_result(language_data, disassemble, cached_file)?)
+                    } // No cross compilation required
                 },
             }
         } else {
-            Ok(get_cached_result(cached_file))
+            Ok(get_cached_result(language_data, disassemble, cached_file)?)
         }
     }
 }

@@ -13,6 +13,7 @@ use glslang::{
     include::{IncludeResult, IncludeType},
     Compiler, CompilerOptions, ShaderInput, ShaderSource,
 };
+use rspirv::binary::Disassemble;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -467,6 +468,26 @@ impl ValidatorImpl for Glslang {
             CompilationResult::None // No compilation.
         };
         Ok((compilation_result, ShaderDiagnosticList::empty())) // No error detected.
+    }
+    fn disassemble(&self, compilation_result: &CompilationResult) -> Result<String, ShaderError> {
+        match compilation_result {
+            CompilationResult::Spirv(spirv_bytes) => {
+                // TODO: cache loader, but should be fine as its only called on compile request.
+                let mut loader = rspirv::dr::Loader::new();
+                rspirv::binary::Parser::new(&spirv_bytes, &mut loader)
+                    .parse()
+                    .map_err(|err| {
+                        ShaderError::InternalErr(format!("Failed to disassemble SPIRV: {err}"))
+                    })?;
+                let module = loader.module();
+                Ok(module.disassemble())
+            }
+            CompilationResult::None | CompilationResult::Dxil(_) | CompilationResult::Wgsl(_) => {
+                Err(ShaderError::InternalErr(format!(
+                    "Glslang cannot disassemble {compilation_result:?}."
+                )))
+            }
+        }
     }
     fn support(&self, shader_stage: ShaderStage) -> bool {
         if self.hlsl {
