@@ -6,7 +6,7 @@ use std::{
 
 use log::{error, info, warn};
 use lsp_types::{request::WorkspaceConfiguration, ConfigurationParams, Url};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use serde_json::Value;
 use shader_sense::{
@@ -28,6 +28,14 @@ use crate::{
 };
 
 use super::shader_variant::ShaderVariant;
+
+fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.filter(|s| !s.is_empty()))
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +70,7 @@ impl ServerGlslVersionConfig {
 pub struct ServerGlslConfig {
     pub target_client: Option<GlslTargetClient>,
     pub spirv_version: Option<GlslSpirvVersion>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub preamble: Option<String>, // Path to a preamble file per language.
     pub version: Option<ServerGlslVersionConfig>,
 }
@@ -69,6 +78,7 @@ pub struct ServerGlslConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerWgslConfig {
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub package_root: Option<String>, // Root of the package for `package::` imports.
     pub packages: Option<HashMap<String, String>>, // Root of external packages for `name::` imports.
 }
@@ -126,12 +136,13 @@ pub struct ServerSerializedConfig {
     automatic_variant_discovery: Option<bool>, // Reuse a dependent main-file context for document diagnostics.
     experimental_macro_expansion: Option<bool>, // Experimental test for the new feature.
     stage_define: Option<HashMap<ShaderStage, HashMap<String, String>>>, // Specific macro defined per shader stage
-    trace: Option<ServerTrace>,      // Level of error to display
-    severity: Option<String>,        // Severity of diagnostic to display
+    trace: Option<ServerTrace>, // Level of error to display
+    severity: Option<String>,   // Severity of diagnostic to display
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     config_override: Option<String>, // Override configuration file
-    hlsl: Option<ServerHlslConfig>,  // Hlsl specific configuration
-    glsl: Option<ServerGlslConfig>,  // Glsl specific configuration
-    wgsl: Option<ServerWgslConfig>,  // Wgsl & Wesl specific configuration
+    hlsl: Option<ServerHlslConfig>, // Hlsl specific configuration
+    glsl: Option<ServerGlslConfig>, // Glsl specific configuration
+    wgsl: Option<ServerWgslConfig>, // Wgsl & Wesl specific configuration
 }
 
 /// Configuration computed from both server configuration and engine configuration.
@@ -179,15 +190,13 @@ impl ServerSerializedConfig {
         if let Some(glsl) = &self.glsl {
             // Validate preamble path.
             if let Some(preamble) = &glsl.preamble {
-                if !preamble.is_empty() {
-                    let preamble_path = Self::verify_user_path(preamble);
-                    if let Ok(exist) = std::fs::exists(preamble_path) {
-                        if !exist {
-                            errors.push(format!("Preamble file at {:#?} not found", preamble));
-                        }
-                    } else {
+                let preamble_path = Self::verify_user_path(preamble);
+                if let Ok(exist) = std::fs::exists(preamble_path) {
+                    if !exist {
                         errors.push(format!("Preamble file at {:#?} not found", preamble));
                     }
+                } else {
+                    errors.push(format!("Preamble file at {:#?} not found", preamble));
                 }
             }
             if let Some(target_client) = &glsl.target_client {
@@ -218,21 +227,19 @@ impl ServerSerializedConfig {
             }
         }
         if let Some(config_override) = &self.config_override {
-            if !config_override.is_empty() {
-                let config_override_path = Self::verify_user_path(config_override);
-                if let Ok(exist) = std::fs::exists(config_override_path) {
-                    if !exist {
-                        errors.push(format!(
-                            "Config override file at {:#?} not found",
-                            config_override
-                        ));
-                    }
-                } else {
+            let config_override_path = Self::verify_user_path(config_override);
+            if let Ok(exist) = std::fs::exists(config_override_path) {
+                if !exist {
                     errors.push(format!(
                         "Config override file at {:#?} not found",
                         config_override
                     ));
                 }
+            } else {
+                errors.push(format!(
+                    "Config override file at {:#?} not found",
+                    config_override
+                ));
             }
         }
         if let Some(includes) = &self.includes {
