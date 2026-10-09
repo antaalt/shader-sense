@@ -635,10 +635,15 @@ impl ValidatorImpl for Wesl {
             }
         }
     }
-    fn disassemble(&self, _compilation_result: &CompilationResult) -> Result<String, ShaderError> {
-        Err(ShaderError::InternalErr(format!(
-            "Cannot disassemble WGSL as its already a human readable language."
-        )))
+    fn disassemble(&self, compilation_result: &CompilationResult) -> Result<String, ShaderError> {
+        match compilation_result {
+            CompilationResult::Wgsl(str) => Ok(str.clone()), // No disassembly, already human readable.
+            CompilationResult::None | CompilationResult::Dxil(_) | CompilationResult::Spirv(_) => {
+                Err(ShaderError::InternalErr(format!(
+                    "Naga cannot disassemble {compilation_result:?}."
+                )))
+            }
+        }
     }
     fn support(&self, shader_stage: ShaderStage) -> bool {
         match shader_stage {

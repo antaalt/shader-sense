@@ -73,13 +73,7 @@ impl ServerLanguage {
             compilation_result: &CompilationResult,
         ) -> Result<String, ShaderError> {
             if disassemble.unwrap_or(false) {
-                if compilation_result.support_disassembly() {
-                    Ok(language_data.validator.disassemble(compilation_result)?)
-                } else {
-                    Err(ShaderError::InternalErr(format!(
-                        "Compilation result {compilation_result:?} does not support disassembly."
-                    )))
-                }
+                Ok(language_data.validator.disassemble(compilation_result)?)
             } else {
                 match &compilation_result {
                     CompilationResult::None => Err(ShaderError::InternalErr(format!(
@@ -99,9 +93,16 @@ impl ServerLanguage {
         ) -> Result<Option<CompilationRequestResult>, ShaderError> {
             if let Some(data) = &cached_file.data {
                 if let CompilationResult::None = data.compilation_cache {
-                    Err(ShaderError::InternalErr(format!(
-                        "Cached compilation set to None. Probably failed compilation. Check diagnostics"
-                    )))
+                    if data.diagnostic_cache.diagnostics.is_empty() {
+                        Err(ShaderError::InternalErr(format!(
+                            "No compilation result. Ensure you have an entry point correctly set."
+                        )))
+                    } else {
+                        Err(ShaderError::InternalErr(format!(
+                            "Compilation failed because there is error in your file ({} diagnostics found)",
+                            data.diagnostic_cache.diagnostics.len()
+                        )))
+                    }
                 } else {
                     Ok(Some(CompilationRequestResult {
                         compilation_type: match &data.compilation_cache {

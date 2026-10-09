@@ -23,9 +23,8 @@ use lsp_types::{
     TextDocumentContentChangeEvent, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use lsp_types::{
-    CancelParams, DocumentDiagnosticParams, Hover, HoverParams, SemanticTokensParams,
-    SemanticTokensResult, TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse,
+    CancelParams, Hover, HoverParams, SemanticTokensParams, SemanticTokensResult,
+    TextDocumentIdentifier, TextDocumentItem, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use serde_json::json;
 use shader_language_server::server::provider::compilation::{
@@ -565,7 +564,7 @@ fn validate_compilation_result(
             match compilation_type {
                 CompilationType::Spirv => compilation.data.starts_with("; SPIR-V"),
                 CompilationType::Dxil => compilation.data.starts_with(";\n; Input signature:"),
-                CompilationType::Wgsl => false, // Cannot disassemble wgsl
+                CompilationType::Wgsl => true, // Simple wgsl returned.
             },
             "Invalid disassembly start: {:?}",
             compilation.data
@@ -576,12 +575,15 @@ fn validate_compilation_result(
             compilation.data.len()
         );
     } else {
-        let bytes = general_purpose::STANDARD.decode(&compilation.data).unwrap();
+        let bytes = match compilation_type {
+            CompilationType::Wgsl => compilation.data.into_bytes(),
+            _ => general_purpose::STANDARD.decode(&compilation.data).unwrap(),
+        };
         assert!(
             match compilation_type {
                 CompilationType::Spirv => is_valid_spirv(&bytes),
                 CompilationType::Dxil => is_valid_dxil(&bytes),
-                CompilationType::Wgsl => unimplemented!(),
+                CompilationType::Wgsl => true, // No magic byte in wgsl
             },
             "Invalid magic bytes: {:?}",
             bytes
@@ -613,13 +615,7 @@ fn test_compilation_glsl_spirv() {
         text_document: file.item(),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: file.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &file.document_diagnostic_params(),
         |report| {
             let report = get_all_diagnostics(report);
             assert!(
@@ -672,13 +668,7 @@ fn test_compilation_hlsl() {
         text_document: file.item(),
     });
     server.send_request::<DocumentDiagnosticRequest>(
-        &DocumentDiagnosticParams {
-            text_document: file.identifier(),
-            identifier: None,
-            previous_result_id: None,
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        },
+        &file.document_diagnostic_params(),
         |report| {
             let report = get_all_diagnostics(report);
             assert!(
@@ -716,6 +706,46 @@ fn test_compilation_hlsl() {
             compilation_type: None,
         },
         |result| validate_compilation_result(result, false, CompilationType::Spirv, 336),
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_compilation_wgsl() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("wesl/lighting.wesl", ShadingLanguage::Wgsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentDiagnosticRequest>(
+        &file.document_diagnostic_params(),
+        |report| {
+            let report = get_all_diagnostics(report);
+            assert!(
+                report.is_empty(),
+                "Should not have any error with file, got {:#?}",
+                report
+            );
+        },
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: None,
+            compilation_type: None,
+        },
+        |result| validate_compilation_result(result, false, CompilationType::Wgsl, 241),
+    );
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: Some(true),
+            compilation_type: None,
+        },
+        |result| validate_compilation_result(result, true, CompilationType::Wgsl, 241),
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),
