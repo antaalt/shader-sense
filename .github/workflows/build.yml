@@ -141,3 +141,42 @@ jobs:
         with:
           name: shader-language-server-wasm32-wasip1-threads
           path: ./bin/
+
+  # Upload the packages of every commit on main to the nightly release, which must already exist.
+  nightly:
+    needs: [test, build-desktop, build-wasi]
+    # Only for main, not for pull requests nor releases, which reuse this workflow through deploy.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/package.yml
+    with:
+      release-tag: nightly
+
+  # Point the nightly release to the commit its packages were built from.
+  nightly-notes:
+    needs: nightly
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Update nightly release notes
+        run: |
+          gh release edit nightly --repo ${{ github.repository }} \
+            --notes "Nightly build of commit ${{ github.sha }} from main. Built by run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # Test the extension against this server build, which it downloads from the nightly release.
+  trigger-extension:
+    needs: nightly-notes # Wait for the nightly release to be updated.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger shader-validator build
+        run: |
+          gh api repos/antaalt/shader-validator/dispatches \
+            -f event_type=shader-sense-build \
+            -f "client_payload[sha]=${{ github.sha }}"
+        env:
+          # Fine-grained token with Contents read & write on shader-validator, which repository_dispatch requires.
+          GH_TOKEN: ${{ secrets.SHADER_VALIDATOR_DISPATCH_TOKEN }}

@@ -9,70 +9,24 @@ env:
 
 jobs:
   build:
+    # build.yml nightly job requires it, even if it is skipped on release.
+    permissions:
+      contents: write
     uses: ./.github/workflows/build.yml
 
   deploy:
-    permissions: write-all
+    permissions:
+      contents: write
     needs: build
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-          include:
-            - rust-target: x86_64-pc-windows-msvc
-              dxc-zip: dxc_2024_05_24.zip
-              dxc-path: bin/x64/
-              dxc-dxil: dxil.dll
-              dxc-dxcompiler: dxcompiler.dll
-            - rust-target: aarch64-pc-windows-msvc
-              dxc-zip: dxc_2024_05_24.zip
-              dxc-path: bin/arm64/
-              dxc-dxil: dxil.dll
-              dxc-dxcompiler: dxcompiler.dll
-            - rust-target: x86_64-unknown-linux-gnu
-              dxc-zip: linux_dxc_2024_05_24.x86_64.tar.gz 
-              dxc-path: lib/
-              dxc-dxil: libdxil.so
-              dxc-dxcompiler: libdxcompiler.so
-            - rust-target: wasm32-wasip1-threads
-              dxc-zip: # Empty means unused.
-              dxc-path:
-              dxc-dxil:
-              dxc-dxcompiler:
-
-    steps:
-      - uses: actions/checkout@v7 # Required for release upload
-      - name: Create bundle folder
-        run: mkdir -p ./package
-      - name: Download server binary
-        uses: actions/download-artifact@v8
-        with:
-          name: shader-language-server-${{ matrix.rust-target }}
-          path: ./package
-      - name: Download dxc dll.
-        uses: robinraju/release-downloader@v1.13
-        if: ${{ matrix.dxc-zip != '' }}
-        with:
-          repository: 'microsoft/DirectXShaderCompiler'
-          tag: v1.8.2405
-          fileName: ${{ matrix.dxc-zip }}
-          extract: true
-          out-file-path: './dxc'
-      - name: Copy dxc library to package.
-        if: ${{ matrix.dxc-zip != '' }}
-        run: cp ./dxc/${{ matrix.dxc-path }}${{ matrix.dxc-dxcompiler }} ./package/${{ matrix.dxc-dxcompiler }} && cp ./dxc/${{ matrix.dxc-path }}${{ matrix.dxc-dxil }} ./package/${{ matrix.dxc-dxil }}
-      - name: Zip package
-        run: zip -v -r -j shader-language-server-${{ matrix.rust-target }}.zip ./package
-      - name: Upload release package
-        run: gh release upload ${{ github.ref_name }} shader-language-server-${{ matrix.rust-target }}.zip
-        env:
-          GH_TOKEN: ${{ github.token }}
+    uses: ./.github/workflows/package.yml
+    with:
+      release-tag: ${{ github.ref_name }}
 
   publish:
     runs-on: ubuntu-latest
     needs: deploy # Dont really need but keep to avoid issue on issues.
-    # Skip pre-release because cargo dont support pre-release tag.
-    if: ${{ !github.event.release.prerelease }}
+    # Skip pre-release because cargo dont support pre-release tag, and nightly which is not a version.
+    if: ${{ !github.event.release.prerelease && github.event.release.tag_name != 'nightly' }}
 
     steps:
       - uses: actions/checkout@v7 # Required for release upload
