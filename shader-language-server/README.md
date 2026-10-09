@@ -152,12 +152,13 @@ As this server has everything in its hand to compile a shader, we can simply get
 ```typescript
 interface CompilationRequestParams {
     uri: string
+    disassemble: boolean, // Will disassemble the compiled result if passed true.
     compilationType: 'Spirv' | 'Dxil' | 'Wgsl' | null, // Optionnal type to convert the compilation result.
 }
 // Might be null if compilation failed. Check diagnostics
 interface CompilationRequestResult {
     compilationType: 'Spirv' | 'Dxil' | 'Wgsl',
-    data: string // The result of the compilation as a base64 encoded byte array.
+    data: string // The result of the compilation as a base64 encoded byte array for binary and non encoded string if disassembled or wgsl.
 }
 ```
 
