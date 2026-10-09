@@ -440,7 +440,7 @@ impl ValidatorImpl for Glslang {
         let compilation_result = if let Some(entry_point) = &params.compilation.entry_point {
             // For now, only compile main entry point as we cannot compile any other without changes to GLSLang
             if entry_point == "main" {
-                let mut spirv = match shader.compile().map_err(|e| {
+                let spirv = match shader.compile().map_err(|e| {
                     self.from_glslang_error(e, file_path, &params, preamble_line_offset)
                 }) {
                     Ok(value) => value,
@@ -449,19 +449,20 @@ impl ValidatorImpl for Glslang {
                         Ok(diag) => return Ok((CompilationResult::None, diag)),
                     },
                 };
-                // Safe because u32 multiple of u8
                 let compilation_result = if !spirv.is_empty() {
-                    let ptr = spirv.as_mut_ptr() as *mut u8;
-                    let length = spirv.len() * std::mem::size_of::<u32>();
-                    std::mem::forget(spirv);
-                    CompilationResult::Spirv(unsafe {
-                        Vec::<u8>::from_raw_parts(ptr, length, length)
-                    })
+                    // Cannot simply cast array because of possible alignment issues.
+                    let capacity = 4 * spirv.len();
+                    let mut spirv8 = Vec::with_capacity(capacity);
+                    for value in spirv {
+                        spirv8.extend_from_slice(&value.to_le_bytes());
+                    }
+                    CompilationResult::Spirv(spirv8)
                 } else {
                     CompilationResult::None
                 };
                 compilation_result
             } else {
+                // No main entry point, no compilation possible to SPIRV for now. Need to be able to change source entry point.
                 CompilationResult::None
             }
         } else {
