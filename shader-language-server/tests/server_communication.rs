@@ -656,6 +656,49 @@ fn test_compilation_glsl_spirv() {
 }
 
 #[test]
+fn test_compilation_variant_after_open() {
+    // Variant set after file is opened must trigger compilation, even if it does not change preprocessor context.
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    let file = TestFile::new("glsl/ok.frag.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentDiagnosticRequest>(
+        &file.document_diagnostic_params(),
+        |report| {
+            let report = get_all_diagnostics(report);
+            assert!(
+                report.is_empty(),
+                "Should not have any error with file, got {:#?}",
+                report
+            );
+        },
+    );
+    server.send_notification::<DidChangeShaderVariant>(&DidChangeShaderVariantParams {
+        shader_variant: Some(ShaderVariant {
+            uri: file.uri.clone(),
+            shading_language: ShadingLanguage::Glsl,
+            entry_point: "main".into(),
+            stage: Some(ShaderStage::Fragment),
+            defines: HashMap::new(),
+            includes: Vec::new(),
+        }),
+    });
+    server.send_request::<CompilationRequest>(
+        &CompilationRequestParams {
+            text_document: file.identifier(),
+            disassemble: None,
+            compilation_type: Some(CompilationType::Spirv),
+        },
+        |result| validate_compilation_result(result, false, CompilationType::Spirv, 360),
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
 fn test_compilation_hlsl() {
     if use_wasi_server() {
         return; // No DXC with WASI server

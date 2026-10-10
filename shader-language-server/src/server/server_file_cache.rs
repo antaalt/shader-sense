@@ -109,7 +109,7 @@ use log::{debug, info, warn};
 use lsp_types::Url;
 use shader_sense::{
     position::ShaderFileRange,
-    shader::ShadingLanguage,
+    shader::{ShaderStage, ShadingLanguage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
         intrinsics::ShaderIntrinsics,
@@ -130,6 +130,8 @@ pub struct ServerFileCacheData {
     pub intrinsics: ShaderSymbolListRef<'static>, // Cached intrinsics to not recompute them everytime
     pub diagnostic_cache: ShaderDiagnosticList,   // Cached diagnostic
     pub compilation_cache: CompilationResult,     // Cached compilation
+    pub entry_point: Option<String>, // Entry point used for compilation, as it does not impact preprocessor context.
+    pub shader_stage: Option<ShaderStage>, // Stage used for compilation, as it does not impact preprocessor context.
 }
 
 impl ServerFileCacheData {
@@ -139,6 +141,8 @@ impl ServerFileCacheData {
             intrinsics: ShaderSymbolListRef::default(),
             diagnostic_cache: ShaderDiagnosticList::default(),
             compilation_cache: CompilationResult::default(),
+            entry_point: None,
+            shader_stage: None,
         }
     }
 }
@@ -331,9 +335,12 @@ impl ServerLanguageFileCache {
                     .get_preprocessor()
                     .context
                     .is_dirty(&file_path, &context);
+                // Entry point & stage do not impact preprocessor, but they impact compilation.
+                let has_target_changed = data.entry_point != shader_params.compilation.entry_point
+                    || data.shader_stage != shader_params.compilation.shader_stage;
                 let has_cache = self.files.get_mut(&uri).unwrap().data.is_some();
                 let has_dirty = !dirty_deps.is_empty();
-                if !is_dirty && !has_dirty && has_cache {
+                if !is_dirty && !has_dirty && !has_target_changed && has_cache {
                     return Ok(());
                 }
             }
@@ -523,6 +530,8 @@ impl ServerLanguageFileCache {
             intrinsics,
             diagnostic_cache: diagnostics,
             compilation_cache: compilation,
+            entry_point: shader_params.compilation.entry_point.clone(),
+            shader_stage: shader_params.compilation.shader_stage,
         });
         Ok(())
     }
@@ -612,6 +621,8 @@ impl ServerLanguageFileCache {
                                             intrinsics,
                                             diagnostic_cache,
                                             compilation_cache: CompilationResult::None, // No compilation for deps
+                                            entry_point: None,
+                                            shader_stage: None,
                                         },
                                     );
                                 }
