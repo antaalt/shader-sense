@@ -2,13 +2,13 @@
 // WASI cannot spawn a server so test on pc with WASMTIME runner instead.
 #![cfg(not(target_os = "wasi"))]
 
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use lsp_types::{
-    notification::{DidCloseTextDocument, DidOpenTextDocument},
+    notification::{DidCloseTextDocument, DidOpenTextDocument, PublishDiagnostics},
     request::{DocumentDiagnosticRequest, DocumentSymbolRequest},
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentDiagnosticParams,
-    PartialResultParams, WorkDoneProgressParams,
+    PartialResultParams, PublishDiagnosticsParams, Url, WorkDoneProgressParams,
 };
 use serde_json::json;
 use shader_language_server::server::{
@@ -251,6 +251,48 @@ fn test_config_override() {
                 errors
             );
         },
+    );
+    server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
+        text_document: file.identifier(),
+    });
+}
+
+#[test]
+fn test_disable_validation_clear_diagnostics() {
+    let mut server = TestServer::new(ServerSerializedConfig::default(), Transport::Stdio).unwrap();
+
+    // Store last diagnostics published for each file.
+    let published: Rc<RefCell<HashMap<Url, usize>>> = Rc::new(RefCell::new(HashMap::new()));
+    let published_handler = Rc::clone(&published);
+    server.subscribe::<PublishDiagnostics, _>(move |params| {
+        let params: PublishDiagnosticsParams = serde_json::from_value(params).unwrap();
+        published_handler
+            .borrow_mut()
+            .insert(params.uri, params.diagnostics.len());
+    });
+
+    let file = TestFile::new("glsl/error-parsing.frag.glsl", ShadingLanguage::Glsl);
+    server.send_notification::<DidOpenTextDocument>(&DidOpenTextDocumentParams {
+        text_document: file.item(),
+    });
+    server.send_request::<DocumentSymbolRequest>(&file.document_symbol_params(), |_| {});
+    assert!(
+        published
+            .borrow()
+            .get(&file.uri)
+            .is_some_and(|count| *count > 0),
+        "Should have published errors for file, got {:#?}",
+        published.borrow()
+    );
+    // Disabling validation should clear previously published diagnostics.
+    server.update_configuration(json!({
+        "validate": false,
+    }));
+    server.send_request::<DocumentSymbolRequest>(&file.document_symbol_params(), |_| {});
+    assert!(
+        published.borrow().values().all(|count| *count == 0),
+        "Should have cleared all diagnostics, got {:#?}",
+        published.borrow()
     );
     server.send_notification::<DidCloseTextDocument>(&DidCloseTextDocumentParams {
         text_document: file.identifier(),

@@ -146,7 +146,13 @@ impl ServerLanguage {
                 }
             });
         } else {
-            info!("Diagnostic disabled.");
+            // Still publish empty diagnostics to clear the ones published before validation was disabled.
+            info!("Diagnostic disabled. Clearing previous diagnostic {}", uri);
+            diagnostics.insert(uri.clone(), vec![]);
+            data.symbol_cache.visit_includes(&mut |include| {
+                let include_uri = Url::from_file_path(&include.get_absolute_path()).unwrap();
+                diagnostics.insert(include_uri, vec![]);
+            });
         }
 
         // Add inactive regions to diag for open file.
@@ -204,7 +210,7 @@ impl ServerLanguage {
 
         match diagnostics.get_mut(&uri) {
             Some(diagnostics) => {
-                if self.config.get_symbol_diagnostics() {
+                if self.config.get_validate() && self.config.get_symbol_diagnostics() {
                     diagnostics.extend(
                         data.symbol_cache
                             .get_preprocessor()
@@ -221,7 +227,9 @@ impl ServerLanguage {
                 }
                 diagnostics.extend(inactive_diagnostics);
             }
-            None => {} // If we disable diag, this might be reached.
+            None => {
+                diagnostics.insert(uri.clone(), inactive_diagnostics);
+            }
         }
         Ok(diagnostics)
     }
