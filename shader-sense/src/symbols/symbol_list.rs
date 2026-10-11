@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     position::ShaderFilePosition,
-    symbols::symbols::{ShaderSymbol, ShaderSymbolMode, ShaderSymbolType},
+    symbols::symbols::{
+        ShaderNamespace, ShaderSymbol, ShaderSymbolMode, ShaderSymbolRuntime, ShaderSymbolType,
+    },
 };
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -17,6 +19,8 @@ pub struct ShaderSymbolList {
     pub keywords: Vec<ShaderSymbol>,
     pub macros: Vec<ShaderSymbol>,
     pub includes: Vec<ShaderSymbol>,
+    #[serde(skip)] // Only used at runtime. Not symbols, stored to resolve them.
+    pub namespaces: Vec<ShaderNamespace>,
 }
 #[derive(Debug, Default, Clone)]
 pub struct ShaderSymbolListRef<'a> {
@@ -28,6 +32,7 @@ pub struct ShaderSymbolListRef<'a> {
     pub keywords: Vec<&'a ShaderSymbol>,
     pub macros: Vec<&'a ShaderSymbol>,
     pub includes: Vec<&'a ShaderSymbol>,
+    pub namespaces: Vec<&'a ShaderNamespace>,
 }
 
 // Collect references to the symbols matching the predicate.
@@ -78,6 +83,8 @@ impl ShaderSymbolList {
         self.keywords.append(&mut shader_symbol_list_mut.keywords);
         self.macros.append(&mut shader_symbol_list_mut.macros);
         self.includes.append(&mut shader_symbol_list_mut.includes);
+        self.namespaces
+            .append(&mut shader_symbol_list_mut.namespaces);
     }
     pub fn as_ref<'a>(&'a self) -> ShaderSymbolListRef<'a> {
         ShaderSymbolListRef {
@@ -89,6 +96,7 @@ impl ShaderSymbolList {
             keywords: self.keywords.iter().collect(),
             macros: self.macros.iter().collect(),
             includes: self.includes.iter().collect(),
+            namespaces: self.namespaces.iter().collect(),
         }
     }
     pub fn filter<'a, P: Fn(ShaderSymbolType, &ShaderSymbol) -> bool>(
@@ -108,6 +116,7 @@ impl ShaderSymbolList {
             keywords: filter_symbols(&self.keywords, ShaderSymbolType::Keyword, &predicate),
             macros: filter_symbols(&self.macros, ShaderSymbolType::Macros, &predicate),
             includes: filter_symbols(&self.includes, ShaderSymbolType::Include, &predicate),
+            namespaces: self.namespaces.iter().collect(), // Not symbols, never filtered.
         }
     }
     pub fn for_each_mut<P: FnMut(ShaderSymbolType, &mut ShaderSymbol)>(
@@ -123,6 +132,7 @@ impl ShaderSymbolList {
             keywords,
             macros,
             includes,
+            namespaces: _, // Not symbols.
         } = self;
         for (symbol_type, symbols) in [
             (ShaderSymbolType::Types, types),
@@ -151,51 +161,174 @@ impl<'a> ShaderSymbolListRef<'a> {
             keywords: self.keywords.iter().map(|s| (*s).clone()).collect(),
             macros: self.macros.iter().map(|s| (*s).clone()).collect(),
             includes: self.includes.iter().map(|s| (*s).clone()).collect(),
+            namespaces: self.namespaces.iter().map(|n| (*n).clone()).collect(),
         }
     }
+    fn is_defined_before(
+        runtime: &ShaderSymbolRuntime,
+        cursor_position: &ShaderFilePosition,
+    ) -> bool {
+        if runtime.range.start.line == cursor_position.position.line {
+            cursor_position.position.pos > runtime.range.start.pos
+        } else {
+            cursor_position.position.line > runtime.range.start.line
+        }
+    }
+    // Check if a symbol is accessible without qualification from cursor, which is in cursor_namespace.
     fn is_symbol_defined_at(
         shader_symbol: &ShaderSymbol,
         cursor_position: &ShaderFilePosition,
+        cursor_namespace: &[String],
     ) -> bool {
         match &shader_symbol.mode {
             ShaderSymbolMode::Runtime(runtime) => {
+                // Namespaced symbols are only visible from within their namespace, or a nested one.
+                let mut cursor_namespace = cursor_namespace.iter();
+                let is_in_namespace = runtime
+                    .scope_stack
+                    .iter()
+                    .filter_map(|scope| scope.namespace.as_ref())
+                    .all(|namespace| cursor_namespace.next() == Some(namespace));
+                if !is_in_namespace {
+                    return false;
+                }
                 if runtime.file_path.as_os_str() == cursor_position.file_path.as_os_str() {
-                    // Ensure symbols are already defined at pos
-                    let is_already_defined =
-                        if runtime.range.start.line == cursor_position.position.line {
-                            cursor_position.position.pos > runtime.range.start.pos
-                        } else {
-                            cursor_position.position.line > runtime.range.start.line
-                        };
-                    if is_already_defined {
-                        // If we are in main file, check if scope in range.
-                        for symbol_scope in &runtime.scope_stack {
-                            if !symbol_scope.range.contain(&cursor_position.position) {
-                                return false; // scope not in range
-                            }
-                        }
-                        true // scope in range
-                    } else {
-                        false
-                    }
+                    // Ensure symbols are already defined at pos and that their scope is in range.
+                    // Namespace scopes are skipped as they can be reopened, they are checked above.
+                    Self::is_defined_before(runtime, cursor_position)
+                        && runtime
+                            .scope_stack
+                            .iter()
+                            .filter(|scope| scope.namespace.is_none())
+                            .all(|scope| scope.range.contain(&cursor_position.position))
                 } else {
-                    // If we are not in main file, only show whats in global scope.
+                    // If we are not in main file, only show whats in global scope or namespaces.
                     // TODO: should handle include position in file aswell.
-                    runtime.scope_stack.is_empty() // Global scope or inaccessible
+                    runtime
+                        .scope_stack
+                        .iter()
+                        .all(|scope| scope.namespace.is_some())
                 }
             }
             ShaderSymbolMode::RuntimeContext(_) => true, // available in context.
             ShaderSymbolMode::Intrinsic(_) => true,      // intrinsics
         }
     }
+    // Check if a symbol is declared directly in namespace, and accessible from cursor when qualified with it.
+    fn is_symbol_declared_in_namespace(
+        shader_symbol: &ShaderSymbol,
+        namespace: &[String],
+        cursor_position: &ShaderFilePosition,
+    ) -> bool {
+        match &shader_symbol.mode {
+            ShaderSymbolMode::Runtime(runtime) => {
+                // Every scope must be a namespace, else the symbol is local to a body.
+                let mut namespace = namespace.iter();
+                let is_declared_in_namespace = runtime.scope_stack.iter().all(|scope| {
+                    scope
+                        .namespace
+                        .as_ref()
+                        .is_some_and(|scope_namespace| namespace.next() == Some(scope_namespace))
+                }) && namespace.next().is_none();
+                is_declared_in_namespace
+                    && (runtime.file_path.as_os_str() != cursor_position.file_path.as_os_str()
+                        || Self::is_defined_before(runtime, cursor_position))
+            }
+            // TODO: intrinsics should be able to have a namespace.
+            ShaderSymbolMode::RuntimeContext(_) | ShaderSymbolMode::Intrinsic(_) => {
+                namespace.is_empty()
+            }
+        }
+    }
+    // Get the path of the innermost namespace containing the cursor.
+    pub fn find_namespace_at(&self, cursor_position: &ShaderFilePosition) -> Vec<String> {
+        self.namespaces
+            .iter()
+            .filter(|namespace| {
+                namespace.file_path.as_os_str() == cursor_position.file_path.as_os_str()
+                    && namespace.range.contain(&cursor_position.position)
+            })
+            .max_by_key(|namespace| namespace.path.len())
+            .map(|namespace| namespace.path.clone())
+            .unwrap_or_default()
+    }
+    pub fn has_namespace(&self, namespace: &[String]) -> bool {
+        self.namespaces.iter().any(|n| n.path == namespace)
+    }
+    // Resolve a namespace qualifier written at cursor, relative to the namespaces enclosing it, innermost first.
+    pub fn resolve_namespace(
+        &self,
+        qualifier: &[&str],
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<Vec<String>> {
+        if self.namespaces.is_empty() {
+            return None; // Most shaders do not use namespaces.
+        }
+        let cursor_namespace = self.find_namespace_at(cursor_position);
+        (0..=cursor_namespace.len()).rev().find_map(|depth| {
+            let mut namespace = cursor_namespace[..depth].to_vec();
+            namespace.extend(qualifier.iter().map(|q| q.to_string()));
+            self.has_namespace(&namespace).then_some(namespace)
+        })
+    }
+    // Get the name of the namespaces declared directly in namespace.
+    pub fn find_child_namespaces(&self, namespace: &[String]) -> Vec<&'a str> {
+        let mut children: Vec<&'a str> = self
+            .namespaces
+            .iter()
+            .filter(|n| n.path.len() == namespace.len() + 1 && n.path.starts_with(namespace))
+            .map(|n| n.path[namespace.len()].as_str())
+            .collect();
+        children.sort_unstable();
+        children.dedup();
+        children
+    }
+    // Get the name of the namespaces accessible without qualification from cursor.
+    pub fn find_namespaces_at(&self, cursor_position: &ShaderFilePosition) -> Vec<&'a str> {
+        let cursor_namespace = self.find_namespace_at(cursor_position);
+        let mut namespaces: Vec<&'a str> = (0..=cursor_namespace.len())
+            .flat_map(|depth| self.find_child_namespaces(&cursor_namespace[..depth]))
+            .collect();
+        namespaces.sort_unstable();
+        namespaces.dedup();
+        namespaces
+    }
+    // Get the symbols accessible from cursor when qualified with namespace.
+    pub fn find_namespace_symbols(
+        &'a self,
+        namespace: &[String],
+        cursor_position: &ShaderFilePosition,
+    ) -> Vec<&'a ShaderSymbol> {
+        self.iter()
+            .filter(|s| {
+                !s.is_transient()
+                    && Self::is_symbol_declared_in_namespace(s, namespace, cursor_position)
+            })
+            .collect()
+    }
+    pub fn find_namespace_symbol(
+        &'a self,
+        label: &str,
+        namespace: &[String],
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<&'a ShaderSymbol> {
+        self.iter().find(|s| {
+            s.label == *label
+                && !s.is_transient()
+                && Self::is_symbol_declared_in_namespace(s, namespace, cursor_position)
+        })
+    }
     pub fn find_symbols_at(
         &'a self,
         label: &str,
         position: &ShaderFilePosition,
     ) -> Vec<&'a ShaderSymbol> {
+        let namespace = self.find_namespace_at(position);
         self.iter()
             .filter(|s| {
-                !s.is_transient() && s.label == *label && Self::is_symbol_defined_at(s, position)
+                !s.is_transient()
+                    && s.label == *label
+                    && Self::is_symbol_defined_at(s, position, &namespace)
             })
             .collect()
     }
@@ -207,8 +340,11 @@ impl<'a> ShaderSymbolListRef<'a> {
         label: &str,
         cursor_position: &ShaderFilePosition,
     ) -> Option<&'a ShaderSymbol> {
+        let namespace = self.find_namespace_at(cursor_position);
         self.iter().find(|s| {
-            s.label == *label && !s.is_transient() && Self::is_symbol_defined_at(s, cursor_position)
+            s.label == *label
+                && !s.is_transient()
+                && Self::is_symbol_defined_at(s, cursor_position, &namespace)
         })
     }
     pub fn find_scoped_function_symbol(
@@ -216,9 +352,12 @@ impl<'a> ShaderSymbolListRef<'a> {
         label: &str,
         cursor_position: &ShaderFilePosition,
     ) -> Option<&'a ShaderSymbol> {
+        let namespace = self.find_namespace_at(cursor_position);
         self.functions
             .iter()
-            .find(|s| s.label == *label && Self::is_symbol_defined_at(s, cursor_position))
+            .find(|s| {
+                s.label == *label && Self::is_symbol_defined_at(s, cursor_position, &namespace)
+            })
             .map(|s| *s)
     }
     pub fn find_scoped_type_symbol(
@@ -226,17 +365,22 @@ impl<'a> ShaderSymbolListRef<'a> {
         label: &str,
         cursor_position: &ShaderFilePosition,
     ) -> Option<&'a ShaderSymbol> {
+        let namespace = self.find_namespace_at(cursor_position);
         self.types
             .iter()
-            .find(|s| s.label == *label && Self::is_symbol_defined_at(s, cursor_position))
+            .find(|s| {
+                s.label == *label && Self::is_symbol_defined_at(s, cursor_position, &namespace)
+            })
             .map(|s| *s)
     }
     pub fn filter_scoped_symbol(
         &'a self,
         cursor_position: &ShaderFilePosition,
     ) -> ShaderSymbolListRef<'a> {
+        let namespace = self.find_namespace_at(cursor_position);
         self.filter(|symbol_type, symbol| {
-            !symbol_type.is_transient() && Self::is_symbol_defined_at(symbol, cursor_position)
+            !symbol_type.is_transient()
+                && Self::is_symbol_defined_at(symbol, cursor_position, &namespace)
         })
     }
     pub fn find_symbols(&'a self, label: &str) -> Vec<&'a ShaderSymbol> {
@@ -276,6 +420,7 @@ impl<'a> ShaderSymbolListRef<'a> {
             keywords: filter_symbols_ref(&self.keywords, ShaderSymbolType::Keyword, &predicate),
             macros: filter_symbols_ref(&self.macros, ShaderSymbolType::Macros, &predicate),
             includes: filter_symbols_ref(&self.includes, ShaderSymbolType::Include, &predicate),
+            namespaces: self.namespaces.clone(), // Not symbols, never filtered.
         }
     }
     // Drop every symbol not matching the predicate, in place.
@@ -303,7 +448,10 @@ impl<'a> ShaderSymbolListRef<'a> {
         // Transient symbols are a whole category, no need to test them one by one.
         debug_assert!(ShaderSymbolType::CallExpression.is_transient());
         self.call_expression.clear();
-        self.retain(|_symbol_type, symbol| Self::is_symbol_defined_at(symbol, cursor_position));
+        let namespace = self.find_namespace_at(cursor_position);
+        self.retain(|_symbol_type, symbol| {
+            Self::is_symbol_defined_at(symbol, cursor_position, &namespace)
+        });
     }
     pub fn iter(&'a self) -> ShaderSymbolListIterator<'a> {
         ShaderSymbolListIterator::new(&self)
@@ -325,6 +473,8 @@ impl<'a> ShaderSymbolListRef<'a> {
             .append(&mut shader_symbol_list.macros.iter().collect());
         self.includes
             .append(&mut shader_symbol_list.includes.iter().collect());
+        self.namespaces
+            .append(&mut shader_symbol_list.namespaces.iter().collect());
     }
     pub fn append(&mut self, shader_symbol_list: ShaderSymbolListRef<'a>) {
         let mut shader_symbol_list_mut = shader_symbol_list;
@@ -337,6 +487,8 @@ impl<'a> ShaderSymbolListRef<'a> {
         self.keywords.append(&mut shader_symbol_list_mut.keywords);
         self.macros.append(&mut shader_symbol_list_mut.macros);
         self.includes.append(&mut shader_symbol_list_mut.includes);
+        self.namespaces
+            .append(&mut shader_symbol_list_mut.namespaces);
     }
 }
 
@@ -351,6 +503,7 @@ impl<'a> From<&'a ShaderSymbolList> for ShaderSymbolListRef<'a> {
             keywords: symbol_list.keywords.iter().collect(),
             macros: symbol_list.macros.iter().collect(),
             includes: symbol_list.includes.iter().collect(),
+            namespaces: symbol_list.namespaces.iter().collect(),
         }
     }
 }
@@ -366,6 +519,7 @@ impl<'a> Into<ShaderSymbolList> for ShaderSymbolListRef<'a> {
             keywords: self.keywords.into_iter().cloned().collect(),
             macros: self.macros.into_iter().cloned().collect(),
             includes: self.includes.into_iter().cloned().collect(),
+            namespaces: self.namespaces.into_iter().cloned().collect(),
         }
     }
 }

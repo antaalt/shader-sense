@@ -154,44 +154,79 @@ impl ShaderWordRange {
             let stack = self.get_word_stack();
             let mut rev_stack = stack.iter().rev();
             let cursor_position = self.range.end.clone_into_file(file_path.clone());
+            // Leading words might be a namespace qualifier, resolve the longest one.
+            let words: Vec<&str> = stack.iter().rev().map(|w| w.get_word()).collect();
+            let namespace = (1..words.len()).rev().find_map(|depth| {
+                symbol_list
+                    .resolve_namespace(&words[..depth], &cursor_position)
+                    .map(|namespace| (depth, namespace))
+            });
             // Look for root symbol (either a function or variable)
-            let root_symbol = match rev_stack.next() {
-                Some(current_word) => {
-                    match symbol_list.find_scoped_symbol(&current_word.word, &cursor_position) {
-                        Some(symbol) => {
-                            match &symbol.data {
-                                ShaderSymbolData::CallExpression {
-                                    label,
-                                    range: _,
-                                    parameters: _,
-                                } => {
-                                    match symbol_list
-                                        .find_scoped_function_symbol(label, &cursor_position)
-                                    {
-                                        Some(function) => {
-                                            if let ShaderSymbolData::Functions { signatures: _ } =
-                                                &function.data
-                                            {
-                                                symbol
-                                            } else {
-                                                return vec![]; // Not a valid function
-                                            }
-                                        }
-                                        None => return vec![], // No matching function found
-                                    }
-                                }
-                                ShaderSymbolData::Functions { signatures: _ } => symbol,
-                                ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
-                                ShaderSymbolData::Enum { values: _ } => symbol,
-                                _ => return vec![], // Symbol found is not a variable nor a function.
-                            }
-                        }
-                        None => {
-                            return vec![]; // No variable found for main parent.
-                        }
+            let root_symbol = match namespace {
+                Some((depth, namespace)) => {
+                    let current_word = rev_stack.nth(depth).unwrap(); // depth < words.len()
+                    if rev_stack.len() == 0 {
+                        // Last word is directly in namespace, it can be any symbol.
+                        return symbol_list
+                            .find_namespace_symbols(&namespace, &cursor_position)
+                            .into_iter()
+                            .filter(|s| s.label == current_word.word)
+                            .cloned()
+                            .collect();
+                    }
+                    match symbol_list.find_namespace_symbol(
+                        &current_word.word,
+                        &namespace,
+                        &cursor_position,
+                    ) {
+                        Some(symbol) => match &symbol.data {
+                            ShaderSymbolData::Functions { signatures: _ } => symbol,
+                            ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
+                            ShaderSymbolData::Enum { values: _ } => symbol,
+                            _ => return vec![], // Symbol found is not a variable nor a function.
+                        },
+                        None => return vec![], // No symbol found in namespace.
                     }
                 }
-                None => unreachable!("Should always have at least one symbol on this path."),
+                None => match rev_stack.next() {
+                    Some(current_word) => {
+                        match symbol_list.find_scoped_symbol(&current_word.word, &cursor_position) {
+                            Some(symbol) => {
+                                match &symbol.data {
+                                    ShaderSymbolData::CallExpression {
+                                        label,
+                                        range: _,
+                                        parameters: _,
+                                    } => {
+                                        match symbol_list
+                                            .find_scoped_function_symbol(label, &cursor_position)
+                                        {
+                                            Some(function) => {
+                                                if let ShaderSymbolData::Functions {
+                                                    signatures: _,
+                                                } = &function.data
+                                                {
+                                                    symbol
+                                                } else {
+                                                    return vec![]; // Not a valid function
+                                                }
+                                            }
+                                            None => return vec![], // No matching function found
+                                        }
+                                    }
+                                    ShaderSymbolData::Functions { signatures: _ } => symbol,
+                                    ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
+                                    ShaderSymbolData::Enum { values: _ } => symbol,
+                                    _ => return vec![], // Symbol found is not a variable nor a function.
+                                }
+                            }
+                            None => {
+                                return vec![]; // No variable found for main parent.
+                            }
+                        }
+                    }
+                    None => unreachable!("Should always have at least one symbol on this path."),
+                },
             };
             // Now loop over child for matching member elements
             let mut current_symbols = vec![root_symbol.clone()];

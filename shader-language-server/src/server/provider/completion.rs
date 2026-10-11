@@ -80,6 +80,11 @@ impl ServerLanguage {
         };
         let shader_file_position =
             ShaderFilePosition::from(cached_file.file_path.clone(), shader_position);
+        // Namespace content is accessible through qualification, even if not visible from the cursor.
+        let qualified_symbol_list = match trigger_character.as_deref() {
+            Some(":") => Some(symbol_list.clone()),
+            _ => None,
+        };
         symbol_list.retain_scoped_symbol(&shader_file_position);
         match trigger_character {
             Some(_) => {
@@ -88,6 +93,34 @@ impl ServerLanguage {
                     &shader_file_position.position,
                 ) {
                     Ok(word) => {
+                        // Complete namespace qualifier with its content.
+                        if let Some(qualified_symbol_list) = &qualified_symbol_list {
+                            let word_stack = word.get_word_stack();
+                            let qualifier: Vec<&str> =
+                                word_stack.iter().rev().map(|w| w.get_word()).collect();
+                            if let Some(namespace) = qualified_symbol_list
+                                .resolve_namespace(&qualifier, &shader_file_position)
+                            {
+                                let mut completion_items: Vec<CompletionItem> =
+                                    qualified_symbol_list
+                                        .find_child_namespaces(&namespace)
+                                        .into_iter()
+                                        .map(convert_namespace_completion_item)
+                                        .collect();
+                                completion_items.extend(
+                                    qualified_symbol_list
+                                        .find_namespace_symbols(&namespace, &shader_file_position)
+                                        .into_iter()
+                                        .map(|symbol| {
+                                            convert_completion_item(
+                                                cached_file.shading_language,
+                                                symbol,
+                                            )
+                                        }),
+                                );
+                                return Ok(completion_items);
+                            }
+                        }
                         let symbols = word
                             .find_symbol_from_parent(cached_file.file_path.clone(), &symbol_list);
                         // TODO: should select right ones based on types and context
@@ -214,11 +247,32 @@ impl ServerLanguage {
                 }
             }
             None => Ok(symbol_list
-                .iter()
-                .filter(|symbol| !symbol.is_type(ShaderSymbolType::CallExpression))
-                .map(|symbol| convert_completion_item(cached_file.shading_language, symbol))
+                .find_namespaces_at(&shader_file_position)
+                .into_iter()
+                .map(convert_namespace_completion_item)
+                .chain(
+                    symbol_list
+                        .iter()
+                        .filter(|symbol| !symbol.is_type(ShaderSymbolType::CallExpression))
+                        .map(|symbol| {
+                            convert_completion_item(cached_file.shading_language, symbol)
+                        }),
+                )
                 .collect::<Vec<CompletionItem>>()),
         }
+    }
+}
+
+// Namespaces are not symbols, they only have a name.
+fn convert_namespace_completion_item(namespace: &str) -> CompletionItem {
+    CompletionItem {
+        kind: Some(CompletionItemKind::MODULE),
+        label: namespace.into(),
+        label_details: Some(CompletionItemLabelDetails {
+            detail: None,
+            description: Some(format!("namespace {}", namespace)),
+        }),
+        ..Default::default()
     }
 }
 

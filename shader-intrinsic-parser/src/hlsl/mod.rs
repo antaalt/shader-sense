@@ -143,6 +143,7 @@ impl IntrinsicParser for HlslIntrinsicParser {
             functions: Vec::new(),
             keywords: Vec::new(),
             macros: Vec::new(),
+            namespaces: Vec::new(),
             includes: Vec::new(),
         };
         // Doc is so bad its totally unscrappable. Do it manually.

@@ -132,6 +132,16 @@ impl ShaderScope {
     }
 }
 
+// A namespace block. Namespaces are not symbols: they can be reopened, so they do not have a
+// single definition, and their content is found through the scope stack of the symbols instead.
+// They are only stored to know in which namespace a position is, and which namespaces exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaderNamespace {
+    pub file_path: PathBuf,
+    pub path: Vec<String>, // Full path of the block, from outer to inner namespace.
+    pub range: ShaderRange,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderMember {
     pub context: String,
@@ -438,6 +448,12 @@ impl ShaderSymbolRuntime {
     pub fn variable(file_path: PathBuf, range: ShaderRange, scope_stack: Vec<ShaderScope>) -> Self {
         Self::new(file_path, range, None, scope_stack)
     }
+    pub fn get_namespace(&self) -> Vec<String> {
+        self.scope_stack
+            .iter()
+            .filter_map(|s| s.namespace.clone())
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -515,6 +531,14 @@ impl ShaderSymbolMode {
             runtime
         } else {
             panic!("Trying to unwrap as runtime but type is not.");
+        }
+    }
+    pub fn get_namespace(&self) -> Vec<String> {
+        // TODO: intrinsics should be able to have a namespace. Store it aswell
+        match self {
+            ShaderSymbolMode::Intrinsic(_) => vec![],
+            ShaderSymbolMode::Runtime(r) => r.get_namespace(),
+            ShaderSymbolMode::RuntimeContext(_) => vec![],
         }
     }
 }

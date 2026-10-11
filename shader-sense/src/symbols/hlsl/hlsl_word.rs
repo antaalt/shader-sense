@@ -35,51 +35,70 @@ impl SymbolWordProvider for HlslSymbolWordProvider {
                         None,
                     ));
                 }
-                // Handle enum and its values
+                // Incomplete qualifier (`A::B::` while typing) is parsed as an error with flat namespace identifiers.
+                "namespace_identifier" => {
+                    let mut word = ShaderWordRange::new(
+                        get_name(&shader_module.content, node).into(),
+                        ShaderRange::from(node.range()),
+                        None,
+                    );
+                    let mut current_node = node;
+                    while let Some(scope_node) = current_node
+                        .prev_sibling()
+                        .filter(|separator| separator.kind() == "::")
+                        .and_then(|separator| separator.prev_sibling())
+                        .filter(|scope| scope.kind() == "namespace_identifier")
+                    {
+                        word.set_root_parent(ShaderWordRange::new(
+                            get_name(&shader_module.content, scope_node).into(),
+                            ShaderRange::from(scope_node.range()),
+                            None,
+                        ));
+                        current_node = scope_node;
+                    }
+                    return Ok(word);
+                }
+                // Handle namespaces, enum and its values.
+                // Nested qualifiers (A::B::c) are nested qualified_identifier, each scope is the parent of the next.
                 "qualified_identifier" => {
-                    let mut iterator = node.walk();
-                    let childrens = node.children(&mut iterator);
-                    let mut enum_node = None;
-                    for children in childrens {
-                        match children.kind() {
-                            "namespace_identifier" => {
-                                // Check if its an enum type or enum value
-                                enum_node = Some(children.clone());
-                                if range_contain(children.range(), &position) {
-                                    return Ok(ShaderWordRange::new(
+                    let mut qualified_node = node;
+                    let mut scope: Option<ShaderWordRange> = None;
+                    'qualified: loop {
+                        let mut iterator = qualified_node.walk();
+                        for children in qualified_node.children(&mut iterator) {
+                            match children.kind() {
+                                "namespace_identifier" => {
+                                    // Either a namespace or an enum type.
+                                    let word = ShaderWordRange::new(
                                         get_name(&shader_module.content, children).into(),
                                         ShaderRange::from(children.range()),
-                                        None,
-                                    ));
+                                        scope.take(),
+                                    );
+                                    if range_contain(children.range(), &position) {
+                                        return Ok(word);
+                                    }
+                                    scope = Some(word);
                                 }
-                            }
-                            "::" => continue,
-                            "identifier" => {
-                                if range_contain(children.range(), &position) {
-                                    match enum_node {
-                                        // Enum value
-                                        Some(enum_node) => {
-                                            return Ok(ShaderWordRange::new(
-                                                get_name(&shader_module.content, children).into(),
-                                                ShaderRange::from(children.range()),
-                                                Some(ShaderWordRange::new(
-                                                    get_name(&shader_module.content, enum_node)
-                                                        .into(),
-                                                    ShaderRange::from(enum_node.range()),
-                                                    None,
-                                                )),
-                                            ))
-                                        }
-                                        None => {
-                                            return Err(ShaderError::NoSymbol); // Weird...
-                                        }
+                                "::" => continue,
+                                "qualified_identifier" => {
+                                    qualified_node = children;
+                                    continue 'qualified;
+                                }
+                                "identifier" | "type_identifier" => {
+                                    if range_contain(children.range(), &position) {
+                                        return Ok(ShaderWordRange::new(
+                                            get_name(&shader_module.content, children).into(),
+                                            ShaderRange::from(children.range()),
+                                            scope,
+                                        ));
                                     }
                                 }
-                            }
-                            _ => {
-                                return Err(ShaderError::NoSymbol); // Weird...
+                                _ => {
+                                    return Err(ShaderError::NoSymbol); // Weird...
+                                }
                             }
                         }
+                        return Err(ShaderError::NoSymbol);
                     }
                 }
                 // TODO: should use string_content instead

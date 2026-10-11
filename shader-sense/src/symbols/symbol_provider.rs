@@ -29,7 +29,7 @@ use super::{
         ShaderSymbolListBuilder, SymbolRegionFinder, SymbolTreeParser,
         SymbolTreePreprocessorParser, SymbolWordProvider,
     },
-    symbols::{ShaderScope, ShaderSymbol},
+    symbols::{ShaderNamespace, ShaderScope, ShaderSymbol},
 };
 
 /// A symbol provider is responsible of querying a file using tree-sitter AST in order to find all [`ShaderSymbol`] and return them to user as a [`ShaderSymbolList`]
@@ -252,6 +252,8 @@ impl SymbolProvider {
                 });
             }
         }
+        // Nested matches are returned before their parent, sort them so that scope stacks go from outer to inner.
+        scopes.sort_by(|lhs, rhs| lhs.range.start.cmp(&rhs.range.start));
         scopes
     }
     pub fn query_symbols_with_context<'a>(
@@ -725,6 +727,7 @@ impl SymbolProvider {
             }
         };
         let mut symbol_list_builder = ShaderSymbolListBuilder::new(&filter_symbol);
+        // Symbols store their namespaces in their scope stack, visibility is checked when filtering them.
         let scopes = self.query_file_scopes(shader_module);
         for parser in &self.symbol_parsers {
             let mut query_cursor = QueryCursor::new();
@@ -743,7 +746,22 @@ impl SymbolProvider {
                 );
             }
         }
-        Ok(symbol_list_builder.get_shader_symbol_list())
+        let mut symbol_list = symbol_list_builder.get_shader_symbol_list();
+        // Store namespace blocks with their full path. Scopes are in document order, so outer namespaces come first.
+        symbol_list.namespaces = scopes
+            .iter()
+            .filter(|scope| scope.namespace.is_some())
+            .map(|namespace_scope| ShaderNamespace {
+                file_path: shader_module.file_path.clone(),
+                path: scopes
+                    .iter()
+                    .filter(|scope| scope.range.contain_bounds(&namespace_scope.range))
+                    .filter_map(|scope| scope.namespace.clone())
+                    .collect(),
+                range: namespace_scope.range.clone(),
+            })
+            .collect();
+        Ok(symbol_list)
     }
     pub fn get_word_range_at_position(
         &self,

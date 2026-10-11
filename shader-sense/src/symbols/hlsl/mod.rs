@@ -223,6 +223,7 @@ mod tests {
     fn test_namespace() {
         use crate::{
             include::canonicalize,
+            position::ShaderFilePosition,
             symbols::{symbol_list::ShaderSymbolList, symbols::ShaderScope},
         };
         let file_path = canonicalize(Path::new("./test/hlsl/namespace.hlsl")).unwrap();
@@ -249,6 +250,15 @@ mod tests {
             ShaderScope::new_namespace(
                 ShaderRange::new(ShaderPosition::new(11, 16), ShaderPosition::new(16, 0)),
                 "Test".into(),
+            ),
+            ShaderScope::new_namespace(
+                ShaderRange::new(ShaderPosition::new(22, 17), ShaderPosition::new(29, 0)),
+                "Outer".into(),
+            ),
+            // Nested namespace.
+            ShaderScope::new_namespace(
+                ShaderRange::new(ShaderPosition::new(23, 21), ShaderPosition::new(25, 4)),
+                "Inner".into(),
             ),
         ];
         assert_eq!(namespace_scopes, expected_scopes);
@@ -321,20 +331,134 @@ mod tests {
             find_definition(8, 5, "test").is_empty(),
             "test is not visible outside of namespace Test without qualification"
         );
-        // TODO: Unqualified call in the same namespace, reopened, should resolve.
-        // Symbol visibility only checks the scope range, so test is only visible in the first
-        // `namespace Test { }` block. It should compare the namespace name instead of its range.
-        //assert_resolves_to_test(find_definition(14, 9, "test"), "Call in reopened namespace");
-        let _ = assert_resolves_to_test;
+        // Unqualified call in the same namespace, reopened, resolves.
+        assert_resolves_to_test(find_definition(14, 9, "test"), "Call in reopened namespace");
         // Qualified call is parsed with its namespace as parent.
         let word = symbol_provider
             .get_word_range_at_position(&shader_module, &ShaderPosition::new(19, 11))
             .unwrap();
         assert_eq!(word.get_parent().map(|p| p.get_word()), Some("Test"));
-        // TODO: Qualified call should resolve.
-        // There is no accessor for namespace yet: find_symbol_from_parent looks for a symbol named
-        // Test as root, which does not exist as namespaces are only scopes. It should instead look
-        // for test in symbols whose scope stack holds the namespace Test.
-        //assert_resolves_to_test(find_definition(19, 11, "test"), "Qualified call Test::test");
+        assert_resolves_to_test(find_definition(19, 11, "test"), "Qualified call Test::test");
+        // Nested qualified call is parsed with the whole namespace path as parents.
+        let word = symbol_provider
+            .get_word_range_at_position(&shader_module, &ShaderPosition::new(32, 20))
+            .unwrap();
+        let words: Vec<&str> = word.get_word_stack().iter().map(|w| w.get_word()).collect();
+        assert_eq!(words, vec!["nested", "Inner", "Outer"]);
+        let assert_resolves_to_nested = |found: Vec<crate::symbols::symbols::ShaderSymbol>,
+                                         context: &str| {
+            assert_eq!(found.len(), 1, "{}: found {:#?}", context, found);
+            assert_eq!(found[0].label, "nested", "{}", context);
+            assert_eq!(
+                found[0].mode.get_namespace(),
+                vec!["Outer", "Inner"],
+                "{}",
+                context
+            );
+        };
+        assert_resolves_to_nested(
+            find_definition(32, 20, "nested"),
+            "Qualified call Outer::Inner::nested",
+        );
+        // Qualifier is relative to the enclosing namespace.
+        assert_resolves_to_nested(
+            find_definition(27, 17, "nested"),
+            "Qualified call Inner::nested from Outer",
+        );
+
+        // Namespace queries, used by completion.
+        let position = |line: u32, pos: u32| ShaderFilePosition::new(file_path.clone(), line, pos);
+        let namespace =
+            |path: &[&str]| -> Vec<String> { path.iter().map(|s| s.to_string()).collect() };
+        assert_eq!(
+            symbol_list.find_namespace_at(&position(8, 5)),
+            namespace(&[])
+        );
+        assert_eq!(
+            symbol_list.find_namespace_at(&position(15, 0)),
+            namespace(&["Test"])
+        );
+        assert_eq!(
+            symbol_list.find_namespace_at(&position(24, 10)),
+            namespace(&["Outer", "Inner"])
+        );
+        assert_eq!(
+            symbol_list.find_child_namespaces(&[]),
+            vec!["Outer", "Test"]
+        );
+        assert_eq!(
+            symbol_list.find_child_namespaces(&namespace(&["Outer"])),
+            vec!["Inner"]
+        );
+        // Inner is accessible unqualified from Outer only.
+        assert_eq!(
+            symbol_list.find_namespaces_at(&position(8, 5)),
+            vec!["Outer", "Test"]
+        );
+        assert_eq!(
+            symbol_list.find_namespaces_at(&position(27, 8)),
+            vec!["Inner", "Outer", "Test"]
+        );
+        let labels = |symbols: Vec<&crate::symbols::symbols::ShaderSymbol>| -> Vec<String> {
+            symbols.iter().map(|s| s.label.clone()).collect()
+        };
+        // Only symbols declared directly in the namespace, not locals nor nested namespaces.
+        assert_eq!(
+            labels(symbol_list.find_namespace_symbols(&namespace(&["Test"]), &position(20, 0))),
+            vec!["test", "other"]
+        );
+        assert_eq!(
+            labels(symbol_list.find_namespace_symbols(&namespace(&["Outer"]), &position(33, 0))),
+            vec!["outer"]
+        );
+        // Unqualified scoped symbols do not leak namespaced ones.
+        let scoped = labels(
+            symbol_list
+                .filter_scoped_symbol(&position(9, 0))
+                .iter()
+                .collect(),
+        );
+        assert!(!scoped
+            .iter()
+            .any(|label| label == "test" || label == "nested"));
+        let scoped = labels(
+            symbol_list
+                .filter_scoped_symbol(&position(15, 0))
+                .iter()
+                .collect(),
+        );
+        assert!(scoped.iter().any(|label| label == "test"));
+    }
+
+    #[test]
+    fn test_namespace_incomplete() {
+        // Qualifiers while typing, before `::` triggers completion. They are parsed as error nodes.
+        let file_path = Path::new("namespace_incomplete.hlsl");
+        let shader_content =
+            "namespace Outer { namespace Inner { float nested() { return 0.0; } } }
+void single() {
+    Outer::
+}
+void nested() {
+    Outer::Inner::
+}
+";
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let shader_module = shader_module_parser
+            .create_module(file_path, shader_content)
+            .unwrap();
+        let get_words = |line: u32, pos: u32| -> Vec<String> {
+            symbol_provider
+                .get_word_range_at_position(&shader_module, &ShaderPosition::new(line, pos))
+                .unwrap_or_else(|err| panic!("No word at {}:{}: {:?}", line, pos, err))
+                .get_word_stack()
+                .iter()
+                .map(|w| w.get_word().to_string())
+                .collect()
+        };
+        assert_eq!(get_words(2, 9), vec!["Outer"]);
+        assert_eq!(get_words(5, 16), vec!["Inner", "Outer"]);
     }
 }
