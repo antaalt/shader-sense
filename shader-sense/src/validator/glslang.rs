@@ -442,7 +442,6 @@ impl ValidatorImpl for Glslang {
                 glslang::ShaderOptions::DEFAULT
             },
         );
-        // BINDINGS_PER_RESOURCE_TYPE
         let shader = match builder
             .parse()
             .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
@@ -453,10 +452,8 @@ impl ValidatorImpl for Glslang {
                 Ok(diag) => return Ok((CompilationResult::None, diag)),
             },
         };
-        // For now, glslang is expecting main entry point, no way to change this via C api yet.
-        // Linking require a valid entry point, so skipping it for validation.
-        let compilation_result = if let Some(entry_point) = &params.compilation.entry_point {
-            // For now, only compile main entry point as we cannot compile any other without changes to GLSLang
+        // Linking require a matching entry point, so skipping it if not set.
+        let compilation_result = if let Some(_entry_point) = &params.compilation.entry_point {
             let spirv = match shader
                 .compile()
                 .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
