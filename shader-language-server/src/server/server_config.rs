@@ -73,6 +73,8 @@ pub struct ServerGlslConfig {
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub preamble: Option<String>, // Path to a preamble file per language.
     pub version: Option<ServerGlslVersionConfig>,
+    pub auto_map_bindings: Option<bool>,
+    pub auto_map_locations: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -345,6 +347,8 @@ impl ServerSerializedConfig {
                         .version
                         .and_then(|version| version.to_profile_version())
                         .or(previous_config.glsl.version),
+                    auto_map_bindings: glsl.auto_map_bindings,
+                    auto_map_locations: glsl.auto_map_locations,
                 })
                 .unwrap_or(previous_config.glsl),
             wgsl: self

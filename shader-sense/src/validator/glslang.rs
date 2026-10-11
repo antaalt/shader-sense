@@ -431,6 +431,18 @@ impl ValidatorImpl for Glslang {
             builder.entry_point(&entry_point);
             builder.source_entry_point(&entry_point);
         }
+        builder.options(
+            if params.compilation.glsl.auto_map_bindings.unwrap_or(false) {
+                glslang::ShaderOptions::AUTO_MAP_BINDINGS
+            } else {
+                glslang::ShaderOptions::DEFAULT
+            } | if params.compilation.glsl.auto_map_locations.unwrap_or(false) {
+                glslang::ShaderOptions::AUTO_MAP_LOCATIONS
+            } else {
+                glslang::ShaderOptions::DEFAULT
+            },
+        );
+        // BINDINGS_PER_RESOURCE_TYPE
         let shader = match builder
             .parse()
             .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))

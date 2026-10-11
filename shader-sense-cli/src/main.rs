@@ -253,6 +253,8 @@ pub fn main() {
                         preamble_content: preamble_path
                             .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
                         version: None,
+                        auto_map_bindings: None,
+                        auto_map_locations: None,
                     },
                     wgsl: WgslCompilationParams::default(),
                 },
