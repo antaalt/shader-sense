@@ -908,6 +908,42 @@ mod tests {
         }
     }
 
+    fn validate_wesl_features(defines: &[(&str, &str)]) -> ShaderDiagnosticList {
+        let validator = create_test_validator(ShadingLanguage::Wgsl);
+        let file_path = canonicalize(Path::new("./test/wesl/features.wesl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let params = ShaderParams {
+            context: ShaderContextParams {
+                defines: defines
+                    .iter()
+                    .map(|(name, value)| (name.to_string(), value.to_string()))
+                    .collect(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &params,
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => diagnostic_list,
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    #[test]
+    fn wesl_features() {
+        // Defined features are enabled, with any value but 0 or false.
+        assert!(validate_wesl_features(&[("debug", "")]).is_empty());
+        assert!(validate_wesl_features(&[("debug", "1"), ("textured", "1")]).is_empty());
+        // Undefined or disabled features remove debug_only, which is used by main.
+        assert!(!validate_wesl_features(&[]).is_empty());
+        assert!(!validate_wesl_features(&[("debug", "0")]).is_empty());
+        assert!(!validate_wesl_features(&[("debug", "False")]).is_empty());
+    }
+
     #[test]
     fn wesl_import_ok() {
         // Imports from package, from super & from an external package.

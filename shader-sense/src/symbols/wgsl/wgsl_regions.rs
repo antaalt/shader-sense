@@ -4,7 +4,7 @@ use tree_sitter::Node;
 
 use crate::{
     position::{ShaderFileRange, ShaderPosition, ShaderRange},
-    shader::ShaderCompilationParams,
+    shader::{is_wesl_feature_enabled, ShaderCompilationParams},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticSeverity, ShaderError},
     symbols::{
         prepocessor::{
@@ -24,10 +24,7 @@ pub struct WgslRegionFinder {}
 
 impl WgslRegionFinder {
     fn is_feature_enabled(context: &ShaderPreprocessorContext, feature: &str) -> bool {
-        match context.get_define_value(feature) {
-            Some(value) => !matches!(value.trim().to_lowercase().as_str(), "0" | "false"),
-            None => false,
-        }
+        is_wesl_feature_enabled(context.get_define_value(feature).as_deref())
     }
     /// Evaluate a feature expression such as `debug && !(web || legacy)`.
     fn evaluate(content: &str, node: Node, context: &ShaderPreprocessorContext) -> bool {

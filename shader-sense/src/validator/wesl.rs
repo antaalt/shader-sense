@@ -30,7 +30,7 @@ use wesl::{
 use crate::{
     include::{canonicalize, find_wesl_module_file},
     position::{ShaderFileRange, ShaderPosition},
-    shader::{ShaderParams, ShaderStage},
+    shader::{is_wesl_feature_enabled, ShaderParams, ShaderStage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
     validator::validator::CompilationResult,
 };
@@ -589,7 +589,12 @@ impl ValidatorImpl for Wesl {
         let mut compiler = Compiler::default().with_resolver(&resolver);
         compiler.options.keep_main = true;
         compiler.options.sourcemap = true;
-        // TODO: pass defines as compiler.options.features
+        compiler.options.features.flags = params
+            .context
+            .defines
+            .iter()
+            .map(|(name, value)| (name.clone(), is_wesl_feature_enabled(Some(value)).into()))
+            .collect();
 
         let context = ModuleContext {
             resolver: &resolver,

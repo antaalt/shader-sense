@@ -416,6 +416,15 @@ pub struct WgslCompilationParams {
     pub packages: HashMap<String, PathBuf>,
 }
 
+/// WESL feature flags are read from defines.
+/// A feature is enabled if defined, unless its value is `0` or `false`.
+pub fn is_wesl_feature_enabled(define_value: Option<&str>) -> bool {
+    match define_value {
+        Some(value) => !matches!(value.trim().to_lowercase().as_str(), "0" | "false"),
+        None => false,
+    }
+}
+
 /// Parameters for includes.
 #[derive(Default, Debug, Clone)]
 pub struct ShaderContextParams {
