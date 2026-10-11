@@ -638,9 +638,8 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "glslang"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69a8eb9fa5d381f25af800e9050ae38ed9d9b1f0a1d60722315475322f0ea3a9"
+version = "0.8.1"
+source = "git+https://github.com/antaalt/glslang-rs.git?branch=add-source-entry-point#51ea60f14f8a1404a792d9b0bcc341c60da6fa8f"
 dependencies = [
  "bitflags 2.9.1",
  "glslang-sys",
@@ -651,9 +650,8 @@ dependencies = [
 
 [[package]]
 name = "glslang-sys"
-version = "0.7.0+1062752"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13a2ca509c79db5c89d0a6fd91e146e00c815f40fe3a103247adfb24e0679d29"
+version = "0.8.1+275822a"
+source = "git+https://github.com/antaalt/glslang-rs.git?branch=add-source-entry-point#51ea60f14f8a1404a792d9b0bcc341c60da6fa8f"
 dependencies = [
  "cc",
  "glob",

@@ -21,6 +21,7 @@ debug = true
 # Fix not yet available on latest 0.12.0. Temp fix that prevent publish on crates.io
 # https://github.com/Traverse-Research/hassle-rs/issues/85
 hassle-rs = { git="https://github.com/antaalt/hassle-rs.git", branch="fix-crash-empty-blob" }
+glslang = { git="https://github.com/antaalt/glslang-rs.git", branch="add-source-entry-point" }
 
 
 [workspace.package]
