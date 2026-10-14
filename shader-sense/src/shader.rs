@@ -404,6 +404,8 @@ pub struct GlslCompilationParams {
     pub preamble_path: Option<PathBuf>,
     pub preamble_content: Option<String>,
     pub version: Option<GlslProfileVersion>,
+    pub auto_map_bindings: Option<bool>,
+    pub auto_map_locations: Option<bool>,
 }
 
 /// Wgsl & Wesl compilation parameters for wesl & naga.

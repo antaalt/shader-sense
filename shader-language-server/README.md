@@ -89,7 +89,9 @@ interface ServerConfig {
         version: {
             version: number?, // GLSL version to force for GLSL shaders. Default to null, meaning the #version directive is used.
             profile: 'None' | 'Core' | 'Compatibility' | 'Es' | null, // Profile to force for GLSL shaders. Ignored if no version set. Default to Core.
-        }?
+        }?,
+        autoMapBindings: boolean?, // Pass this option to glslang. Default to false.
+        autoMapLocations: boolean?, // Pass this option to glslang. Default to false.
     }?, // Glsl specific configuration
     wgsl: {
         packageRoot: string?, // Root of the wesl package for `package::` imports.

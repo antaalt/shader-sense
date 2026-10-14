@@ -228,13 +228,13 @@ impl Glslang {
     ) -> Result<ShaderDiagnosticList, ShaderError> {
         match err {
             GlslangError::PreprocessError(error) => {
-                self.parse_errors(&error, file_path, &params, preamble_line_offset)
+                self.parse_errors(&error.log, file_path, &params, preamble_line_offset)
             }
             GlslangError::ParseError(error) => {
-                self.parse_errors(&error, file_path, &params, preamble_line_offset)
+                self.parse_errors(&error.log, file_path, &params, preamble_line_offset)
             }
             GlslangError::LinkError(error) => {
-                self.parse_errors(&error, file_path, &params, preamble_line_offset)
+                self.parse_errors(&error.log, file_path, &params, preamble_line_offset)
             }
             GlslangError::ShaderStageNotFound(stage) => Err(ShaderError::InternalErr(format!(
                 "Shader stage not found: {:#?}",
@@ -426,7 +426,24 @@ impl ValidatorImpl for Glslang {
                 Ok(diag) => return Ok((CompilationResult::None, diag)),
             },
         };
-        let shader = match glslang::Shader::new(&self.compiler, input)
+        let mut builder = glslang::Shader::new(&self.compiler, input);
+        if let Some(entry_point) = &params.compilation.entry_point {
+            builder.entry_point(&entry_point);
+            builder.source_entry_point(&entry_point);
+        }
+        builder.options(
+            if params.compilation.glsl.auto_map_bindings.unwrap_or(false) {
+                glslang::ShaderOptions::AUTO_MAP_BINDINGS
+            } else {
+                glslang::ShaderOptions::DEFAULT
+            } | if params.compilation.glsl.auto_map_locations.unwrap_or(false) {
+                glslang::ShaderOptions::AUTO_MAP_LOCATIONS
+            } else {
+                glslang::ShaderOptions::DEFAULT
+            },
+        );
+        let shader = match builder
+            .parse()
             .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
         {
             Ok(value) => value,
@@ -435,36 +452,30 @@ impl ValidatorImpl for Glslang {
                 Ok(diag) => return Ok((CompilationResult::None, diag)),
             },
         };
-        // For now, glslang is expecting main entry point, no way to change this via C api yet.
-        // Linking require a valid entry point, so skipping it for validation.
-        let compilation_result = if let Some(entry_point) = &params.compilation.entry_point {
-            // For now, only compile main entry point as we cannot compile any other without changes to GLSLang
-            if entry_point == "main" {
-                let spirv = match shader.compile().map_err(|e| {
-                    self.from_glslang_error(e, file_path, &params, preamble_line_offset)
-                }) {
-                    Ok(value) => value,
-                    Err(error) => match error {
-                        Err(error) => return Err(error),
-                        Ok(diag) => return Ok((CompilationResult::None, diag)),
-                    },
-                };
-                let compilation_result = if !spirv.is_empty() {
-                    // Cannot simply cast array because of possible alignment issues.
-                    let capacity = 4 * spirv.len();
-                    let mut spirv8 = Vec::with_capacity(capacity);
-                    for value in spirv {
-                        spirv8.extend_from_slice(&value.to_le_bytes());
-                    }
-                    CompilationResult::Spirv(spirv8)
-                } else {
-                    CompilationResult::None
-                };
-                compilation_result
+        // Linking require a matching entry point, so skipping it if not set.
+        let compilation_result = if let Some(_entry_point) = &params.compilation.entry_point {
+            let spirv = match shader
+                .compile()
+                .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
+            {
+                Ok(value) => value,
+                Err(error) => match error {
+                    Err(error) => return Err(error),
+                    Ok(diag) => return Ok((CompilationResult::None, diag)),
+                },
+            };
+            let compilation_result = if !spirv.is_empty() {
+                // Cannot simply cast array because of possible alignment issues.
+                let capacity = 4 * spirv.len();
+                let mut spirv8 = Vec::with_capacity(capacity);
+                for value in spirv {
+                    spirv8.extend_from_slice(&value.to_le_bytes());
+                }
+                CompilationResult::Spirv(spirv8)
             } else {
-                // No main entry point, no compilation possible to SPIRV for now. Need to be able to change source entry point.
                 CompilationResult::None
-            }
+            };
+            compilation_result
         } else {
             CompilationResult::None // No compilation.
         };
