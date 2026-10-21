@@ -30,9 +30,9 @@ use wesl::{
 use crate::{
     include::{canonicalize, find_wesl_module_file},
     position::{ShaderFileRange, ShaderPosition},
-    shader::{is_wesl_feature_enabled, ShaderParams, ShaderStage},
+    shader::{is_wesl_feature_enabled, ShaderParams, ShaderStage, ShadingLanguage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
-    validator::validator::CompilationResult,
+    validator::validator::{CompilationResult, Preamble},
 };
 
 use super::validator::ValidatorImpl;
@@ -308,6 +308,9 @@ struct WeslResolver<'a> {
     main_module_path: ModulePath,
     main_file_path: &'a Path,
     main_content: &'a str,
+    /// Main content with preamble appended, as module-scope declarations are order independent.
+    main_source: Cow<'a, str>,
+    preamble: Option<Preamble<'a>>,
     include_callback: RefCell<&'a mut dyn FnMut(&Path) -> Option<String>>,
     /// Loaded modules with their file & content, used to map diagnostics.
     modules: RefCell<HashMap<ModulePath, (PathBuf, String)>>,
@@ -349,12 +352,23 @@ impl<'a> WeslResolver<'a> {
                     .unwrap_or("main".into())],
             ),
         };
+        let preamble = Preamble::new(main_file_path, params, ShadingLanguage::Wgsl);
+        let main_source = match &preamble {
+            Some(preamble) => Cow::Owned(format!(
+                "{}
+{}",
+                main_content, preamble.content
+            )),
+            None => Cow::Borrowed(main_content),
+        };
         Self {
             package_root,
             packages: &params.compilation.wgsl.packages,
             main_module_path,
             main_file_path,
             main_content,
+            main_source,
+            preamble,
             include_callback: RefCell::new(include_callback),
             modules: RefCell::new(HashMap::new()),
             unresolved_module: RefCell::new(None),
@@ -387,13 +401,29 @@ impl<'a> WeslResolver<'a> {
             ResolveError::FileNotFound(file_path.with_extension("wesl"), "module file".into())
         })
     }
-    /// Get the file & content of a loaded module.
-    fn get_module(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, String)> {
+    /// Get the file & content of a loaded module, along with the span relative to this content.
+    fn get_module(
+        &self,
+        module_path: Option<&ModulePath>,
+        span: Span,
+    ) -> Option<(PathBuf, String, Span)> {
         match module_path {
             Some(module_path) if *module_path != self.main_module_path => {
-                self.modules.borrow().get(module_path).cloned()
+                let (file_path, content) = self.modules.borrow().get(module_path).cloned()?;
+                Some((file_path, content, span))
             }
-            _ => Some((self.main_file_path.into(), self.main_content.into())),
+            _ => {
+                // Preamble is appended after main content & a newline.
+                let preamble_offset = self.main_content.len() + 1;
+                match &self.preamble {
+                    Some(preamble) if span.start >= preamble_offset => Some((
+                        preamble.path.into(),
+                        preamble.content.into(),
+                        Span::new(span.start - preamble_offset..span.end - preamble_offset),
+                    )),
+                    _ => Some((self.main_file_path.into(), self.main_content.into(), span)),
+                }
+            }
         }
     }
     /// Find the import statement of a module in loaded modules, returning the importer & statement span.
@@ -444,7 +474,7 @@ impl<'a> WeslResolver<'a> {
 impl Resolver for WeslResolver<'_> {
     fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, ResolveError> {
         if *path == self.main_module_path {
-            return Ok(Cow::Borrowed(self.main_content));
+            return Ok(Cow::Borrowed(&self.main_source));
         }
         let content = self.find_file(path).and_then(|file_path| {
             let content = (self.include_callback.borrow_mut())(&file_path).ok_or_else(|| {
@@ -480,9 +510,13 @@ struct ModuleContext<'a> {
 }
 
 impl<'a> ModuleContext<'a> {
-    /// Get the file & content of a module.
-    fn resolve(&self, module_path: Option<&ModulePath>) -> Option<(PathBuf, String)> {
-        self.resolver.get_module(module_path)
+    /// Get the file & content of a module, along with the span relative to this content.
+    fn resolve(
+        &self,
+        module_path: Option<&ModulePath>,
+        span: Span,
+    ) -> Option<(PathBuf, String, Span)> {
+        self.resolver.get_module(module_path, span)
     }
     /// Create a diagnostic from a span in a module. Fallback to the start of main file if not resolvable.
     fn create_diagnostic(
@@ -494,7 +528,7 @@ impl<'a> ModuleContext<'a> {
         let range = span
             .filter(|span| span.end > span.start)
             .and_then(|span| {
-                let (file_path, content) = self.resolve(module_path)?;
+                let (file_path, content, span) = self.resolve(module_path, span)?;
                 let content = content.as_str();
                 // Only highlight the first line of the span, it might be a whole function.
                 let end = content[span.start..span.end.min(content.len())]

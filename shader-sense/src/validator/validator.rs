@@ -14,6 +14,54 @@ pub fn default_include_callback(path: &Path) -> Option<String> {
     Some(std::fs::read_to_string(path).unwrap())
 }
 
+/// Preamble to inject in a validated file.
+pub(crate) struct Preamble<'a> {
+    pub path: &'a Path,
+    pub content: &'a str,
+}
+
+impl<'a> Preamble<'a> {
+    /// Get the preamble of a language to inject in the given file.
+    /// Return None if no preamble, if it is empty or if we are validating the preamble itself.
+    pub fn new(
+        file_path: &Path,
+        params: &'a ShaderParams,
+        shading_language: ShadingLanguage,
+    ) -> Option<Self> {
+        let (path, content) = params.compilation.get_preamble(shading_language)?;
+        if content.is_empty() || path == file_path {
+            None
+        } else {
+            Some(Self { path, content })
+        }
+    }
+    /// Number of lines of the preamble, once a newline is ensured at its end.
+    pub fn line_count(&self) -> usize {
+        self.content.lines().count()
+    }
+    /// Content with a newline ensured at its end to avoid issues with offset.
+    pub fn content_with_newline(&self) -> String {
+        if self.content.ends_with('\n') {
+            self.content.to_string()
+        } else {
+            format!("{}\n", self.content)
+        }
+    }
+    /// Prepend the preamble to the content, with line directives so that
+    /// diagnostics are reported with correct file & line by the compiler.
+    pub fn prepend_with_line_directive(&self, content: &str, file_name: &str) -> String {
+        // Line directive path is a string literal, so escape backslashes.
+        let escape = |path: &str| path.replace('\\', "\\\\");
+        format!(
+            "#line 1 \"{}\"\n{}#line 1 \"{}\"\n{}",
+            escape(&self.path.to_string_lossy()),
+            self.content_with_newline(),
+            escape(file_name),
+            content
+        )
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum CompilationResult {
     #[default]

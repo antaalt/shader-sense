@@ -81,6 +81,7 @@ interface ServerConfig {
         version: 'V2016' | 'V2017' | 'V2018' | 'V2021' | null, // HLSL version to use. Default to V2021.
         enable16bitTypes: boolean?, // Enable 16 bit types with HLSL. Default to false.
         spirv: boolean?, // Use SPIRV with HLSL. Default to false.
+        preamble: string?, // Path to a file which content will be added at start of every HLSL files. Default empty.
     }?, // Hlsl specific configuration
     glsl: {
         targetClient: 'None' | 'Vulkan1_0' | 'Vulkan1_1' | 'Vulkan1_2' | 'Vulkan1_3' | 'OpenGL450' | null, // Target client to use. Default to Vulkan1_3.
@@ -96,6 +97,7 @@ interface ServerConfig {
     wgsl: {
         packageRoot: string?, // Root of the wesl package for `package::` imports.
         packages: { string: string }?, // Root of external wesl packages for `name::` imports.
+        preamble: string?, // Path to a file which content will be added at end of every WGSL files, as declarations are order independent. It cannot contain imports or directives. Default empty.
     } // Wgsl specific configuration
 }
 // Configuration that can be loaded by server through configOverride option. Useful for engine specific configuration to be swapped.

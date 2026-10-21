@@ -44,6 +44,8 @@ pub struct ServerHlslConfig {
     pub version: Option<HlslVersion>,
     pub enable16bit_types: Option<bool>,
     pub spirv: Option<bool>,
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub preamble: Option<String>, // Path to a preamble file.
 }
 
 /// Serialized version & profile override for glsl. Both fields are optional so that
@@ -71,7 +73,7 @@ pub struct ServerGlslConfig {
     pub target_client: Option<GlslTargetClient>,
     pub spirv_version: Option<GlslSpirvVersion>,
     #[serde(default, deserialize_with = "empty_string_as_none")]
-    pub preamble: Option<String>, // Path to a preamble file per language.
+    pub preamble: Option<String>, // Path to a preamble file.
     pub version: Option<ServerGlslVersionConfig>,
     pub auto_map_bindings: Option<bool>,
     pub auto_map_locations: Option<bool>,
@@ -83,6 +85,8 @@ pub struct ServerWgslConfig {
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub package_root: Option<String>, // Root of the package for `package::` imports.
     pub packages: Option<HashMap<String, String>>, // Root of external packages for `name::` imports.
+    #[serde(default, deserialize_with = "empty_string_as_none")]
+    pub preamble: Option<String>, // Path to a preamble file, appended at the end of files.
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -189,18 +193,19 @@ impl ServerSerializedConfig {
             }
         }
         let mut errors = Vec::new();
-        if let Some(glsl) = &self.glsl {
-            // Validate preamble path.
-            if let Some(preamble) = &glsl.preamble {
-                let preamble_path = Self::verify_user_path(preamble);
-                if let Ok(exist) = std::fs::exists(preamble_path) {
-                    if !exist {
-                        errors.push(format!("Preamble file at {:#?} not found", preamble));
-                    }
-                } else {
-                    errors.push(format!("Preamble file at {:#?} not found", preamble));
-                }
+        // Validate preamble paths.
+        let preambles = [
+            self.hlsl.as_ref().and_then(|hlsl| hlsl.preamble.as_ref()),
+            self.glsl.as_ref().and_then(|glsl| glsl.preamble.as_ref()),
+            self.wgsl.as_ref().and_then(|wgsl| wgsl.preamble.as_ref()),
+        ];
+        for preamble in preambles.into_iter().flatten() {
+            let preamble_path = Self::verify_user_path(preamble);
+            if !std::fs::exists(preamble_path).unwrap_or(false) {
+                errors.push(format!("Preamble file at {:#?} not found", preamble));
             }
+        }
+        if let Some(glsl) = &self.glsl {
             if let Some(target_client) = &glsl.target_client {
                 match target_client {
                     GlslTargetClient::Vulkan1_0
@@ -331,6 +336,11 @@ impl ServerSerializedConfig {
                         .enable16bit_types
                         .unwrap_or(previous_config.hlsl.enable16bit_types),
                     spirv: hlsl.spirv.unwrap_or(previous_config.hlsl.spirv),
+                    preamble_path: hlsl
+                        .preamble
+                        .map(|p| Self::verify_user_path(&p))
+                        .or(previous_config.hlsl.preamble_path.clone()),
+                    preamble_content: None, // Loaded later to be up to date
                 })
                 .unwrap_or(previous_config.hlsl),
             glsl: self
@@ -363,6 +373,11 @@ impl ServerSerializedConfig {
                         .packages
                         .map(|packages| Self::verify_packages(packages))
                         .unwrap_or(previous_config.wgsl.packages.clone()),
+                    preamble_path: wgsl
+                        .preamble
+                        .map(|p| Self::verify_user_path(&p))
+                        .or(previous_config.wgsl.preamble_path.clone()),
+                    preamble_content: None, // Loaded later to be up to date
                 })
                 .unwrap_or(previous_config.wgsl),
         };
@@ -494,26 +509,12 @@ impl ServerConfig {
         if let Some(workspace_folder) = workspace_folder {
             includes.insert(0, workspace_folder.to_file_path().unwrap());
         }
-        let hlsl = self.hlsl.clone();
-        let glsl = if let Some(preamble_path) = &self.glsl.preamble_path {
-            let mut glsl = self.glsl.clone();
-            // TODO: preamble content can be outdated if not saved.
-            glsl.preamble_content = match std::fs::read_to_string(preamble_path) {
-                Ok(content) => Some(content),
-                Err(err) => {
-                    error!(
-                        "Failed to load preamble at {}: {}",
-                        preamble_path.display(),
-                        err
-                    );
-                    None
-                }
-            };
-            glsl
-        } else {
-            self.glsl.clone()
-        };
-        let wgsl = self.wgsl.clone();
+        let mut hlsl = self.hlsl.clone();
+        hlsl.preamble_content = Self::load_preamble(&hlsl.preamble_path);
+        let mut glsl = self.glsl.clone();
+        glsl.preamble_content = Self::load_preamble(&glsl.preamble_path);
+        let mut wgsl = self.wgsl.clone();
+        wgsl.preamble_content = Self::load_preamble(&wgsl.preamble_path);
         // Add stage defines
         let stage_defines = if let Some(shader_stage) = &shader_stage {
             match self.stage_define.get(shader_stage) {
@@ -540,6 +541,21 @@ impl ServerConfig {
             },
         }
     }
+    fn load_preamble(preamble_path: &Option<PathBuf>) -> Option<String> {
+        let preamble_path = preamble_path.as_ref()?;
+        // TODO: preamble content can be outdated if not saved.
+        match std::fs::read_to_string(preamble_path) {
+            Ok(content) => Some(content),
+            Err(err) => {
+                error!(
+                    "Failed to load preamble at {}: {}",
+                    preamble_path.display(),
+                    err
+                );
+                None
+            }
+        }
+    }
     pub fn get_validate(&self) -> bool {
         self.validate
     }
@@ -558,8 +574,12 @@ impl ServerConfig {
     pub fn get_severity(&self) -> &ShaderDiagnosticSeverity {
         &self.severity
     }
-    pub fn get_glsl_preamble_path(&self) -> Option<&PathBuf> {
-        self.glsl.preamble_path.as_ref()
+    pub fn get_preamble_path(&self, shading_language: ShadingLanguage) -> Option<&PathBuf> {
+        match shading_language {
+            ShadingLanguage::Hlsl => self.hlsl.preamble_path.as_ref(),
+            ShadingLanguage::Glsl => self.glsl.preamble_path.as_ref(),
+            ShadingLanguage::Wgsl => self.wgsl.preamble_path.as_ref(),
+        }
     }
     pub fn is_generating_spirv(&self, shading_language: ShadingLanguage) -> bool {
         match shading_language {

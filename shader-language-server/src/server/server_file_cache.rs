@@ -708,36 +708,42 @@ impl ServerLanguageFileCache {
 
         // Check if preamble file changed and update it.
         // We only track it if its open in editor.
-        let need_to_recompute_all_glsl =
-            if let Some(preamble_path) = config.get_glsl_preamble_path() {
-                if let Ok(preamble_uri) = Url::from_file_path(preamble_path) {
-                    let has_glsl_preamble_in_request = async_cache_requests
-                        .iter()
-                        .find(|r| r.uri == preamble_uri)
-                        .is_some();
-                    has_glsl_preamble_in_request
+        for shading_language in [
+            ShadingLanguage::Hlsl,
+            ShadingLanguage::Glsl,
+            ShadingLanguage::Wgsl,
+        ] {
+            let need_to_recompute_all =
+                if let Some(preamble_path) = config.get_preamble_path(shading_language) {
+                    if let Ok(preamble_uri) = Url::from_file_path(preamble_path) {
+                        let has_preamble_in_request = async_cache_requests
+                            .iter()
+                            .find(|r| r.uri == preamble_uri)
+                            .is_some();
+                        has_preamble_in_request
+                    } else {
+                        warn!("Failed to parse preamble path {:?}.", preamble_path);
+                        false
+                    }
                 } else {
-                    warn!("Failed to parse preamble path {:?}.", preamble_path);
                     false
-                }
-            } else {
-                false
-            };
-        if need_to_recompute_all_glsl {
-            for (uri, file) in &self.files {
-                if file.shading_language == ShadingLanguage::Glsl {
-                    // Check if file already in request. If not, update it.
-                    if async_cache_requests
-                        .iter()
-                        .find(|r| r.uri == *uri)
-                        .is_none()
-                    {
-                        info!("Preamble edited, caching file {} for recomputing", uri);
-                        async_cache_requests.push(AsyncCacheRequest::new(
-                            uri.clone(),
-                            ShadingLanguage::Glsl,
-                            true,
-                        ));
+                };
+            if need_to_recompute_all {
+                for (uri, file) in &self.files {
+                    if file.shading_language == shading_language {
+                        // Check if file already in request. If not, update it.
+                        if async_cache_requests
+                            .iter()
+                            .find(|r| r.uri == *uri)
+                            .is_none()
+                        {
+                            info!("Preamble edited, caching file {} for recomputing", uri);
+                            async_cache_requests.push(AsyncCacheRequest::new(
+                                uri.clone(),
+                                shading_language,
+                                true,
+                            ));
+                        }
                     }
                 }
             }

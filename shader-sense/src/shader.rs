@@ -2,7 +2,7 @@
 use std::{
     collections::HashMap,
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
@@ -351,6 +351,8 @@ pub struct HlslCompilationParams {
     pub version: HlslVersion,
     pub enable16bit_types: bool,
     pub spirv: bool,
+    pub preamble_path: Option<PathBuf>,
+    pub preamble_content: Option<String>,
 }
 
 /// Glsl target client
@@ -416,6 +418,10 @@ pub struct WgslCompilationParams {
     pub package_root: Option<PathBuf>,
     /// Root directory of each external package, used to resolve `import name::` imports.
     pub packages: HashMap<String, PathBuf>,
+    /// As module-scope declarations are order independent, preamble is added at the end of the file.
+    /// So it cannot contain imports or directives.
+    pub preamble_path: Option<PathBuf>,
+    pub preamble_content: Option<String>,
 }
 
 /// WESL feature flags are read from defines.
@@ -444,6 +450,21 @@ pub struct ShaderCompilationParams {
     pub hlsl: HlslCompilationParams,
     pub glsl: GlslCompilationParams,
     pub wgsl: WgslCompilationParams,
+}
+
+impl ShaderCompilationParams {
+    /// Get the preamble path & content of a language, if any.
+    pub fn get_preamble(&self, shading_language: ShadingLanguage) -> Option<(&Path, &str)> {
+        let (path, content) = match shading_language {
+            ShadingLanguage::Hlsl => (&self.hlsl.preamble_path, &self.hlsl.preamble_content),
+            ShadingLanguage::Glsl => (&self.glsl.preamble_path, &self.glsl.preamble_content),
+            ShadingLanguage::Wgsl => (&self.wgsl.preamble_path, &self.wgsl.preamble_content),
+        };
+        match (path, content) {
+            (Some(path), Some(content)) => Some((path.as_path(), content.as_str())),
+            _ => None,
+        }
+    }
 }
 
 /// Generic parameters passed to validation and inspection.

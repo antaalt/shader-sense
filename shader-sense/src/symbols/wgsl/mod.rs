@@ -181,6 +181,7 @@ mod tests {
                                 "external".into(),
                                 package_root.join("external"),
                             )]),
+                            ..Default::default()
                         },
                         ..Default::default()
                     },

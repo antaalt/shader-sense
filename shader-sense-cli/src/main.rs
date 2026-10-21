@@ -71,7 +71,7 @@ pub fn usage() {
     println!("  -I, --include <PATH>      Add an include directory");
     println!("  -E, --entry-point <NAME>  Specify the shader entry point");
     println!("  -S, --stage <STAGE>       Specify shader stage (vertex, fragment, compute, mesh, task, control, evaluation, geometry)");
-    println!("  -P, --preamble <PATH>     Specify a path to a file that will be used as preamble (GLSL only)");
+    println!("  -P, --preamble <PATH>     Specify a path to a file that will be used as preamble");
     println!("  --glsl-target-client      Specify GLSL target client");
     println!("  --validate                Validate the shader");
     println!("  --functions               List functions");
@@ -230,7 +230,7 @@ pub fn main() {
     }
     match file_name {
         Some(file_name) => {
-            let shader_params = ShaderParams {
+            let mut shader_params = ShaderParams {
                 context: ShaderContextParams {
                     includes: includes.into_iter().map(|i| PathBuf::from(i)).collect(),
                     defines: defines.into_iter().map(|d| (d, "1".to_owned())).collect(),
@@ -245,13 +245,14 @@ pub fn main() {
                         version: HlslVersion::V2018,
                         enable16bit_types: false,
                         spirv: false,
+                        preamble_path: None,
+                        preamble_content: None,
                     },
                     glsl: GlslCompilationParams {
                         client: target_client,
                         spirv: GlslSpirvVersion::SPIRV1_6,
-                        preamble_path: preamble_path.clone().map(|p| p.into()),
-                        preamble_content: preamble_path
-                            .map(|p| std::fs::read_to_string(p).unwrap_or("".into())),
+                        preamble_path: None,
+                        preamble_content: None,
                         version: None,
                         auto_map_bindings: None,
                         auto_map_locations: None,
@@ -259,6 +260,25 @@ pub fn main() {
                     wgsl: WgslCompilationParams::default(),
                 },
             };
+            if let Some(preamble_path) = preamble_path {
+                let compilation = &mut shader_params.compilation;
+                let (path, content) = match shading_language {
+                    ShadingLanguage::Hlsl => (
+                        &mut compilation.hlsl.preamble_path,
+                        &mut compilation.hlsl.preamble_content,
+                    ),
+                    ShadingLanguage::Glsl => (
+                        &mut compilation.glsl.preamble_path,
+                        &mut compilation.glsl.preamble_content,
+                    ),
+                    ShadingLanguage::Wgsl => (
+                        &mut compilation.wgsl.preamble_path,
+                        &mut compilation.wgsl.preamble_content,
+                    ),
+                };
+                *content = Some(std::fs::read_to_string(&preamble_path).unwrap_or("".into()));
+                *path = Some(preamble_path.into());
+            }
 
             let shader_path = Path::new(&file_name);
             let shader_content = match std::fs::read_to_string(shader_path) {

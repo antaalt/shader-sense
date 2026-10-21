@@ -231,6 +231,128 @@ mod tests {
         };
     }
 
+    fn validate_with_preamble(
+        shading_language: ShadingLanguage,
+        file_path: &Path,
+        preamble_path: &Path,
+        preamble_content: Option<String>,
+    ) -> ShaderDiagnosticList {
+        let validator = create_test_validator(shading_language);
+        let file_path = canonicalize(file_path).unwrap();
+        let preamble_path = canonicalize(preamble_path).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let preamble_content =
+            preamble_content.unwrap_or(std::fs::read_to_string(&preamble_path).unwrap());
+        let mut params = ShaderParams::default();
+        let compilation = &mut params.compilation;
+        let (path, content) = match shading_language {
+            ShadingLanguage::Hlsl => (
+                &mut compilation.hlsl.preamble_path,
+                &mut compilation.hlsl.preamble_content,
+            ),
+            ShadingLanguage::Glsl => (
+                &mut compilation.glsl.preamble_path,
+                &mut compilation.glsl.preamble_content,
+            ),
+            ShadingLanguage::Wgsl => (
+                &mut compilation.wgsl.preamble_path,
+                &mut compilation.wgsl.preamble_content,
+            ),
+        };
+        *path = Some(preamble_path);
+        *content = Some(preamble_content);
+        match validator.validate_shader(
+            &shader_content,
+            &file_path,
+            &params,
+            &mut default_include_callback,
+        ) {
+            Ok((_blob, diagnostic_list)) => diagnostic_list,
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    #[test]
+    fn glsl_preamble_trailing_newline() {
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Glsl,
+            Path::new("./test/glsl/dependent-include.frag.glsl"),
+            Path::new("./test/glsl/helpers/preamble.glsl"),
+            Some("#version 450\n\n#define CUSTOM_MACRO 1\n".into()),
+        );
+        println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+        assert!(diagnostic_list.is_empty());
+    }
+
+    #[test]
+    fn hlsl_preamble() {
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Hlsl,
+            Path::new("./test/hlsl/preamble.hlsl"),
+            Path::new("./test/hlsl/helpers/preamble.hlsl"),
+            None,
+        );
+        println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+        assert!(diagnostic_list.is_empty());
+    }
+
+    #[test]
+    fn hlsl_preamble_error_in_file() {
+        let file_path = Path::new("./test/hlsl/preamble-error.hlsl");
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Hlsl,
+            file_path,
+            Path::new("./test/hlsl/helpers/preamble.hlsl"),
+            None,
+        );
+        println!("Diagnostic should be in file: {:#?}", diagnostic_list);
+        let diagnostic = &diagnostic_list.diagnostics[0];
+        assert!(diagnostic.range.file_path == canonicalize(file_path).unwrap());
+        assert!(diagnostic.range.start().line == 5);
+    }
+
+    #[test]
+    fn hlsl_preamble_error_in_preamble() {
+        let preamble_path = Path::new("./test/hlsl/helpers/preamble-error.hlsl");
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Hlsl,
+            Path::new("./test/hlsl/ok.hlsl"),
+            preamble_path,
+            None,
+        );
+        println!("Diagnostic should be in preamble: {:#?}", diagnostic_list);
+        let diagnostic = &diagnostic_list.diagnostics[0];
+        assert!(diagnostic.range.file_path == canonicalize(preamble_path).unwrap());
+        assert!(diagnostic.range.start().line == 1);
+    }
+
+    #[test]
+    fn wgsl_preamble() {
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Wgsl,
+            Path::new("./test/wgsl/preamble.wgsl"),
+            Path::new("./test/wgsl/helpers/preamble.wgsl"),
+            None,
+        );
+        println!("Diagnostic should be empty: {:#?}", diagnostic_list);
+        assert!(diagnostic_list.is_empty());
+    }
+
+    #[test]
+    fn wgsl_preamble_error_in_preamble() {
+        let preamble_path = Path::new("./test/wgsl/helpers/preamble-error.wgsl");
+        let diagnostic_list = validate_with_preamble(
+            ShadingLanguage::Wgsl,
+            Path::new("./test/wgsl/ok.wgsl"),
+            preamble_path,
+            None,
+        );
+        println!("Diagnostic should be in preamble: {:#?}", diagnostic_list);
+        let diagnostic = &diagnostic_list.diagnostics[0];
+        assert!(diagnostic.range.file_path == canonicalize(preamble_path).unwrap());
+        assert!(diagnostic.range.start().line == 5);
+    }
+
     #[test]
     fn glsl_opengl() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
@@ -889,6 +1011,7 @@ mod tests {
                 wgsl: WgslCompilationParams {
                     package_root: Some(package_root.clone()),
                     packages: HashMap::from([("external".into(), package_root.join("external"))]),
+                    ..Default::default()
                 },
                 ..Default::default()
             },

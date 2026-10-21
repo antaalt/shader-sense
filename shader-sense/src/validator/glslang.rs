@@ -4,9 +4,11 @@ use super::validator::ValidatorImpl;
 use crate::{
     include::IncludeHandler,
     position::{ShaderFileRange, ShaderPosition},
-    shader::{GlslProfile, GlslSpirvVersion, GlslTargetClient, ShaderParams, ShaderStage},
+    shader::{
+        GlslProfile, GlslSpirvVersion, GlslTargetClient, ShaderParams, ShaderStage, ShadingLanguage,
+    },
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
-    validator::validator::CompilationResult,
+    validator::validator::{CompilationResult, Preamble},
 };
 use glslang::{
     error::GlslangError,
@@ -267,25 +269,14 @@ impl ValidatorImpl for Glslang {
         let file_name = self.get_file_name(file_path);
 
         // Ensure we have a newline character at the end to avoid issues with offset.
-        let preamble = if let (Some(preamble_path), Some(preamble)) = (
-            &params.compilation.glsl.preamble_path,
-            &params.compilation.glsl.preamble_content,
-        ) {
-            if file_path != preamble_path {
-                if !preamble.is_empty() && !preamble.ends_with('\n') {
-                    let mut preamble = String::from(preamble);
-                    preamble.push('\n');
-                    preamble
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            }
+        let shading_language = if self.hlsl {
+            ShadingLanguage::Hlsl
         } else {
-            String::new()
+            ShadingLanguage::Glsl
         };
-        let preamble_line_count = preamble.lines().count();
+        let preamble = Preamble::new(file_path, params, shading_language);
+        let preamble_line_count = preamble.as_ref().map_or(0, |p| p.line_count());
+        let preamble = preamble.map_or(String::new(), |p| p.content_with_newline());
 
         let (shader_stage, shader_source, preamble_line_offset) =
             if let Some(variant_stage) = params.compilation.shader_stage {

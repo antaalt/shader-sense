@@ -10,9 +10,9 @@ use std::{
 use crate::{
     include::IncludeHandler,
     position::{ShaderFileRange, ShaderPosition},
-    shader::{HlslShaderModel, HlslVersion, ShaderParams, ShaderStage},
+    shader::{HlslShaderModel, HlslVersion, ShaderParams, ShaderStage, ShadingLanguage},
     shader_error::{ShaderDiagnostic, ShaderDiagnosticList, ShaderDiagnosticSeverity, ShaderError},
-    validator::validator::CompilationResult,
+    validator::validator::{CompilationResult, Preamble},
 };
 
 use super::validator::ValidatorImpl;
@@ -336,9 +336,14 @@ impl ValidatorImpl for Dxc {
     ) -> Result<(CompilationResult, ShaderDiagnosticList), ShaderError> {
         let file_name = self.get_file_name(file_path);
 
+        // Line directives let dxc report preamble diagnostics in preamble file.
+        let shader_source = match Preamble::new(file_path, params, ShadingLanguage::Hlsl) {
+            Some(preamble) => preamble.prepend_with_line_directive(shader_source, &file_name),
+            None => shader_source.to_string(),
+        };
         let blob = match self
             .library
-            .create_blob_with_encoding_from_str(shader_source)
+            .create_blob_with_encoding_from_str(&shader_source)
         {
             Ok(blob) => blob,
             Err(err) => match self.from_hassle_error(err, file_path, &params) {
