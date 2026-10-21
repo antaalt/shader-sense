@@ -183,11 +183,15 @@ impl Glslang {
                     let offset = 1 + preamble_line_offset as u32;
                     let line = line.parse::<u32>().unwrap_or(offset);
                     if line < offset {
-                        if let Some(preamble_file_path) = params.compilation.get_preamble(if self.hlsl {
-                            ShadingLanguage::Hlsl
-                        } else {
-                            ShadingLanguage::Glsl
-                        }).map(|(p, _)| PathBuf::from(p)) {
+                        if let Some(preamble_file_path) = params
+                            .compilation
+                            .get_preamble(if self.hlsl {
+                                ShadingLanguage::Hlsl
+                            } else {
+                                ShadingLanguage::Glsl
+                            })
+                            .map(|(p, _)| PathBuf::from(p))
+                        {
                             let pos = pos.parse::<u32>().unwrap_or(0);
                             (line - 1, pos, preamble_file_path)
                         } else {
