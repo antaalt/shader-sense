@@ -1816,6 +1816,9 @@ dependencies = [
  "rspirv",
  "serde",
  "serde_json",
+ "shader-sense-core",
+ "shader-sense-symbols",
+ "shader-sense-validator",
  "tree-sitter",
  "tree-sitter-glsl",
  "tree-sitter-hlsl",
@@ -1830,6 +1833,48 @@ version = "0.8.0"
 dependencies = [
  "colored",
  "shader-sense",
+]
+
+[[package]]
+name = "shader-sense-core"
+version = "1.6.1"
+dependencies = [
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "shader-sense-symbols"
+version = "1.6.1"
+dependencies = [
+ "hassle-rs",
+ "libloading",
+ "regex",
+ "serde",
+ "serde_json",
+ "shader-sense-core",
+ "tree-sitter",
+ "tree-sitter-glsl",
+ "tree-sitter-hlsl",
+ "tree-sitter-language",
+ "tree-sitter-wesl",
+]
+
+[[package]]
+name = "shader-sense-validator"
+version = "1.6.1"
+dependencies = [
+ "glslang",
+ "hassle-rs",
+ "libloading",
+ "naga",
+ "regex",
+ "rspirv",
+ "serde",
+ "serde_json",
+ "shader-sense-core",
+ "wesl",
 ]
 
 [[package]]

@@ -1,10 +1,13 @@
 [workspace]
 
 members = [
-    "shader-sense",
-    "shader-language-server",
-    "shader-sense-cli",
-    "shader-intrinsic-parser"
+    "lib/shader-sense",
+    "lib/shader-sense-core",
+    "lib/shader-sense-symbols",
+    "lib/shader-sense-validator",
+    "bin/shader-language-server",
+    "bin/shader-sense-cli",
+    "bin/shader-intrinsic-parser"
 ]
 resolver = "2"
 
@@ -32,4 +35,9 @@ authors = ["antaalt"]
 rust-version = "1.89" # Minimal version required for wasm C ABI https://github.com/wasm-bindgen/wasm-bindgen/issues/3454
 
 [workspace.dependencies]
-shader-sense = { version = "1.6.1", path = "./shader-sense" }
+shader-sense = { version = "1.6.1", path = "./lib/shader-sense" }
+shader-sense-core = { version = "1.6.1", path = "./lib/shader-sense-core" }
+shader-sense-validator = { version = "1.6.1", path = "./lib/shader-sense-validator" }
+shader-sense-symbols = { version = "1.6.1", path = "./lib/shader-sense-symbols" }
+serde = { version = "1.0.199", features = ["derive"] }
+serde_json = "1.0.116"

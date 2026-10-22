@@ -68,15 +68,15 @@ jobs:
       - name: Build desktop executable  # Build all package on supported os.
         run: cargo build --release --verbose --target ${{ matrix.target }} # Specify target to build into target
       - name: Copy desktop executable
-        run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./bin/${{ env.executable }}
+        run: mkdir -p ./dist/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./dist/${{ env.executable }}
         env:
           executable: shader-language-server${{ runner.os == 'Windows' && '.exe' || '' }}
-      # TODO: Add debug symbols for supported target to bin folder.
+      # TODO: Add debug symbols for supported target to dist folder.
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: shader-language-server-${{ matrix.target }}
-          path: ./bin/
+          path: ./dist/
 
   # Separate build task as its more complex.  
   build-wasi:
@@ -135,12 +135,12 @@ jobs:
           CC: clang-17
           CXX: clang++-17
       - name: Copy WASI executables
-        run: mkdir -p ./bin/ && cp ./target/wasm32-wasip1-threads/release/shader-language-server.wasm ./bin/shader-language-server.wasm
+        run: mkdir -p ./dist/ && cp ./target/wasm32-wasip1-threads/release/shader-language-server.wasm ./dist/shader-language-server.wasm
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: shader-language-server-wasm32-wasip1-threads
-          path: ./bin/
+          path: ./dist/
 
   # Upload the packages of every commit on main to the nightly release, which must already exist.
   nightly:
