@@ -4,7 +4,7 @@
 [![shader-sense-cli](https://img.shields.io/crates/v/shader-sense?label=shader-sense-cli)](https://crates.io/crates/shader-sense-cli)
 [![shader-language-server](https://img.shields.io/crates/v/shader-language-server?label=shader-language-server)](https://crates.io/crates/shader-language-server)
 
-Shader sense is a library for runtime validation and symbol inspection that can handle multiple shader languages, primarily intended for use in a [language server](https://github.com/antaalt/shader-sense/tree/main/shader-language-server). This works through the use of standard API for validation and tree-sitter for symbol inspection. It can be built to desktop or [WASI](https://wasi.dev/). WASI will let the extension run even in browser, but it suffer from limitations. See below for more informations.
+Shader sense is a library for runtime validation and symbol inspection that can handle multiple shader languages, primarily intended for use in a [language server](https://github.com/antaalt/shader-sense/tree/main/bin/shader-language-server). This works through the use of standard API for validation and tree-sitter for symbol inspection. It can be built to desktop or [WASI](https://wasi.dev/). WASI will let the extension run even in browser, but it suffer from limitations. See below for more informations.
 
 - **GLSL** uses [glslang-rs](https://github.com/SnowflakePowered/glslang-rs) as backend. It provide complete linting for GLSL trough glslang API bindings from C.
 - **HLSL** uses [hassle-rs](https://github.com/Traverse-Research/hassle-rs) as backend. It provides bindings to directx shader compiler in rust.
@@ -16,7 +16,7 @@ For symbol inspection, the API is relying on abstract syntax tree. As we want to
 
 ### Shader language server
 
-This library is used in a language server at [shader-language-server](https://github.com/antaalt/shader-sense/tree/main/shader-language-server). 
+This library is used in a language server at [shader-language-server](https://github.com/antaalt/shader-sense/tree/main/bin/shader-language-server). 
 
 ### Shader sense cli
 
