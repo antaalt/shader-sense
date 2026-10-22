@@ -1,0 +1,29 @@
+[package]
+name = "shader-sense-symbols"
+description = "Library for runtime shader symbol inspection"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+shader-sense-core.workspace = true
+regex = "1.10.4"
+serde.workspace = true
+serde_json.workspace = true
+tree-sitter = "0.25.8"
+tree-sitter-language = "0.1.0"
+tree-sitter-glsl = "0.2.0"
+tree-sitter-hlsl = "0.2.0"
+tree-sitter-wesl = "0.1.0"
+# Slang support with tree-sitter-slang 0.3.1.
+# Metal does not have rust lib neither tree-sitter
+# Cg too old
+# PSSL proprietary
+
+[target.'cfg(not(target_arch="wasm32"))'.dependencies]
+# cannot load DXC dll in wasi
+# There is an issue to compile DXC statically:
+# https://github.com/Traverse-Research/hassle-rs/issues/57
+hassle-rs = "0.11.0"
+libloading = "0.8.8"

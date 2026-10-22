@@ -1,0 +1,28 @@
+[package]
+name = "shader-sense-validator"
+description = "Library for runtime shader validation"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+shader-sense-core.workspace = true
+glslang = "0.9.0"
+naga = { version = "24.0.0", features = ["wgsl-in", "wgsl-out", "spv-out", "spv-in"] }
+wesl = "0.5.0"
+regex = "1.10.4"
+serde.workspace = true
+serde_json.workspace = true
+rspirv = "0.13.0"
+# Slang support with tree-sitter-slang 0.3.1.
+# Metal does not have rust lib neither tree-sitter
+# Cg too old
+# PSSL proprietary
+
+[target.'cfg(not(target_arch="wasm32"))'.dependencies]
+# cannot load DXC dll in wasi
+# There is an issue to compile DXC statically:
+# https://github.com/Traverse-Research/hassle-rs/issues/57
+hassle-rs = "0.11.0"
+libloading = "0.8.8"

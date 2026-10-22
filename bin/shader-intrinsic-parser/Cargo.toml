@@ -1,0 +1,17 @@
+[package]
+name = "shader-intrinsics-parser"
+version = "0.1.0"
+edition.workspace = true
+license-file.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+shader-sense.workspace = true
+ego-tree = "0.6.3"
+regex = "1.10.6"
+scraper = "0.20.0"
+serde.workspace = true
+serde_json.workspace = true
+ureq = "2.10.1"
+xmltree = "0.10.3"
