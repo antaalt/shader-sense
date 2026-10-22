@@ -42,6 +42,7 @@ mod tests {
             ShaderCompilationParams, ShaderContextParams, ShaderParams, ShadingLanguage,
             WgslCompilationParams, WgslShadingLanguageTag,
         },
+        test_path,
     };
 
     fn get_symbols(file_path: &Path) -> (ShaderModule, ShaderSymbolList) {
@@ -66,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_wesl_regions() {
-        let file_path = canonicalize(Path::new("../shader-sense/test/wesl/macros.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wesl/macros.wesl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Wgsl);
@@ -161,7 +162,7 @@ mod tests {
     }
 
     fn query_wesl_import_symbols(file_name: &str) -> ShaderSymbols {
-        let package_root = canonicalize(Path::new("../shader-sense/test/wesl")).unwrap();
+        let package_root = canonicalize(&test_path("wesl")).unwrap();
         let file_path = package_root.join(file_name);
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
@@ -237,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_wgsl_symbols() {
-        let file_path = canonicalize(Path::new("../shader-sense/test/wgsl/symbols.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/symbols.wesl")).unwrap();
         let (_, symbols) = get_symbols(&file_path);
         // Functions with their parameters
         let function = symbols
@@ -319,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_wgsl_scopes() {
-        let file_path = canonicalize(Path::new("../shader-sense/test/wgsl/symbols.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/symbols.wesl")).unwrap();
         let (_, symbols) = get_symbols(&file_path);
         let check_scope = |line: u32, pos: u32, visibles: &[&str], not_visibles: &[&str]| {
             let symbol_list = symbols.as_ref();
@@ -378,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_wgsl_words() {
-        let file_path = canonicalize(Path::new("../shader-sense/test/wgsl/symbols.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/symbols.wesl")).unwrap();
         let (shader_module, symbols) = get_symbols(&file_path);
         let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Wgsl);
         let get_word = |line: u32, pos: u32| {

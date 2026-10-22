@@ -13,12 +13,15 @@ use super::shader_module::ShaderModule;
 /// Handle the creation and update of internal tree_sitter AST stored into a [`ShaderModule`]
 /// ```
 /// use shader_sense_symbols::shader_module_parser::ShaderModuleParser;
-/// use shader_sense_core::position::{ShaderPosition, ShaderRange};
+/// use shader_sense_core::{
+///     position::{ShaderPosition, ShaderRange},
+///     test_path
+/// };
 /// use std::path::Path;
-/// let shader_path = Path::new("../shader-sense/test/hlsl/ok.hlsl");
-/// let shader_content = std::fs::read_to_string(shader_path).unwrap();
+/// let shader_path = test_path("hlsl/ok.hlsl");
+/// let shader_content = std::fs::read_to_string(&shader_path).unwrap();
 /// let mut shader_module_parser = ShaderModuleParser::hlsl();
-/// let mut shader_module = shader_module_parser.create_module(shader_path, &shader_content).unwrap();
+/// let mut shader_module = shader_module_parser.create_module(&shader_path, &shader_content).unwrap();
 /// // Here we can simply insert a new text at the position 3, 4.
 /// shader_module_parser.update_module_partial(
 ///     &mut shader_module,

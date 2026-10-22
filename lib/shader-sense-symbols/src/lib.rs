@@ -33,6 +33,7 @@ mod tests {
             ShaderStage, ShadingLanguage, ShadingLanguageTag, WgslShadingLanguageTag,
         },
         shader_error::ShaderError,
+        test_path,
     };
 
     use super::symbol_provider::{default_include_callback, SymbolProvider};
@@ -170,25 +171,25 @@ mod tests {
     #[test]
     fn create_glsl_module_ok() {
         let mut parser = ShaderModuleParser::glsl();
-        let path = Path::new("../shader-sense/test/glsl/ok.frag.glsl");
+        let path = &test_path("glsl/ok.frag.glsl");
         let _module = parser.create_module(path, &std::fs::read_to_string(path).unwrap());
     }
     #[test]
     fn create_hlsl_module_ok() {
         let mut parser = ShaderModuleParser::hlsl();
-        let path = Path::new("../shader-sense/test/hlsl/ok.hlsl");
+        let path = &test_path("hlsl/ok.hlsl");
         let _module = parser.create_module(path, &std::fs::read_to_string(path).unwrap());
     }
     #[test]
     fn create_wgsl_module_ok() {
         let mut parser = ShaderModuleParser::wgsl();
-        let path = Path::new("../shader-sense/test/wgsl/ok.wgsl");
+        let path = &test_path("wgsl/ok.wgsl");
         let _module = parser.create_module(path, &std::fs::read_to_string(path).unwrap());
     }
     #[test]
     fn symbols_glsl_ok() {
         // Ensure parsing of symbols is OK
-        let file_path = Path::new("../shader-sense/test/glsl/include-level.comp.glsl");
+        let file_path = &test_path("glsl/include-level.comp.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
@@ -210,7 +211,7 @@ mod tests {
     #[test]
     fn symbols_hlsl_ok() {
         // Ensure parsing of symbols is OK
-        let file_path = Path::new("../shader-sense/test/hlsl/include-level.hlsl");
+        let file_path = &test_path("hlsl/include-level.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
@@ -232,7 +233,7 @@ mod tests {
     #[test]
     fn symbols_wgsl_ok() {
         // Ensure parsing of symbols is OK
-        let file_path = Path::new("../shader-sense/test/wgsl/ok.wgsl");
+        let file_path = &test_path("wgsl/ok.wgsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Wgsl);
@@ -253,8 +254,7 @@ mod tests {
     }
     #[test]
     fn symbol_scope_glsl_ok() {
-        let file_path =
-            canonicalize(Path::new("../shader-sense/test/glsl/scopes.frag.glsl")).unwrap();
+        let file_path = canonicalize(&test_path("glsl/scopes.frag.glsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn uniform_glsl_ok() {
         // Ensure parsing of symbols is OK
-        let file_path = Path::new("../shader-sense/test/glsl/uniforms.frag.glsl");
+        let file_path = &test_path("glsl/uniforms.frag.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
@@ -380,7 +380,7 @@ mod tests {
         }
 
         // Testing file
-        let utf8_file_path = Path::new("../shader-sense/test/hlsl/utf8.hlsl");
+        let utf8_file_path = &test_path("hlsl/utf8.hlsl");
         let utf8_shader_content = std::fs::read_to_string(utf8_file_path).unwrap();
         // End of line are enforced to \n through gitattributes for hlsl / glsl / wgsl in this repo.
         let test_data = vec![
@@ -411,7 +411,7 @@ mod tests {
     }
     #[test]
     fn test_end_range() {
-        let file_path = canonicalize(&Path::new("../shader-sense/test/hlsl/utf8.hlsl")).unwrap();
+        let file_path = canonicalize(&&test_path("hlsl/utf8.hlsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let range = ShaderFileRange::whole(file_path.clone(), &shader_content);
         println!("File range: {:#?}", range);
@@ -449,7 +449,7 @@ mod tests {
     }
     #[test]
     fn test_macro_expansion_struct() {
-        let file_path = Path::new("../shader-sense/test/hlsl/macro-struct.hlsl");
+        let file_path = &test_path("hlsl/macro-struct.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
@@ -498,8 +498,7 @@ mod tests {
         crate::shader_module::ShaderModule,
         ShaderSymbolList,
     ) {
-        let file_path =
-            canonicalize(Path::new("../shader-sense/test/hlsl/macro-expansion.hlsl")).unwrap();
+        let file_path = canonicalize(&test_path("hlsl/macro-expansion.hlsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
@@ -676,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_dependency_tree() {
-        let file_path = Path::new("../shader-sense/test/glsl/include-level.comp.glsl");
+        let file_path = &test_path("glsl/include-level.comp.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Glsl);
@@ -704,16 +703,13 @@ mod tests {
         let dependency_tree = &dependency_tree.includes[0];
         assert_eq!(
             dependency_tree.path,
-            canonicalize(&Path::new("../shader-sense/test/glsl/inc0/level0.glsl")).unwrap()
+            canonicalize(&test_path("glsl/inc0/level0.glsl")).unwrap()
         );
         assert!(dependency_tree.includes.len() == 1);
         let dependency_tree = &dependency_tree.includes[0];
         assert_eq!(
             dependency_tree.path,
-            canonicalize(&Path::new(
-                "../shader-sense/test/glsl/inc0/inc1/level1.glsl"
-            ))
-            .unwrap()
+            canonicalize(&test_path("glsl/inc0/inc1/level1.glsl")).unwrap()
         );
         assert!(dependency_tree.includes.len() == 0);
     }

@@ -2,7 +2,7 @@
 name = "shader_language_server"
 description = "Language server for HLSL / GLSL / WGSL shaders using LSP protocol."
 version = "1.6.2"
-repository = "https://github.com/antaalt/shader-sense/tree/main/shader-language-server"
+repository = "https://github.com/antaalt/shader-sense/tree/main/bin/shader-language-server"
 keywords = ["shader", "lsp", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
 edition.workspace = true

@@ -42,6 +42,7 @@ mod tests {
             GlslShadingLanguageTag, HlslShadingLanguageTag, ShaderCompilationParams, ShaderParams,
             ShaderStage, ShadingLanguage, ShadingLanguageTag,
         },
+        test_path,
     };
 
     #[test]
@@ -61,7 +62,7 @@ mod tests {
         mut shader_module_parser: ShaderModuleParser,
         symbol_provider: SymbolProvider,
     ) {
-        let file_path = Path::new("../shader-sense/test/hlsl/regions.hlsl");
+        let file_path = &test_path("hlsl/regions.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let shader_module = shader_module_parser
             .create_module(file_path, &shader_content)
@@ -163,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_words() {
-        let file_path = "../shader-sense/test/hlsl/struct.hlsl";
+        let file_path = &test_path("hlsl/struct.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let word_provider = HlslSymbolWordProvider {};
         let mut shader_module_parser =
@@ -223,8 +224,8 @@ mod tests {
     fn test_namespace() {
         use crate::{symbol_list::ShaderSymbolList, symbols::ShaderScope};
         use shader_sense_core::{include::canonicalize, position::ShaderFilePosition};
-        let file_path =
-            canonicalize(Path::new("../shader-sense/test/hlsl/namespace.hlsl")).unwrap();
+        let file_path = &test_path("hlsl/namespace.hlsl");
+        canonicalize(&test_path("hlsl/namespace.hlsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let mut shader_module_parser =
             ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);

@@ -1,14 +1,12 @@
+use shader_sense::symbols::symbol_list::ShaderSymbolList;
 #[cfg(not(target_os = "wasi"))]
-use shader_sense::validator::dxc::Dxc;
 use shader_sense::{
     shader::{HlslShaderModel, HlslVersion, ShaderStage, ShaderStageMask},
-    symbols::{
-        symbol_list::ShaderSymbolList,
-        symbols::{
-            HlslRequirementParameter, RequirementParameter, ShaderSymbol, ShaderSymbolData,
-            ShaderSymbolIntrinsic, ShaderSymbolMode,
-        },
+    symbols::symbols::{
+        HlslRequirementParameter, RequirementParameter, ShaderSymbol, ShaderSymbolData,
+        ShaderSymbolIntrinsic, ShaderSymbolMode,
     },
+    validator::dxc::Dxc,
 };
 
 use crate::hlsl::HlslIntrinsicParser;

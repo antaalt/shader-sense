@@ -17,6 +17,7 @@ mod tests {
         ShaderParams, ShaderStage, ShadingLanguage, WgslCompilationParams,
     };
     use shader_sense_core::shader_error::ShaderDiagnosticList;
+    use shader_sense_core::test_path;
 
     use super::validator::*;
     use super::*;
@@ -44,7 +45,7 @@ mod tests {
     #[test]
     fn glsl_ok() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/ok.frag.glsl");
+        let file_path = &test_path("glsl/ok.frag.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -63,14 +64,14 @@ mod tests {
     #[test]
     fn glsl_include_config() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/include-config.frag.glsl");
+        let file_path = &test_path("glsl/include-config.frag.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/glsl/inc0/".into()],
+                    includes: vec![test_path("glsl/inc0/")],
                     ..Default::default()
                 },
                 ..Default::default()
@@ -88,14 +89,14 @@ mod tests {
     #[test]
     fn glsl_include_level() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/include-level.comp.glsl");
+        let file_path = &test_path("glsl/include-level.comp.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/glsl/inc0/".into()],
+                    includes: vec![test_path("glsl/inc0/")],
                     ..Default::default()
                 },
                 ..Default::default()
@@ -113,14 +114,14 @@ mod tests {
     #[test]
     fn glsl_no_stage() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/nostage.glsl");
+        let file_path = &test_path("glsl/nostage.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/glsl/inc0/".into()],
+                    includes: vec![test_path("glsl/inc0/")],
                     ..Default::default()
                 },
                 ..Default::default()
@@ -138,7 +139,7 @@ mod tests {
     #[test]
     fn glsl_macro() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/macro.frag.glsl");
+        let file_path = &test_path("glsl/macro.frag.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -163,10 +164,7 @@ mod tests {
     #[test]
     fn glsl_error_parsing() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = canonicalize(Path::new(
-            "../shader-sense/test/glsl/error-parsing.frag.glsl",
-        ))
-        .unwrap();
+        let file_path = test_path("glsl/error-parsing.frag.glsl");
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -187,10 +185,7 @@ mod tests {
     #[test]
     fn glsl_no_preamble() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = canonicalize(Path::new(
-            "../shader-sense/test/glsl/dependent-include.frag.glsl",
-        ))
-        .unwrap();
+        let file_path = canonicalize(&test_path("glsl/dependent-include.frag.glsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -209,8 +204,8 @@ mod tests {
     #[test]
     fn glsl_preamble() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/dependent-include.frag.glsl");
-        let preamble = Path::new("../shader-sense/test/glsl/helpers/preamble.glsl");
+        let file_path = &test_path("glsl/dependent-include.frag.glsl");
+        let preamble = &test_path("glsl/helpers/preamble.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let preamble_content = std::fs::read_to_string(preamble).unwrap();
         match validator.validate_shader(
@@ -282,8 +277,8 @@ mod tests {
     fn glsl_preamble_trailing_newline() {
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Glsl,
-            Path::new("../shader-sense/test/glsl/dependent-include.frag.glsl"),
-            Path::new("../shader-sense/test/glsl/helpers/preamble.glsl"),
+            &test_path("glsl/dependent-include.frag.glsl"),
+            &test_path("glsl/helpers/preamble.glsl"),
             Some("#version 450\n\n#define CUSTOM_MACRO 1\n".into()),
         );
         println!("Diagnostic should be empty: {:#?}", diagnostic_list);
@@ -294,8 +289,8 @@ mod tests {
     fn hlsl_preamble() {
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Hlsl,
-            Path::new("../shader-sense/test/hlsl/preamble.hlsl"),
-            Path::new("../shader-sense/test/hlsl/helpers/preamble.hlsl"),
+            &test_path("hlsl/preamble.hlsl"),
+            &test_path("hlsl/helpers/preamble.hlsl"),
             None,
         );
         println!("Diagnostic should be empty: {:#?}", diagnostic_list);
@@ -304,11 +299,11 @@ mod tests {
 
     #[test]
     fn hlsl_preamble_error_in_file() {
-        let file_path = Path::new("../shader-sense/test/hlsl/preamble-error.hlsl");
+        let file_path = &test_path("hlsl/preamble-error.hlsl");
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Hlsl,
             file_path,
-            Path::new("../shader-sense/test/hlsl/helpers/preamble.hlsl"),
+            &test_path("hlsl/helpers/preamble.hlsl"),
             None,
         );
         println!("Diagnostic should be in file: {:#?}", diagnostic_list);
@@ -319,10 +314,10 @@ mod tests {
 
     #[test]
     fn hlsl_preamble_error_in_preamble() {
-        let preamble_path = Path::new("../shader-sense/test/hlsl/helpers/preamble-error.hlsl");
+        let preamble_path = &test_path("hlsl/helpers/preamble-error.hlsl");
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Hlsl,
-            Path::new("../shader-sense/test/hlsl/ok.hlsl"),
+            &test_path("hlsl/ok.hlsl"),
             preamble_path,
             None,
         );
@@ -336,8 +331,8 @@ mod tests {
     fn wgsl_preamble() {
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Wgsl,
-            Path::new("../shader-sense/test/wgsl/preamble.wgsl"),
-            Path::new("../shader-sense/test/wgsl/helpers/preamble.wgsl"),
+            &test_path("wgsl/preamble.wgsl"),
+            &test_path("wgsl/helpers/preamble.wgsl"),
             None,
         );
         println!("Diagnostic should be empty: {:#?}", diagnostic_list);
@@ -346,10 +341,10 @@ mod tests {
 
     #[test]
     fn wgsl_preamble_error_in_preamble() {
-        let preamble_path = Path::new("../shader-sense/test/wgsl/helpers/preamble-error.wgsl");
+        let preamble_path = &test_path("wgsl/helpers/preamble-error.wgsl");
         let diagnostic_list = validate_with_preamble(
             ShadingLanguage::Wgsl,
-            Path::new("../shader-sense/test/wgsl/ok.wgsl"),
+            &test_path("wgsl/ok.wgsl"),
             preamble_path,
             None,
         );
@@ -362,7 +357,7 @@ mod tests {
     #[test]
     fn glsl_opengl() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/target-client/opengl.vert.glsl");
+        let file_path = &test_path("glsl/target-client/opengl.vert.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -393,7 +388,7 @@ mod tests {
     #[test]
     fn glsl_vulkan() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/target-client/vulkan.vert.glsl");
+        let file_path = &test_path("glsl/target-client/vulkan.vert.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -435,7 +430,7 @@ mod tests {
     #[test]
     fn glsl_webgl_1() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/target-client/webgl1.vert.glsl");
+        let file_path = &test_path("glsl/target-client/webgl1.vert.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -469,7 +464,7 @@ mod tests {
     #[test]
     fn glsl_webgl_2() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/target-client/webgl2.vert.glsl");
+        let file_path = &test_path("glsl/target-client/webgl2.vert.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -503,7 +498,7 @@ mod tests {
     #[test]
     fn glsl_version_profile() {
         let validator = create_test_validator(ShadingLanguage::Glsl);
-        let file_path = Path::new("../shader-sense/test/glsl/target-client/vulkan.vert.glsl");
+        let file_path = &test_path("glsl/target-client/vulkan.vert.glsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let validate_with_profile = |profile: GlslProfileVersion| {
             validator.validate_shader(
@@ -551,7 +546,7 @@ mod tests {
     #[test]
     fn hlsl_ok() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/ok.hlsl");
+        let file_path = &test_path("hlsl/ok.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -584,14 +579,14 @@ mod tests {
     #[test]
     fn hlsl_include_config() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/include-config.hlsl");
+        let file_path = &test_path("hlsl/include-config.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/hlsl/inc0/".into()],
+                    includes: vec![test_path("hlsl/inc0/")],
                     ..Default::default()
                 },
                 ..Default::default()
@@ -609,14 +604,14 @@ mod tests {
     #[test]
     fn hlsl_include_parent_folder() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/folder/folder-file.hlsl");
+        let file_path = &test_path("hlsl/folder/folder-file.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/hlsl/".into()],
+                    includes: vec![test_path("hlsl/")],
                     ..Default::default()
                 },
                 ..Default::default()
@@ -634,14 +629,14 @@ mod tests {
     #[test]
     fn hlsl_include_level() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/include-level.hlsl");
+        let file_path = &test_path("hlsl/include-level.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
             file_path,
             &ShaderParams {
                 context: ShaderContextParams {
-                    includes: vec!["../shader-sense/test/hlsl/inc0/".into()],
+                    includes: vec![test_path("hlsl/inc0/")],
                     ..Default::default()
                 },
                 compilation: ShaderCompilationParams {
@@ -664,7 +659,7 @@ mod tests {
     #[test]
     fn hlsl_macro() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/macro.hlsl");
+        let file_path = &test_path("hlsl/macro.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -692,7 +687,7 @@ mod tests {
         use shader_sense_core::shader::HlslCompilationParams;
 
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/16bit-types.hlsl");
+        let file_path = &test_path("hlsl/16bit-types.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -723,7 +718,7 @@ mod tests {
         use shader_sense_core::shader::HlslCompilationParams;
 
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/spirv-shader.hlsl");
+        let file_path = &test_path("hlsl/spirv-shader.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         // Check warning
         match validator.validate_shader(
@@ -792,7 +787,7 @@ mod tests {
         ];
         let validator = create_test_validator(ShadingLanguage::Glsl);
         for (file_name, entry_point, shader_stage) in stages {
-            let file_path = Path::new("../shader-sense/test/glsl/stages/").join(file_name);
+            let file_path = &test_path("glsl/stages/").join(file_name);
             let shader_content = std::fs::read_to_string(&file_path).unwrap();
             match validator.validate_shader(
                 &shader_content,
@@ -842,7 +837,7 @@ mod tests {
         ];
         let validator = create_test_validator(ShadingLanguage::Hlsl);
         for (file_name, entry_point, shader_stage) in stages {
-            let file_path = Path::new("../shader-sense/test/hlsl/stages/").join(file_name);
+            let file_path = &test_path("hlsl/stages/").join(file_name);
             let shader_content = std::fs::read_to_string(&file_path).unwrap();
             // Check for WASI test.
             if validator.support(shader_stage) {
@@ -876,7 +871,7 @@ mod tests {
     #[cfg(not(target_os = "wasi"))] // Glslang HLSL do not support pragma once
     fn hlsl_pragma_once() {
         let validator = create_test_validator(ShadingLanguage::Hlsl);
-        let file_path = Path::new("../shader-sense/test/hlsl/pragma-once/main.hlsl");
+        let file_path = &test_path("hlsl/pragma-once/main.hlsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -914,9 +909,7 @@ mod tests {
         ];
         let validator = create_test_validator(ShadingLanguage::Wgsl);
         for (file_name, entry_point, shader_stage) in stages {
-            let file_path =
-                canonicalize(&Path::new("../shader-sense/test/wgsl/stages/").join(file_name))
-                    .unwrap();
+            let file_path = canonicalize(&&test_path("wgsl/stages/").join(file_name)).unwrap();
             let shader_content = std::fs::read_to_string(&file_path).unwrap();
             match validator.validate_shader(
                 &shader_content,
@@ -946,7 +939,7 @@ mod tests {
     #[test]
     fn wgsl_ok() {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path = canonicalize(Path::new("../shader-sense/test/wgsl/ok.wgsl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/ok.wgsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -965,7 +958,7 @@ mod tests {
     #[test]
     fn wgsl_error() {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path = canonicalize(Path::new("../shader-sense/test/wgsl/error.wgsl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/error.wgsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -988,8 +981,7 @@ mod tests {
     #[test]
     fn wgsl_error_nested() {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path =
-            canonicalize(Path::new("../shader-sense/test/wgsl/error-nested.wgsl")).unwrap();
+        let file_path = canonicalize(&test_path("wgsl/error-nested.wgsl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         match validator.validate_shader(
             &shader_content,
@@ -1011,7 +1003,7 @@ mod tests {
 
     fn validate_wesl_import(file_name: &str) -> ShaderDiagnosticList {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let package_root = canonicalize(Path::new("../shader-sense/test/wesl")).unwrap();
+        let package_root = canonicalize(&test_path("wesl")).unwrap();
         let file_path = package_root.join(file_name);
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let params = ShaderParams {
@@ -1041,7 +1033,7 @@ mod tests {
 
     fn validate_wesl_features(defines: &[(&str, &str)]) -> ShaderDiagnosticList {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path = canonicalize(Path::new("../shader-sense/test/wesl/features.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wesl/features.wesl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         let params = ShaderParams {
             context: ShaderContextParams {
@@ -1106,7 +1098,7 @@ mod tests {
     #[test]
     fn wesl_import_unknown_package() {
         let validator = create_test_validator(ShadingLanguage::Wgsl);
-        let file_path = canonicalize(Path::new("../shader-sense/test/wesl/main.wesl")).unwrap();
+        let file_path = canonicalize(&test_path("wesl/main.wesl")).unwrap();
         let shader_content = std::fs::read_to_string(&file_path).unwrap();
         // No external package declared.
         match validator.validate_shader(
@@ -1126,7 +1118,7 @@ mod tests {
 
     #[test]
     fn wgsl_spirv_conversion() {
-        let file_path = Path::new("../shader-sense/test/wgsl/ok.wgsl");
+        let file_path = &test_path("wgsl/ok.wgsl");
         let shader_content = std::fs::read_to_string(file_path).unwrap();
         let spirv = match wesl::wgsl_to_spirv(&shader_content) {
             Ok(spirv) => spirv,
