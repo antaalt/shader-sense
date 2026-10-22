@@ -49,6 +49,7 @@ impl<'a> Preamble<'a> {
     }
     /// Prepend the preamble to the content, with line directives so that
     /// diagnostics are reported with correct file & line by the compiler.
+    #[cfg(not(target_os = "wasi"))] // Only used by dxc.
     pub fn prepend_with_line_directive(&self, content: &str, file_name: &str) -> String {
         // Line directive path is a string literal, so escape backslashes.
         let escape = |path: &str| path.replace('\\', "\\\\");

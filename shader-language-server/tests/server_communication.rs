@@ -46,7 +46,7 @@ use shader_sense::shader::{ShaderStage, ShadingLanguage};
 use test_server::{TestFile, TestServer};
 
 use crate::test_server::{
-    get_all_diagnostics, get_error_diagnostics, native_path, use_wasi_server, workspace_path,
+    get_all_diagnostics, get_error_diagnostics, native_path, use_wasi_server,
 };
 
 mod test_server;
@@ -912,20 +912,20 @@ fn test_dependency_tree() {
         },
         |dependency_tree| {
             assert_eq!(
-                dependency_tree.uri.to_file_path().unwrap(),
-                workspace_path("glsl/include-level.comp.glsl")
+                dependency_tree.uri,
+                TestFile::uri_converter("glsl/include-level.comp.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.uri.to_file_path().unwrap(),
-                workspace_path("glsl/inc0/level0.glsl")
+                dependency_tree.uri,
+                TestFile::uri_converter("glsl/inc0/level0.glsl")
             );
             assert!(dependency_tree.includes.len() == 1);
             let dependency_tree = &dependency_tree.includes[0];
             assert_eq!(
-                dependency_tree.uri.to_file_path().unwrap(),
-                workspace_path("glsl/inc0/inc1/level1.glsl")
+                dependency_tree.uri,
+                TestFile::uri_converter("glsl/inc0/inc1/level1.glsl")
             );
             assert!(dependency_tree.includes.len() == 0);
         },

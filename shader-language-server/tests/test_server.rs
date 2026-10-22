@@ -34,6 +34,7 @@ pub fn use_wasi_server() -> bool {
     }
 }
 
+#[allow(dead_code)] // Not used by all test crates.
 pub fn workspace_path(file_path: &str) -> PathBuf {
     assert!(!file_path.contains('\\'), "Use only forward slash.");
     if use_wasi_server() {
@@ -67,7 +68,7 @@ impl TestFile {
         }
     }
     /// Convert an absolute host uri to an uri the server can resolve.
-    fn uri_converter(file_path: &str) -> Url {
+    pub fn uri_converter(file_path: &str) -> Url {
         if use_wasi_server() {
             // Uri only use forward slash as separator, whatever the host.
             let mut uri = Url::parse("file:///").unwrap();

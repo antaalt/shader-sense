@@ -3,6 +3,7 @@
 rustflags = [
   "-C", "link-arg=--initial-memory=13107200", # 65 536 * 200
   # This is a lot, but necessary because glslang has a HUGE memory footprint...
+  # Keep in sync with the memory descriptor of the shader-validator extension, which instantiates the memory.
   "-C", "link-arg=--max-memory=134217728", # 65 536 * 2048
   #"-C", "link-arg=--shared-memory",
   #"-C", "link-arg=--import-memory",
