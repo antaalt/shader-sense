@@ -8,7 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 shader-sense-core.workspace = true
-regex = "1.10.4"
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tree-sitter = "0.25.8"
@@ -20,10 +20,3 @@ tree-sitter-wesl = "0.1.0"
 # Metal does not have rust lib neither tree-sitter
 # Cg too old
 # PSSL proprietary
-
-[target.'cfg(not(target_arch="wasm32"))'.dependencies]
-# cannot load DXC dll in wasi
-# There is an issue to compile DXC statically:
-# https://github.com/Traverse-Research/hassle-rs/issues/57
-hassle-rs = "0.11.0"
-libloading = "0.8.8"

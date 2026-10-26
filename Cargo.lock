@@ -1808,23 +1808,12 @@ name = "shader-sense"
 version = "1.6.1"
 dependencies = [
  "criterion",
- "glslang",
- "hassle-rs",
- "libloading",
- "naga",
  "regex",
- "rspirv",
  "serde",
  "serde_json",
  "shader-sense-core",
  "shader-sense-symbols",
  "shader-sense-validator",
- "tree-sitter",
- "tree-sitter-glsl",
- "tree-sitter-hlsl",
- "tree-sitter-language",
- "tree-sitter-wesl",
- "wesl",
 ]
 
 [[package]]
@@ -1848,8 +1837,6 @@ dependencies = [
 name = "shader-sense-symbols"
 version = "1.6.1"
 dependencies = [
- "hassle-rs",
- "libloading",
  "regex",
  "serde",
  "serde_json",

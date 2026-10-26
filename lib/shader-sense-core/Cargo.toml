@@ -13,4 +13,4 @@ rust-version.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-regex = "1.10.4" # TODO: Only here for error declaration... Should be moved
+regex.workspace = true # TODO: Only here for error declaration... Should be moved

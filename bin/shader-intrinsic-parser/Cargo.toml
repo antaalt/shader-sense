@@ -8,10 +8,10 @@ publish = false
 
 [dependencies]
 shader-sense.workspace = true
-ego-tree = "0.6.3"
-regex = "1.10.6"
-scraper = "0.20.0"
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ego-tree = "0.6.3"
+scraper = "0.20.0"
 ureq = "2.10.1"
 xmltree = "0.10.3"
