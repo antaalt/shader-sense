@@ -10,6 +10,11 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Cancel outdated runs of the same pull request. Runs on main & releases always complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   
   test:
@@ -21,6 +26,10 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --check
+      # Cache dependencies build (glslang, tree-sitter...). Only save from main so that pull requests do not evict it.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # Download dxc dll for tests.
       - name: Download dxc dll.
         uses: robinraju/release-downloader@v1.13
@@ -65,8 +74,12 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }} # Make Rust compile to our target (defined in the matrix)
-      - name: Build desktop executable  # Build all package on supported os.
-        run: cargo build --release --verbose --target ${{ matrix.target }} # Specify target to build into target
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build desktop executable  # Build only the server, other packages are already built by the test job.
+        run: cargo build --package shader_language_server --release --verbose --target ${{ matrix.target }} # Specify target to build into target
       - name: Copy desktop executable
         run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./bin/${{ env.executable }}
         env:
@@ -88,6 +101,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: robinraju/release-downloader@v1.13
         with:
           repository: 'WebAssembly/wasi-sdk'
@@ -126,7 +142,7 @@ jobs:
           CC: clang-17
           CXX: clang++-17
       - name: Test WASI server # Ensure wasi server correctly start with integration test
-        run: cargo test --test '*' -- --nocapture
+        run: cargo test --package shader_language_server --test '*' -- --nocapture
         env:
           USE_WASI_SERVER: "true"
       - name: Build WASI executable # Build only server on WASI
