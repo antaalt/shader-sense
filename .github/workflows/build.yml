@@ -39,10 +39,12 @@ jobs:
           fileName: 'dxc_2024_05_24.zip'
           extract: true
           out-file-path: './dxc'
-      - name: Create target folder
-        run: mkdir -p ./target/debug
+      # Use bash as pwsh mkdir fails if the folder already exists, which happens when restored from cache.
       - name: Copy dxc dll to target folder for tests.
-        run: cp ./dxc/bin/x64/dxcompiler.dll ./target/debug/dxcompiler.dll && cp ./dxc/bin/x64/dxil.dll ./target/debug/dxil.dll
+        shell: bash
+        run: |
+          mkdir -p ./target/debug
+          cp ./dxc/bin/x64/dxcompiler.dll ./dxc/bin/x64/dxil.dll ./target/debug/
       - name: Print dependency tree
         run: cargo tree
       - name: Run tests
@@ -81,6 +83,7 @@ jobs:
       - name: Build desktop executable  # Build only the server, other packages are already built by the test job.
         run: cargo build --package shader_language_server --release --verbose --target ${{ matrix.target }} # Specify target to build into target
       - name: Copy desktop executable
+        shell: bash
         run: mkdir -p ./bin/ && cp ./target/${{ matrix.target }}/release/${{ env.executable }} ./bin/${{ env.executable }}
         env:
           executable: shader-language-server${{ runner.os == 'Windows' && '.exe' || '' }}
