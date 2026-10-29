@@ -301,6 +301,146 @@ mod tests {
         }
     }
     #[test]
+    fn function_overload_hlsl_ok() {
+        let file_path = canonicalize(Path::new("./test/hlsl/overload.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let preprocessed_symbol_list = get_all_preprocessed_symbols::<HlslShadingLanguageTag>(
+            &mut shader_module_parser,
+            &symbol_provider,
+            &file_path,
+            &shader_content,
+        )
+        .unwrap();
+        let symbol_list = preprocessed_symbol_list.as_ref();
+        // Inside main, after every overload is declared.
+        let position = ShaderFilePosition::new(file_path.clone(), 23, 0);
+        let find_signature = |types: Option<&[Option<String>]>| {
+            symbol_list
+                .find_scoped_function_symbol("sum", &position, types)
+                .map(|symbol| match &symbol.data {
+                    ShaderSymbolData::Functions { signatures } => signatures
+                        .iter()
+                        .map(|signature| {
+                            signature
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.ty.clone())
+                                .collect::<Vec<String>>()
+                        })
+                        .collect::<Vec<Vec<String>>>(),
+                    _ => unreachable!(),
+                })
+        };
+        let float = Some("float".to_string());
+        let int = Some("int".to_string());
+        let has_signature = |signatures: Option<Vec<Vec<String>>>, expected: &[&str]| {
+            signatures.is_some_and(|signatures| {
+                signatures.iter().any(|signature| {
+                    signature
+                        .iter()
+                        .map(String::as_str)
+                        .eq(expected.iter().copied())
+                })
+            })
+        };
+        // Exact types select the matching overload.
+        assert!(has_signature(
+            find_signature(Some(&[float.clone()])),
+            &["float"]
+        ));
+        assert!(has_signature(
+            find_signature(Some(&[float.clone(), float.clone()])),
+            &["float", "float"]
+        ));
+        assert!(has_signature(
+            find_signature(Some(&[int.clone(), int.clone()])),
+            &["int", "int"]
+        ));
+        // Unknown types act as wildcards.
+        assert!(has_signature(
+            find_signature(Some(&[None, int.clone()])),
+            &["int", "int"]
+        ));
+        // No types matches any overload.
+        assert!(find_signature(None).is_some());
+        // Mismatching types or parameter count find nothing.
+        assert!(find_signature(Some(&[int.clone()])).is_none());
+        assert!(find_signature(Some(&[float.clone(), int.clone()])).is_none());
+        assert!(find_signature(Some(&[float.clone(), float.clone(), float.clone()])).is_none());
+        assert!(find_signature(Some(&[])).is_none());
+        // Overloads declared after the cursor are not visible.
+        let before_position = ShaderFilePosition::new(file_path.clone(), 4, 0);
+        assert!(symbol_list
+            .find_scoped_function_symbol("sum", &before_position, Some(&[int.clone(), int]))
+            .is_none());
+    }
+    #[test]
+    fn function_overload_from_parent_hlsl_ok() {
+        let file_path = canonicalize(Path::new("./test/hlsl/overload.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let preprocessed_symbol_list = get_all_preprocessed_symbols::<HlslShadingLanguageTag>(
+            &mut shader_module_parser,
+            &symbol_provider,
+            &file_path,
+            &shader_content,
+        )
+        .unwrap();
+        let symbol_list = preprocessed_symbol_list.as_ref();
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+        let find_at = |line: u32, pos: u32, label: &str| {
+            let word = symbol_provider
+                .get_word_range_at_position(&shader_module, &ShaderPosition::new(line, pos))
+                .unwrap_or_else(|err| panic!("No word found at {}:{}: {:?}", line, pos, err));
+            assert_eq!(word.get_word(), label, "Wrong word at {}:{}", line, pos);
+            word.find_symbol_from_parent(file_path.clone(), &symbol_list)
+        };
+        let signatures_of = |symbols: Vec<crate::symbols::symbols::ShaderSymbol>| {
+            symbols
+                .iter()
+                .flat_map(|symbol| match &symbol.data {
+                    ShaderSymbolData::Functions { signatures } => signatures
+                        .iter()
+                        .map(|signature| {
+                            signature
+                                .parameters
+                                .iter()
+                                .map(|parameter| parameter.ty.clone())
+                                .collect::<Vec<String>>()
+                        })
+                        .collect::<Vec<Vec<String>>>(),
+                    _ => panic!("{} is not a function", symbol.label),
+                })
+                .collect::<Vec<Vec<String>>>()
+        };
+        // Called function only return the overload matching argument types.
+        assert_eq!(signatures_of(find_at(26, 15, "make")), vec![vec!["float"]]);
+        assert_eq!(signatures_of(find_at(27, 13, "make")), vec![vec!["int"]]);
+        assert_eq!(
+            signatures_of(find_at(28, 13, "sum")),
+            vec![vec!["int", "int"]]
+        );
+        // Literals type are unknown, so every overload with two parameters match.
+        assert_eq!(
+            signatures_of(find_at(23, 14, "sum")),
+            vec![vec!["float", "float"], vec!["int", "int"]]
+        );
+        // Member is resolved from the return type of the matching overload.
+        let float_value = find_at(26, 23, "floatValue");
+        assert_eq!(float_value.len(), 1);
+        assert_eq!(float_value[0].label, "floatValue");
+        let int_value = find_at(27, 21, "intValue");
+        assert_eq!(int_value.len(), 1);
+        assert_eq!(int_value[0].label, "intValue");
+    }
+    #[test]
     fn uniform_glsl_ok() {
         // Ensure parsing of symbols is OK
         let file_path = Path::new("./test/glsl/uniforms.frag.glsl");

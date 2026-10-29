@@ -47,6 +47,15 @@ pub struct ShaderLabelSignature {
 }
 
 impl ShaderSignature {
+    // Check parameter types match exactly. An unknown type (None) match any parameter.
+    pub fn match_types(&self, types: &[Option<String>]) -> bool {
+        self.parameters.len() == types.len()
+            && self
+                .parameters
+                .iter()
+                .zip(types.iter())
+                .all(|(parameter, ty)| ty.as_ref().map_or(true, |ty| parameter.ty == *ty))
+    }
     pub fn format(&self, label: &str, shading_language: ShadingLanguage) -> String {
         match shading_language {
             ShadingLanguage::Glsl | ShadingLanguage::Hlsl => {

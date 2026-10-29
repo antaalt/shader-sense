@@ -9,7 +9,7 @@ use crate::{
     shader_error::ShaderError,
     symbols::{
         symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
-        symbols::{ShaderSymbolData, ShaderSymbolMode},
+        symbols::{ShaderSignature, ShaderSymbolData, ShaderSymbolMode, ShaderSymbolType},
     },
 };
 
@@ -142,18 +142,31 @@ impl ShaderWordRange {
         file_path: PathBuf,
         symbol_list: &ShaderSymbolListRef,
     ) -> Vec<ShaderSymbol> {
+        let cursor_position = self.range.end.clone_into_file(file_path.clone());
         if self.parent.is_none() {
-            // Could be either a variable, a link, or a type.
-            symbol_list
-                .find_symbols_at(&self.word, &self.range.end.clone_into_file(file_path))
-                .iter()
-                .map(|s| (*s).clone())
-                .collect()
+            // Could be either a variable, a link, a type or a function.
+            let symbols = symbol_list.find_symbols_at(&self.word, &cursor_position);
+            if let Some(types) =
+                symbol_list.find_call_expression_types(&self.range, &cursor_position)
+            {
+                // Called function, only keep the overloads matching the arguments.
+                let filtered_symbols: Vec<ShaderSymbol> = symbols
+                    .iter()
+                    .filter_map(|s| filter_signatures(s, &types))
+                    .collect();
+                // If none match (incomplete call or unknown types), keep all of them.
+                if filtered_symbols
+                    .iter()
+                    .any(|s| s.is_type(ShaderSymbolType::Functions))
+                {
+                    return filtered_symbols;
+                }
+            }
+            symbols.iter().map(|s| (*s).clone()).collect()
         } else {
             // Will be a variable or function (root only), method, or member if chained.
             let stack = self.get_word_stack();
             let mut rev_stack = stack.iter().rev();
-            let cursor_position = self.range.end.clone_into_file(file_path.clone());
             // Leading words might be a namespace qualifier, resolve the longest one.
             let words: Vec<&str> = stack.iter().rev().map(|w| w.get_word()).collect();
             let namespace = (1..words.len()).rev().find_map(|depth| {
@@ -180,9 +193,9 @@ impl ShaderWordRange {
                         &cursor_position,
                     ) {
                         Some(symbol) => match &symbol.data {
-                            ShaderSymbolData::Functions { signatures: _ } => symbol,
-                            ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
-                            ShaderSymbolData::Enum { values: _ } => symbol,
+                            ShaderSymbolData::Functions { signatures: _ } => symbol.clone(),
+                            ShaderSymbolData::Variables { ty: _, count: _ } => symbol.clone(),
+                            ShaderSymbolData::Enum { values: _ } => symbol.clone(),
                             _ => return vec![], // Symbol found is not a variable nor a function.
                         },
                         None => return vec![], // No symbol found in namespace.
@@ -190,67 +203,46 @@ impl ShaderWordRange {
                 }
                 None => match rev_stack.next() {
                     Some(current_word) => {
-                        match symbol_list.find_scoped_symbol(&current_word.word, &cursor_position) {
-                            Some(symbol) => {
-                                match &symbol.data {
-                                    ShaderSymbolData::CallExpression {
-                                        label,
-                                        range: _,
-                                        parameters: _,
-                                    } => {
-                                        match symbol_list
-                                            .find_scoped_function_symbol(label, &cursor_position)
-                                        {
-                                            Some(function) => {
-                                                if let ShaderSymbolData::Functions {
-                                                    signatures: _,
-                                                } = &function.data
-                                                {
-                                                    symbol
-                                                } else {
-                                                    return vec![]; // Not a valid function
-                                                }
-                                            }
-                                            None => return vec![], // No matching function found
-                                        }
+                        // If root is a call, pick the overload matching the arguments.
+                        let function = symbol_list
+                            .find_call_expression_types(&current_word.range, &cursor_position)
+                            .and_then(|types| {
+                                symbol_list
+                                    .find_scoped_function_symbol(
+                                        &current_word.word,
+                                        &cursor_position,
+                                        Some(&types),
+                                    )
+                                    .and_then(|function| filter_signatures(function, &types))
+                            });
+                        match function {
+                            Some(function) => function,
+                            None => match symbol_list
+                                .find_scoped_symbol(&current_word.word, &cursor_position)
+                            {
+                                Some(symbol) => match &symbol.data {
+                                    ShaderSymbolData::Functions { signatures: _ } => symbol.clone(),
+                                    ShaderSymbolData::Variables { ty: _, count: _ } => {
+                                        symbol.clone()
                                     }
-                                    ShaderSymbolData::Functions { signatures: _ } => symbol,
-                                    ShaderSymbolData::Variables { ty: _, count: _ } => symbol,
-                                    ShaderSymbolData::Enum { values: _ } => symbol,
+                                    ShaderSymbolData::Enum { values: _ } => symbol.clone(),
                                     _ => return vec![], // Symbol found is not a variable nor a function.
+                                },
+                                None => {
+                                    return vec![]; // No variable found for main parent.
                                 }
-                            }
-                            None => {
-                                return vec![]; // No variable found for main parent.
-                            }
+                            },
                         }
                     }
                     None => unreachable!("Should always have at least one symbol on this path."),
                 },
             };
             // Now loop over child for matching member elements
-            let mut current_symbols = vec![root_symbol.clone()];
+            let mut current_symbols = vec![root_symbol];
             while let Some(next_item) = &rev_stack.next() {
-                // TODO: for now, we naively pick the first signature.
-                // But we should pick instead the one closest by analyzing parameters.
+                // TODO: for now, we naively pick the first signature for methods.
+                // Root function signatures are already filtered with call arguments if possible.
                 let ty = match &current_symbols[0].data {
-                    // CallExpression & variable will only be called on first iteration
-                    ShaderSymbolData::CallExpression {
-                        label,
-                        range: _,
-                        parameters: _,
-                    } => {
-                        match symbol_list.find_scoped_function_symbol(label, &cursor_position) {
-                            Some(function) => {
-                                if let ShaderSymbolData::Functions { signatures } = &function.data {
-                                    &signatures[0].returnType
-                                } else {
-                                    return vec![]; // Not a valid function
-                                }
-                            }
-                            None => return vec![], // No matching function found
-                        }
-                    }
                     ShaderSymbolData::Enum { values } => match values
                         .iter()
                         .find(|v| v.label == next_item.get_word())
@@ -316,6 +308,25 @@ impl ShaderWordRange {
             }
             current_symbols
         }
+    }
+}
+
+// Only keep the function signatures matching the types. None if no signature match.
+// Symbols that are not functions are kept as is.
+fn filter_signatures(symbol: &ShaderSymbol, types: &[Option<String>]) -> Option<ShaderSymbol> {
+    match &symbol.data {
+        ShaderSymbolData::Functions { signatures } => {
+            let signatures: Vec<ShaderSignature> = signatures
+                .iter()
+                .filter(|signature| signature.match_types(types))
+                .cloned()
+                .collect();
+            (!signatures.is_empty()).then(|| ShaderSymbol {
+                data: ShaderSymbolData::Functions { signatures },
+                ..symbol.clone()
+            })
+        }
+        _ => Some(symbol.clone()),
     }
 }
 

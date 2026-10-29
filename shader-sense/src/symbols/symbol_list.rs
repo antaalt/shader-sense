@@ -2,9 +2,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    position::ShaderFilePosition,
+    position::{ShaderFilePosition, ShaderRange},
     symbols::symbols::{
-        ShaderNamespace, ShaderSymbol, ShaderSymbolMode, ShaderSymbolRuntime, ShaderSymbolType,
+        ShaderNamespace, ShaderSymbol, ShaderSymbolData, ShaderSymbolMode, ShaderSymbolRuntime,
+        ShaderSymbolType,
     },
 };
 
@@ -351,14 +352,65 @@ impl<'a> ShaderSymbolListRef<'a> {
         &'a self,
         label: &str,
         cursor_position: &ShaderFilePosition,
+        types: Option<&[Option<String>]>,
     ) -> Option<&'a ShaderSymbol> {
         let namespace = self.find_namespace_at(cursor_position);
         self.functions
             .iter()
             .find(|s| {
-                s.label == *label && Self::is_symbol_defined_at(s, cursor_position, &namespace)
+                s.label == *label
+                    && Self::is_symbol_defined_at(s, cursor_position, &namespace)
+                    && match &s.data {
+                        // Any overload whose parameter types match exactly.
+                        ShaderSymbolData::Functions { signatures } => match types {
+                            Some(types) => signatures.iter().any(|s| s.match_types(types)),
+                            None => true, // Keep if no type specified.
+                        },
+                        _ => false, // Not possible technically
+                    }
             })
             .map(|s| *s)
+    }
+    // Get the argument types of the call expression whose label is at label_range.
+    // Arguments whose type cannot be deduced are None.
+    pub fn find_call_expression_types(
+        &'a self,
+        label_range: &ShaderRange,
+        cursor_position: &ShaderFilePosition,
+    ) -> Option<Vec<Option<String>>> {
+        let parameters = self
+            .call_expression
+            .iter()
+            .find_map(|s| match (&s.data, &s.mode) {
+                (
+                    ShaderSymbolData::CallExpression {
+                        label: _,
+                        range,
+                        parameters,
+                    },
+                    ShaderSymbolMode::Runtime(runtime),
+                ) if range == label_range
+                    && runtime.file_path.as_os_str() == cursor_position.file_path.as_os_str() =>
+                {
+                    Some(parameters)
+                }
+                _ => None,
+            })?;
+        Some(
+            parameters
+                .iter()
+                .map(|(argument, _)| {
+                    // TODO: deduce type of literals & expressions.
+                    match self.find_scoped_symbol(argument, cursor_position) {
+                        Some(ShaderSymbol {
+                            data: ShaderSymbolData::Variables { ty, count: _ },
+                            ..
+                        }) => Some(ty.clone()),
+                        _ => None,
+                    }
+                })
+                .collect(),
+        )
     }
     pub fn find_scoped_type_symbol(
         &'a self,
