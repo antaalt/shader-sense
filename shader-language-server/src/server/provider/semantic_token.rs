@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::num::NonZero;
+use std::ops::Range;
 
 use log::warn;
 use lru::LruCache;
@@ -19,6 +20,58 @@ impl ServerLanguage {
             regex::Regex::new(format!("\\b({})\\b", regex::escape(label)).as_str()).unwrap()
         })
     }
+    /// Find byte ranges of comments in content, sorted & non overlapping.
+    /// Comment syntax is shared by all supported languages. Nested block comments (WGSL) are not handled.
+    fn find_comment_ranges(content: &str) -> Vec<Range<usize>> {
+        let bytes = content.as_bytes();
+        let mut ranges = Vec::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'"' => {
+                    // Skip strings (such as include path) as they might contain comment delimiters.
+                    i += 1;
+                    while i < bytes.len() && bytes[i] != b'"' && bytes[i] != b'\n' {
+                        i += if bytes[i] == b'\\' { 2 } else { 1 };
+                    }
+                    i += 1;
+                }
+                b'/' if bytes.get(i + 1) == Some(&b'/') => {
+                    let start = i;
+                    i += 2;
+                    // Line comment ends with the line, unless it is continued with a backslash.
+                    while i < bytes.len() {
+                        if bytes[i] == b'\n' {
+                            let line = &bytes[start..i];
+                            let line = line.strip_suffix(b"\r").unwrap_or(line);
+                            if !line.ends_with(b"\\") {
+                                break;
+                            }
+                        }
+                        i += 1;
+                    }
+                    ranges.push(start..i);
+                }
+                b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                    let start = i;
+                    // Unterminated block comment goes until the end of file.
+                    i = content[i + 2..]
+                        .find("*/")
+                        .map_or(bytes.len(), |end| i + 2 + end + 2);
+                    ranges.push(start..i);
+                }
+                _ => i += 1,
+            }
+        }
+        ranges
+    }
+    /// Check if byte offset is in a comment, using ranges from [`Self::find_comment_ranges`].
+    fn is_in_comment(comment_ranges: &[Range<usize>], byte_offset: usize) -> bool {
+        let index = comment_ranges.partition_point(|range| range.end <= byte_offset);
+        comment_ranges
+            .get(index)
+            .is_some_and(|range| range.contains(&byte_offset))
+    }
     fn find_macros(&mut self, uri: &Url) -> Result<Vec<SemanticToken>, ServerLanguageError> {
         // Do not use get_cachable_file as it will borrow whole self.
         let cached_file = self
@@ -28,6 +81,7 @@ impl ServerLanguage {
             .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
+        let comment_ranges = Self::find_comment_ranges(content);
         Ok(symbols
             .macros
             .iter()
@@ -51,18 +105,17 @@ impl ServerLanguage {
                     }
                     _ => 0, // Not runtime means no range means its everywhere
                 };
-                // Need to ignore comment aswell... Might need tree sitter instead.
-                // Looking for preproc_arg & identifier might be enough.
                 // Need to check for regions too...
                 let reg = Self::get_regex(&symbol.label, &mut self.regex_cache);
                 let word_byte_offsets: Vec<usize> = reg
                     .captures_iter(&content[byte_offset_start..])
                     .map(|e| e.get(0).unwrap().range().start + byte_offset_start)
+                    .filter(|byte_offset| !Self::is_in_comment(&comment_ranges, *byte_offset))
                     .collect();
                 Ok(word_byte_offsets
                     .iter()
                     .filter_map(|byte_offset| {
-                        match ShaderPosition::from_byte_offset(&content, *byte_offset) {
+                        match ShaderPosition::from_byte_offset(content, *byte_offset) {
                             Ok(position) => {
                                 Some(SemanticToken {
                                     delta_line: position.line,
@@ -89,6 +142,7 @@ impl ServerLanguage {
             .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
+        let comment_ranges = Self::find_comment_ranges(content);
         Ok(symbols
             .types
             .iter()
@@ -123,6 +177,7 @@ impl ServerLanguage {
                     let word_byte_offsets: Vec<usize> = reg
                         .captures_iter(&content[byte_offset_start..])
                         .map(|c| c.get(0).unwrap().range().start + byte_offset_start)
+                        .filter(|byte_offset| !Self::is_in_comment(&comment_ranges, *byte_offset))
                         .collect();
                     tokens.extend(
                         word_byte_offsets
@@ -149,6 +204,9 @@ impl ServerLanguage {
                         let word_byte_offsets: Vec<usize> = reg
                             .captures_iter(&content[byte_offset_start..])
                             .map(|e| e.get(0).unwrap().range().start + byte_offset_start)
+                            .filter(|byte_offset| {
+                                !Self::is_in_comment(&comment_ranges, *byte_offset)
+                            })
                             .collect();
                         tokens.extend(
                             word_byte_offsets
@@ -189,6 +247,7 @@ impl ServerLanguage {
             .ok_or(ServerLanguageError::FileNotWatched(uri.clone()))?;
         let symbols = self.watched_files.get_all_symbols(&uri);
         let content = &RefCell::borrow(&cached_file.shader_module).content;
+        let comment_ranges = Self::find_comment_ranges(content);
         Ok(symbols
             .functions
             .iter()
@@ -226,6 +285,9 @@ impl ServerLanguage {
                                             .captures_iter(&content[content_start..content_end])
                                             .map(|e| {
                                                 e.get(0).unwrap().range().start + content_start
+                                            })
+                                            .filter(|byte_offset| {
+                                                !Self::is_in_comment(&comment_ranges, *byte_offset)
                                             })
                                             .collect();
                                         tokens.extend(
@@ -341,5 +403,30 @@ impl ServerLanguage {
             result_id: None,
             data: tokens,
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn is_in_comment(content: &str, word: &str) -> bool {
+        let ranges = ServerLanguage::find_comment_ranges(content);
+        ServerLanguage::is_in_comment(&ranges, content.find(word).unwrap())
+    }
+
+    #[test]
+    fn test_is_in_comment() {
+        assert!(!is_in_comment("int MACRO = 0;", "MACRO"));
+        assert!(is_in_comment("int a; // MACRO\nint b;", "MACRO"));
+        assert!(!is_in_comment("int a; // comment\nint MACRO;", "MACRO"));
+        assert!(!is_in_comment("int a; // comment\r\nint MACRO;", "MACRO"));
+        assert!(is_in_comment("a /* x\nMACRO\n*/ b", "MACRO"));
+        assert!(!is_in_comment("a /* x */ MACRO", "MACRO"));
+        assert!(is_in_comment("a /* unterminated MACRO", "MACRO"));
+        assert!(is_in_comment("// continued \\\nMACRO", "MACRO"));
+        assert!(is_in_comment("// continued \\\r\nMACRO", "MACRO"));
+        assert!(!is_in_comment("#include \"a//b.h\"\nMACRO", "MACRO"));
+        assert!(!is_in_comment("#include \"a/*b.h\"\nMACRO", "MACRO"));
     }
 }
