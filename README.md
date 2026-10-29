@@ -8,7 +8,7 @@ Shader sense is a library for runtime validation and symbol inspection that can 
 
 - **GLSL** uses [glslang-rs](https://github.com/SnowflakePowered/glslang-rs) as backend. It provide complete linting for GLSL trough glslang API bindings from C.
 - **HLSL** uses [hassle-rs](https://github.com/Traverse-Research/hassle-rs) as backend. It provides bindings to directx shader compiler in rust.
-- **WGSL** uses [naga](https://github.com/gfx-rs/naga) as backend for linting.
+- **WGSL** uses [naga](https://github.com/gfx-rs/naga) as backend for linting, and [wesl-rs](https://github.com/webgpu-tools/wesl-rs) for resolving import and macros.
 
 For symbol inspection, the API is relying on abstract syntax tree. As we want to support different language, and also for performances reason as we need to edit AST at runtime, we are using the [tree-sitter](https://tree-sitter.github.io/tree-sitter/) API (instead of standard API), which generate AST with query support, and is already available in a lot of languages.
 
