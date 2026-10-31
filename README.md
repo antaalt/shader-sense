@@ -1,5 +1,6 @@
 # Shader sense
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/ZMuYD9wnBW)
 [![shader-sense](https://img.shields.io/crates/v/shader-sense?label=shader-sense)](https://crates.io/crates/shader-sense)
 [![shader-sense-cli](https://img.shields.io/crates/v/shader-sense?label=shader-sense-cli)](https://crates.io/crates/shader-sense-cli)
 [![shader-language-server](https://img.shields.io/crates/v/shader-language-server?label=shader-language-server)](https://crates.io/crates/shader-language-server)
