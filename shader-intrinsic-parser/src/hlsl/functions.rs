@@ -2045,7 +2045,7 @@ impl HlslIntrinsicParser {
                 ShaderParameter {
                     count: None,
                     ty: v.format(),
-                    label: "x".into(),
+                    label: "y".into(),
                     description: "The second-floating point value.".into(),
                     range:None,
                     modifier: None,
