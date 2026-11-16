@@ -446,6 +446,15 @@ impl ValidatorImpl for Glslang {
                 glslang::ShaderOptions::DEFAULT
             },
         );
+        // `glslang_shader_preprocess` honours `default_version`/`force_default_version_and_profile`,
+        // but `glslang_shader_parse` re-parses the preprocessed text with the non-forcing overload,
+        // so the version carried by the source's `#version` line wins again. `setOverrideVersion`
+        // (what `glslangValidator --glsl-version` uses) is forwarded to both stages.
+        if !self.hlsl {
+            if let Some(version) = params.compilation.glsl.version {
+                builder.glsl_version(version.version as i32);
+            }
+        }
         let shader = match builder
             .parse()
             .map_err(|e| self.from_glslang_error(e, file_path, &params, preamble_line_offset))
