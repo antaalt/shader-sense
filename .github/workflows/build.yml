@@ -118,14 +118,8 @@ jobs:
               echo "WASI_SYSROOT=$(echo $GITHUB_WORKSPACE)/wasi-sysroot-24.0/" >> $GITHUB_ENV
               echo $WASI_SYSROOT
               ls -f $WASI_SYSROOT
-      - name: Download latest clang
-        run: |
-              sudo apt update
-              wget https://apt.llvm.org/llvm.sh
-              chmod +x ./llvm.sh
-              sudo ./llvm.sh 17
-              clang --version
-              clang-17 --version
+      - name: Check clang version
+        run: clang --version
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
       - name: Install wasmtime as test runner.
@@ -141,18 +135,12 @@ jobs:
         run: wasmtime --version
       - name: Test WASI # Test only server & main library on WASI. Skip doc test as they are already done and somehow get OOM.
         run: cargo test --package shader_language_server --package shader-sense --all-targets --target wasm32-wasip1-threads -- --nocapture
-        env: # Somehow this VM has clang14 by default, which is not supported...
-          CC: clang-17
-          CXX: clang++-17
       - name: Test WASI server # Ensure wasi server correctly start with integration test
         run: cargo test --package shader_language_server --test '*' -- --nocapture
         env:
           USE_WASI_SERVER: "true"
       - name: Build WASI executable # Build only server on WASI
         run: cargo build --package shader_language_server --release --target wasm32-wasip1-threads --verbose
-        env: # Somehow this VM has clang14 by default, which is not supported...
-          CC: clang-17
-          CXX: clang++-17
       - name: Copy WASI executables
         run: mkdir -p ./bin/ && cp ./target/wasm32-wasip1-threads/release/shader-language-server.wasm ./bin/shader-language-server.wasm
       - name: Upload artifact
