@@ -110,12 +110,12 @@ jobs:
       - uses: robinraju/release-downloader@v1.13
         with:
           repository: 'WebAssembly/wasi-sdk'
-          tag: 'wasi-sdk-24'
-          fileName: 'wasi-sysroot-24.0.tar.gz'
+          tag: 'wasi-sdk-34'
+          fileName: 'wasi-sysroot-34.0.tar.gz'
           extract: true
       - name: Setup WASI_SYSROOT
         run: |
-              echo "WASI_SYSROOT=$(echo $GITHUB_WORKSPACE)/wasi-sysroot-24.0/" >> $GITHUB_ENV
+              echo "WASI_SYSROOT=$(echo $GITHUB_WORKSPACE)/wasi-sysroot-34.0/" >> $GITHUB_ENV
               echo $WASI_SYSROOT
               ls -f $WASI_SYSROOT
       - name: Check clang version
