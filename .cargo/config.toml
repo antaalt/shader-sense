@@ -21,3 +21,11 @@ runner = "wasmtime --wasm shared-memory=y --wasi threads=y --dir ../shader-sense
 #CC_wasm32_wasip1_threads = "your/path/to/wasi-sdk/bin/clang.exe"
 #CXX_wasm32_wasip1_threads = "your/path/to/wasi-sdk/bin/clang++.exe"
 #WASI_SYSROOT= "your/path/to/wasi-sysroot"
+# Since wasi-sdk 34, also link against the sysroot crt & libs (libc++ moved to noeh/, and rustc bundled crt1 is too old):
+#[target.wasm32-wasip1-threads]
+#rustflags = [
+#  "-C", "link-self-contained=no",
+#  "-C", "link-arg=your/path/to/wasi-sysroot/lib/wasm32-wasip1-threads/crt1-command.o",
+#  "-L", "native=your/path/to/wasi-sysroot/lib/wasm32-wasip1-threads",
+#  "-L", "native=your/path/to/wasi-sysroot/lib/wasm32-wasip1-threads/noeh",
+#]

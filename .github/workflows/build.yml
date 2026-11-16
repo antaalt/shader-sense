@@ -114,10 +114,17 @@ jobs:
           fileName: 'wasi-sysroot-34.0.tar.gz'
           extract: true
       - name: Setup WASI_SYSROOT
+        # Since wasi-sdk 34, libc++ is split into eh/noeh subfolders that cc-rs does not add to the link path,
+        # and the wasi-libc is newer than the crt1 bundled with rustc (missing __wasi_init_tp).
+        # So link against the sysroot crt & libs instead of rustc self-contained ones.
+        # These flags are merged with the target rustflags of .cargo/config.toml.
         run: |
-              echo "WASI_SYSROOT=$(echo $GITHUB_WORKSPACE)/wasi-sysroot-34.0/" >> $GITHUB_ENV
-              echo $WASI_SYSROOT
+              WASI_SYSROOT="$GITHUB_WORKSPACE/wasi-sysroot-34.0"
+              WASI_LIB="$WASI_SYSROOT/lib/wasm32-wasip1-threads"
+              echo "WASI_SYSROOT=$WASI_SYSROOT" >> $GITHUB_ENV
+              echo "CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS=-C link-self-contained=no -C link-arg=$WASI_LIB/crt1-command.o -L native=$WASI_LIB -L native=$WASI_LIB/noeh" >> $GITHUB_ENV
               ls -f $WASI_SYSROOT
+              ls -f $WASI_LIB
       - name: Check clang version
         run: clang --version
       - name: Add target
