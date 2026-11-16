@@ -6,6 +6,7 @@ use crate::position::ShaderRange;
 use crate::symbols::symbol_parser::ShaderSymbolListBuilder;
 use crate::symbols::symbols::{
     ShaderEnumValue, ShaderMember, ShaderSymbolArray, ShaderSymbolMode, ShaderSymbolRuntime,
+    ShaderTemplateParameter,
 };
 
 use crate::symbols::{
@@ -14,6 +15,47 @@ use crate::symbols::{
         ShaderMethod, ShaderParameter, ShaderScope, ShaderSignature, ShaderSymbol, ShaderSymbolData,
     },
 };
+
+// Get the template parameters of a declaration, or nothing if it is not templated.
+fn get_template_parameters(
+    declaration: tree_sitter::Node,
+    shader_content: &str,
+) -> Vec<ShaderTemplateParameter> {
+    let Some(parameters) = declaration
+        .parent()
+        .filter(|parent| parent.kind() == "template_declaration")
+        .and_then(|parent| parent.child_by_field_name("parameters"))
+    else {
+        return Vec::new();
+    };
+    let mut cursor = parameters.walk();
+    let template_parameters = parameters
+        .named_children(&mut cursor)
+        .filter_map(|parameter| {
+            let (label, default) = match parameter.kind() {
+                "type_parameter_declaration" | "variadic_type_parameter_declaration" => {
+                    (parameter.named_child(0), None)
+                }
+                "optional_type_parameter_declaration" => (
+                    parameter.child_by_field_name("name"),
+                    parameter.child_by_field_name("default_type"),
+                ),
+                // Non type parameter such as `int N`
+                "parameter_declaration" => (parameter.child_by_field_name("declarator"), None),
+                "optional_parameter_declaration" => (
+                    parameter.child_by_field_name("declarator"),
+                    parameter.child_by_field_name("default_value"),
+                ),
+                _ => (None, None),
+            };
+            label.map(|label| ShaderTemplateParameter {
+                label: get_name(shader_content, label).into(),
+                default: default.map(|default| get_name(shader_content, default).into()),
+            })
+        })
+        .collect();
+    template_parameters
+}
 
 pub fn get_hlsl_parsers() -> Vec<Box<dyn SymbolTreeParser>> {
     vec![
@@ -116,6 +158,11 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
                 }
             })
             .collect::<Vec<ShaderParameter>>();
+        // Body parent is the function definition, which might be templated.
+        let template_parameters = scope_node
+            .parent()
+            .map(|function| get_template_parameters(function, shader_content))
+            .unwrap_or_default();
         symbols.add_function(ShaderSymbol {
             label: get_name(shader_content, symbol_match.captures[1].node).into(),
             requirement: None,
@@ -126,12 +173,10 @@ impl SymbolTreeParser for HlslFunctionTreeParser {
                     parameters: parameters,
                 }],
             },
-            mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
-                file_path.into(),
-                range,
-                Some(scope_range),
-                scope_stack,
-            )),
+            mode: ShaderSymbolMode::Runtime(
+                ShaderSymbolRuntime::new(file_path.into(), range, Some(scope_range), scope_stack)
+                    .with_template_parameters(template_parameters),
+            ),
         });
     }
 }
@@ -260,6 +305,11 @@ impl SymbolTreeParser for HlslStructTreeParser {
                     .collect::<Vec<ShaderMember>>(),
             )
         }
+        // Struct might be templated.
+        let template_parameters = label_node
+            .parent()
+            .map(|struct_node| get_template_parameters(struct_node, shader_content))
+            .unwrap_or_default();
         symbols.add_type(ShaderSymbol {
             label: struct_name,
             requirement: None,
@@ -269,12 +319,10 @@ impl SymbolTreeParser for HlslStructTreeParser {
                 methods: methods.concat(),
             },
             // TODO: compute scope
-            mode: ShaderSymbolMode::Runtime(ShaderSymbolRuntime::new(
-                file_path.into(),
-                range,
-                None,
-                scope_stack,
-            )),
+            mode: ShaderSymbolMode::Runtime(
+                ShaderSymbolRuntime::new(file_path.into(), range, None, scope_stack)
+                    .with_template_parameters(template_parameters),
+            ),
         });
     }
 }
@@ -286,14 +334,11 @@ struct HlslVariableTreeParser {
 impl SymbolTreeParser for HlslVariableTreeParser {
     fn get_query(&self) -> String {
         let field_prestring = if self.is_field { "field_" } else { "" };
-        // TODO: handle basic templating.
         format!(
             r#"({}declaration
             (qualifiers)?
             type: [
-                (template_type
-                    name: (type_identifier) @variable.type
-                )
+                (template_type) @variable.type
                 (identifier) @variable.type
                 (type_identifier) @variable.type
                 (primitive_type) @variable.type

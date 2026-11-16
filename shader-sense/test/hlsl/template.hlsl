@@ -1,7 +1,7 @@
 template <typename T, typename A = float>
 struct TemplatedType {
     T type;
-    float type2;
+    A type2;
 };
 
 struct Type {
@@ -39,6 +39,10 @@ void main() {
   TemplatedType<float> oui;
   increment<float>(oui, 2.0);
   increment(oui, 5.0);
+  increment(oui, value);
+  oui.type = value;
+  TemplatedType<int, half> other;
+  other.type2 = 0;
   sizeof(float);
   sizeof(Type);
   sizeof(TemplatedType<float>);

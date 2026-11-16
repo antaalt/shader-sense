@@ -441,6 +441,81 @@ mod tests {
         assert_eq!(int_value[0].label, "intValue");
     }
     #[test]
+    fn template_hlsl_ok() {
+        let file_path = canonicalize(Path::new("./test/hlsl/template.hlsl")).unwrap();
+        let shader_content = std::fs::read_to_string(&file_path).unwrap();
+        let mut shader_module_parser =
+            ShaderModuleParser::from_shading_language(ShadingLanguage::Hlsl);
+        let symbol_provider = SymbolProvider::from_shading_language(ShadingLanguage::Hlsl);
+        let preprocessed_symbol_list = get_all_preprocessed_symbols::<HlslShadingLanguageTag>(
+            &mut shader_module_parser,
+            &symbol_provider,
+            &file_path,
+            &shader_content,
+        )
+        .unwrap();
+        let symbol_list = preprocessed_symbol_list.as_ref();
+        let shader_module = shader_module_parser
+            .create_module(&file_path, &shader_content)
+            .unwrap();
+        let word_at = |line: u32, pos: u32, label: &str| {
+            let word = symbol_provider
+                .get_word_range_at_position(&shader_module, &ShaderPosition::new(line, pos))
+                .unwrap_or_else(|err| panic!("No word found at {}:{}: {:?}", line, pos, err));
+            assert_eq!(word.get_word(), label, "Wrong word at {}:{}", line, pos);
+            word
+        };
+        // Templated function called with a templated struct & a typed variable must match.
+        let word = word_at(41, 3, "increment");
+        let position = word.get_range().end.clone_into_file(file_path.clone());
+        let types = symbol_list
+            .find_call_expression_types(word.get_range(), &position)
+            .expect("increment should be a call expression");
+        assert!(
+            symbol_list
+                .find_scoped_function_symbol("increment", &position, Some(&types))
+                .is_some(),
+            "Templated overload not matched for argument types {:?}",
+            types
+        );
+        // Member of a parameter with a templated type is resolved from the struct.
+        let member =
+            word_at(14, 5, "type").find_symbol_from_parent(file_path.clone(), &symbol_list);
+        assert_eq!(member.len(), 1, "Member of templated parameter not found");
+        assert_eq!(member[0].label, "type");
+        // Variable with a templated type keep its template arguments.
+        let variable =
+            word_at(40, 13, "oui").find_symbol_from_parent(file_path.clone(), &symbol_list);
+        assert_eq!(variable.len(), 1, "Variable with templated type not found");
+        match &variable[0].data {
+            ShaderSymbolData::Variables { ty, count: _ } => {
+                assert_eq!(ty, "TemplatedType<float>")
+            }
+            data => panic!("oui is not a variable: {:#?}", data),
+        }
+        // Members of templated struct are instantiated with the type arguments, or the default ones.
+        let member_type = |line: u32, pos: u32, label: &str| {
+            let member =
+                word_at(line, pos, label).find_symbol_from_parent(file_path.clone(), &symbol_list);
+            assert_eq!(
+                member.len(),
+                1,
+                "Member {} not found at {}:{}",
+                label,
+                line,
+                pos
+            );
+            match &member[0].data {
+                ShaderSymbolData::Parameter { ty, .. } => ty.clone(),
+                data => panic!("{} is not a member: {:#?}", label, data),
+            }
+        };
+        assert_eq!(member_type(42, 7, "type"), "float");
+        assert_eq!(member_type(44, 9, "type2"), "half");
+        // Templated parameter has unbound arguments.
+        assert_eq!(member_type(14, 5, "type"), "T");
+    }
+    #[test]
     fn uniform_glsl_ok() {
         // Ensure parsing of symbols is OK
         let file_path = Path::new("./test/glsl/uniforms.frag.glsl");
@@ -709,12 +784,11 @@ mod tests {
         let (_, _, symbols) = query_macro_expansion_symbols();
         // Variables declared through macros, with their expanded type.
         for (label, expected_ty) in [
-            // TODO: No template <Material> for ConstantBuffer
-            ("gMaterial", "ConstantBuffer"),
-            ("gNested", "ConstantBuffer"), // Nested macro CBUFFER_SLOT0 -> CBUFFER
+            ("gMaterial", "ConstantBuffer<Material>"),
+            ("gNested", "ConstantBuffer<Material>"), // Nested macro CBUFFER_SLOT0 -> CBUFFER
             ("gAlbedo", "Texture2D"),
             ("gAlbedoSampler", "SamplerState"), // Token pasting Name##Sampler
-            ("gBatch", "ConstantBuffer"),
+            ("gBatch", "ConstantBuffer<Material>"),
         ] {
             match &find_unique(&symbols.variables, label).data {
                 ShaderSymbolData::Variables { ty, count: _ } => {

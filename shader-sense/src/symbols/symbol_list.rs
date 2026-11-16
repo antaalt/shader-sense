@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     position::{ShaderFilePosition, ShaderRange},
     symbols::symbols::{
-        ShaderNamespace, ShaderSymbol, ShaderSymbolData, ShaderSymbolMode, ShaderSymbolRuntime,
-        ShaderSymbolType,
+        split_template_type, ShaderNamespace, ShaderSymbol, ShaderSymbolData, ShaderSymbolMode,
+        ShaderSymbolRuntime, ShaderSymbolType,
     },
 };
 
@@ -363,7 +363,9 @@ impl<'a> ShaderSymbolListRef<'a> {
                     && match &s.data {
                         // Any overload whose parameter types match exactly.
                         ShaderSymbolData::Functions { signatures } => match types {
-                            Some(types) => signatures.iter().any(|s| s.match_types(types)),
+                            Some(types) => signatures.iter().any(|signature| {
+                                signature.match_types(types, s.mode.get_template_parameters())
+                            }),
                             None => true, // Keep if no type specified.
                         },
                         _ => false, // Not possible technically
@@ -418,6 +420,8 @@ impl<'a> ShaderSymbolListRef<'a> {
         cursor_position: &ShaderFilePosition,
     ) -> Option<&'a ShaderSymbol> {
         let namespace = self.find_namespace_at(cursor_position);
+        // Templated types are declared without their arguments.
+        let (label, _) = split_template_type(label);
         self.types
             .iter()
             .find(|s| {
@@ -453,6 +457,8 @@ impl<'a> ShaderSymbolListRef<'a> {
             .map(|s| *s)
     }
     pub fn find_type_symbol(&'a self, label: &str) -> Option<&'a ShaderSymbol> {
+        // Templated types are declared without their arguments.
+        let (label, _) = split_template_type(label);
         self.types.iter().find(|s| s.label == *label).map(|s| *s)
     }
     pub fn filter<P: Fn(ShaderSymbolType, &ShaderSymbol) -> bool>(

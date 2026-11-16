@@ -1,5 +1,8 @@
 //! Trait and helper to parse tree-sitter AST
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use tree_sitter::{Node, QueryMatch};
 
@@ -9,7 +12,10 @@ use crate::{
     shader_error::ShaderError,
     symbols::{
         symbol_list::{ShaderSymbolList, ShaderSymbolListRef},
-        symbols::{ShaderSignature, ShaderSymbolData, ShaderSymbolMode, ShaderSymbolType},
+        symbols::{
+            get_template_bindings, substitute_template_type, ShaderSignature, ShaderSymbolData,
+            ShaderSymbolMode, ShaderSymbolType,
+        },
     },
 };
 
@@ -270,6 +276,8 @@ impl ShaderWordRange {
                     Some(ty_symbol) => ty_symbol,
                     None => return vec![], // No matching type found
                 };
+                // Members of a templated struct are instantiated with the arguments of the type.
+                let bindings = get_template_bindings(symbol_ty.mode.get_template_parameters(), ty);
                 // Find the variable chained from the type.
                 let symbols: Vec<ShaderSymbol> = match &symbol_ty.data {
                     ShaderSymbolData::Struct {
@@ -286,12 +294,16 @@ impl ShaderWordRange {
                         let member_symbols: Vec<ShaderSymbol> = members
                             .iter()
                             .filter(|m| m.parameters.label == next_item.word)
-                            .map(|m| m.as_symbol(file_path.clone()))
+                            .map(|m| {
+                                instantiate_template(m.as_symbol(file_path.clone()), &bindings)
+                            })
                             .collect();
                         let method_symbols: Vec<ShaderSymbol> = methods
                             .iter()
                             .filter(|m| m.label == next_item.word)
-                            .map(|m| m.as_symbol(file_path.clone()))
+                            .map(|m| {
+                                instantiate_template(m.as_symbol(file_path.clone()), &bindings)
+                            })
                             .collect();
                         [member_symbols, method_symbols].concat()
                     }
@@ -311,6 +323,26 @@ impl ShaderWordRange {
     }
 }
 
+// Replace template parameters in the types of a member or method with the type they are bound to.
+fn instantiate_template(
+    mut symbol: ShaderSymbol,
+    bindings: &HashMap<String, String>,
+) -> ShaderSymbol {
+    match &mut symbol.data {
+        ShaderSymbolData::Parameter { ty, .. } => *ty = substitute_template_type(ty, bindings),
+        ShaderSymbolData::Method { signatures, .. } => {
+            for signature in signatures {
+                signature.returnType = substitute_template_type(&signature.returnType, bindings);
+                for parameter in &mut signature.parameters {
+                    parameter.ty = substitute_template_type(&parameter.ty, bindings);
+                }
+            }
+        }
+        _ => {}
+    }
+    symbol
+}
+
 // Only keep the function signatures matching the types. None if no signature match.
 // Symbols that are not functions are kept as is.
 fn filter_signatures(symbol: &ShaderSymbol, types: &[Option<String>]) -> Option<ShaderSymbol> {
@@ -318,7 +350,9 @@ fn filter_signatures(symbol: &ShaderSymbol, types: &[Option<String>]) -> Option<
         ShaderSymbolData::Functions { signatures } => {
             let signatures: Vec<ShaderSignature> = signatures
                 .iter()
-                .filter(|signature| signature.match_types(types))
+                .filter(|signature| {
+                    signature.match_types(types, symbol.mode.get_template_parameters())
+                })
                 .cloned()
                 .collect();
             (!signatures.is_empty()).then(|| ShaderSymbol {

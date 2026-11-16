@@ -1,5 +1,5 @@
 //! Description of a symbol
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +31,119 @@ impl ShaderParameter {
     }
 }
 
+// Split a type such as `Foo<T, Bar<float> >` into its base name `Foo` and its template arguments `[T, Bar<float>]`.
+pub fn split_template_type(ty: &str) -> (&str, Vec<&str>) {
+    let (Some(start), Some(end)) = (ty.find('<'), ty.rfind('>')) else {
+        return (ty.trim(), Vec::new());
+    };
+    if end < start {
+        return (ty.trim(), Vec::new());
+    }
+    let mut arguments = Vec::new();
+    let mut depth = 0;
+    let mut argument_start = start + 1;
+    for (i, c) in ty[..end].char_indices().skip_while(|(i, _)| *i <= start) {
+        match c {
+            '<' | '(' => depth += 1,
+            '>' | ')' => depth -= 1,
+            ',' if depth == 0 => {
+                arguments.push(ty[argument_start..i].trim());
+                argument_start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    let last = ty[argument_start..end].trim();
+    if !last.is_empty() || !arguments.is_empty() {
+        arguments.push(last);
+    }
+    (ty[..start].trim(), arguments)
+}
+
+// Check that type matches expected type, where template parameters of expected type are bound to the type they match.
+fn match_type<'a>(
+    expected: &'a str,
+    ty: &'a str,
+    template_parameters: &[ShaderTemplateParameter],
+    bindings: &mut HashMap<&'a str, &'a str>,
+) -> bool {
+    let expected = expected.trim();
+    let ty = ty.trim();
+    if template_parameters.iter().any(|p| p.label == expected) {
+        return *bindings.entry(expected).or_insert(ty) == ty;
+    }
+    let (expected_base, expected_arguments) = split_template_type(expected);
+    let (base, arguments) = split_template_type(ty);
+    // Arguments with default value might be omitted, so only compare the given ones.
+    // TODO: should compare omitted ones against the default value of the struct.
+    expected_base == base
+        && expected_arguments
+            .iter()
+            .zip(arguments.iter())
+            .all(|(expected, ty)| match_type(expected, ty, template_parameters, bindings))
+}
+
+// Bind the template parameters of a templated type to the arguments of its instantiation `ty`.
+// Omitted arguments use their default value, which might depend on previous parameters.
+pub fn get_template_bindings(
+    template_parameters: &[ShaderTemplateParameter],
+    ty: &str,
+) -> HashMap<String, String> {
+    let (_, arguments) = split_template_type(ty);
+    let mut bindings = HashMap::new();
+    for (i, parameter) in template_parameters.iter().enumerate() {
+        let value = match arguments.get(i) {
+            Some(argument) => argument.to_string(),
+            None => match &parameter.default {
+                Some(default) => substitute_template_type(default, &bindings),
+                None => continue, // Unknown, keep the parameter as is.
+            },
+        };
+        bindings.insert(parameter.label.clone(), value);
+    }
+    bindings
+}
+
+// Replace every template parameter in ty with the type it is bound to.
+pub fn substitute_template_type(ty: &str, bindings: &HashMap<String, String>) -> String {
+    if bindings.is_empty() {
+        return ty.into();
+    }
+    let mut substituted = String::with_capacity(ty.len());
+    let mut identifier_start = None;
+    let is_identifier = |c: char| c.is_alphanumeric() || c == '_';
+    for (i, c) in ty.char_indices().chain(std::iter::once((ty.len(), ' '))) {
+        match (identifier_start, is_identifier(c)) {
+            (None, true) => identifier_start = Some(i),
+            (Some(start), false) => {
+                let identifier = &ty[start..i];
+                substituted.push_str(bindings.get(identifier).map_or(identifier, |s| s.as_str()));
+                identifier_start = None;
+            }
+            _ => {}
+        }
+        if !is_identifier(c) && i < ty.len() {
+            substituted.push(c);
+        }
+    }
+    substituted
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ShaderTemplateParameter {
+    pub label: String,
+    pub default: Option<String>, // Default type or value if any.
+}
+
+impl ShaderTemplateParameter {
+    pub fn new(label: &str) -> Self {
+        Self {
+            label: label.into(),
+            default: None,
+        }
+    }
+}
+
 #[allow(non_snake_case)] // for JSON
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct ShaderSignature {
@@ -48,13 +161,23 @@ pub struct ShaderLabelSignature {
 
 impl ShaderSignature {
     // Check parameter types match exactly. An unknown type (None) match any parameter.
-    pub fn match_types(&self, types: &[Option<String>]) -> bool {
+    // Template parameters match any type, as long as they are bound to the same type everywhere.
+    pub fn match_types(
+        &self,
+        types: &[Option<String>],
+        template_parameters: &[ShaderTemplateParameter],
+    ) -> bool {
+        let mut bindings = HashMap::new();
         self.parameters.len() == types.len()
             && self
                 .parameters
                 .iter()
                 .zip(types.iter())
-                .all(|(parameter, ty)| ty.as_ref().map_or(true, |ty| parameter.ty == *ty))
+                .all(|(parameter, ty)| {
+                    ty.as_ref().map_or(true, |ty| {
+                        match_type(&parameter.ty, ty, template_parameters, &mut bindings)
+                    })
+                })
     }
     pub fn format(&self, label: &str, shading_language: ShadingLanguage) -> String {
         match shading_language {
@@ -428,10 +551,11 @@ impl RequirementParameter {
 
 #[derive(Debug, Clone)]
 pub struct ShaderSymbolRuntime {
-    pub file_path: PathBuf,            // file of the symbol.
-    pub range: ShaderRange,            // Range of symbol in shader
-    pub scope: Option<ShaderScope>,    // Owning scope
-    pub scope_stack: Vec<ShaderScope>, // Stack of declaration
+    pub file_path: PathBuf,                                // file of the symbol.
+    pub range: ShaderRange,                                // Range of symbol in shader
+    pub scope: Option<ShaderScope>,                        // Owning scope
+    pub scope_stack: Vec<ShaderScope>,                     // Stack of declaration
+    pub template_parameters: Vec<ShaderTemplateParameter>, // Template parameters of the declaration.
 }
 
 impl ShaderSymbolRuntime {
@@ -446,7 +570,15 @@ impl ShaderSymbolRuntime {
             range,
             scope,
             scope_stack,
+            template_parameters: Vec::new(),
         }
+    }
+    pub fn with_template_parameters(
+        mut self,
+        template_parameters: Vec<ShaderTemplateParameter>,
+    ) -> Self {
+        self.template_parameters = template_parameters;
+        self
     }
     pub fn global(file_path: PathBuf, range: ShaderRange) -> Self {
         Self::new(file_path, range, None, Vec::new())
@@ -548,6 +680,12 @@ impl ShaderSymbolMode {
             ShaderSymbolMode::Intrinsic(_) => vec![],
             ShaderSymbolMode::Runtime(r) => r.get_namespace(),
             ShaderSymbolMode::RuntimeContext(_) => vec![],
+        }
+    }
+    pub fn get_template_parameters(&self) -> &[ShaderTemplateParameter] {
+        match self {
+            ShaderSymbolMode::Runtime(r) => &r.template_parameters,
+            _ => &[],
         }
     }
 }
@@ -717,5 +855,69 @@ impl ShaderSymbol {
                 }
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_template_type_ok() {
+        assert_eq!(split_template_type("float"), ("float", vec![]));
+        assert_eq!(split_template_type("Foo<>"), ("Foo", vec![]));
+        assert_eq!(
+            split_template_type("Foo<T, Bar<float, 2> >"),
+            ("Foo", vec!["T", "Bar<float, 2>"])
+        );
+    }
+    #[test]
+    fn template_bindings_ok() {
+        let template_parameters = vec![
+            ShaderTemplateParameter::new("T"),
+            ShaderTemplateParameter {
+                label: "A".into(),
+                default: Some("vector<T, 2>".into()),
+            },
+        ];
+        let instantiate = |ty: &str, member: &str| {
+            substitute_template_type(member, &get_template_bindings(&template_parameters, ty))
+        };
+        assert_eq!(instantiate("Foo<float, int>", "A"), "int");
+        // Default value depend on previous parameter.
+        assert_eq!(instantiate("Foo<float>", "A"), "vector<float, 2>");
+        // Only whole identifiers are substituted.
+        assert_eq!(instantiate("Foo<int>", "Bar<T, TT>"), "Bar<int, TT>");
+        // Unbound parameters are kept.
+        assert_eq!(instantiate("Foo", "T"), "T");
+    }
+    #[test]
+    fn match_template_types_ok() {
+        let parameter = |ty: &str| ShaderParameter {
+            ty: ty.into(),
+            label: "p".into(),
+            modifier: None,
+            count: None,
+            description: "".into(),
+            range: None,
+        };
+        let signature = ShaderSignature {
+            returnType: "void".into(),
+            description: "".into(),
+            parameters: vec![parameter("Foo<T, float>"), parameter("T")],
+        };
+        let template_parameters = vec![ShaderTemplateParameter::new("T")];
+        let types = |types: &[&str]| -> Vec<Option<String>> {
+            types.iter().map(|ty| Some(ty.to_string())).collect()
+        };
+        // T is bound to the same type for all parameters.
+        assert!(signature.match_types(&types(&["Foo<int, float>", "int"]), &template_parameters));
+        assert!(!signature.match_types(&types(&["Foo<int, float>", "float"]), &template_parameters));
+        // Omitted default arguments are accepted.
+        assert!(signature.match_types(&types(&["Foo<int>", "int"]), &template_parameters));
+        // Base type must match.
+        assert!(!signature.match_types(&types(&["Bar<int>", "int"]), &template_parameters));
+        // Without template parameters, T is a regular type.
+        assert!(!signature.match_types(&types(&["Foo<int, float>", "int"]), &[]));
     }
 }
