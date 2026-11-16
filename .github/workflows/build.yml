@@ -111,21 +111,25 @@ jobs:
         with:
           repository: 'WebAssembly/wasi-sdk'
           tag: 'wasi-sdk-34'
-          fileName: 'wasi-sysroot-34.0.tar.gz'
+          # Full SDK rather than sysroot only: since wasi-sdk 34, libc++ headers live in include/<target>/noeh/c++/v1,
+          # which only the bundled clang knows about, and this libc++ requires a recent clang anyway.
+          fileName: 'wasi-sdk-34.0-x86_64-linux.tar.gz'
           extract: true
-      - name: Setup WASI_SYSROOT
-        # Since wasi-sdk 34, libc++ is split into eh/noeh subfolders that cc-rs does not add to the link path.
+      - name: Setup WASI SDK
+        # libc++ is split into eh/noeh subfolders that cc-rs does not add to the link path.
         # Requires rustc >= 1.100, older ones bundle a crt1 incompatible with wasi-sdk 34 libc (__wasi_init_tp).
         # These flags are merged with the target rustflags of .cargo/config.toml.
         run: |
-              WASI_SYSROOT="$GITHUB_WORKSPACE/wasi-sysroot-34.0"
+              WASI_SDK="$GITHUB_WORKSPACE/wasi-sdk-34.0-x86_64-linux"
+              WASI_SYSROOT="$WASI_SDK/share/wasi-sysroot"
               WASI_LIB="$WASI_SYSROOT/lib/wasm32-wasip1-threads"
+              echo "CC_wasm32_wasip1_threads=$WASI_SDK/bin/clang" >> $GITHUB_ENV
+              echo "CXX_wasm32_wasip1_threads=$WASI_SDK/bin/clang++" >> $GITHUB_ENV
+              echo "AR_wasm32_wasip1_threads=$WASI_SDK/bin/llvm-ar" >> $GITHUB_ENV
               echo "WASI_SYSROOT=$WASI_SYSROOT" >> $GITHUB_ENV
               echo "CARGO_TARGET_WASM32_WASIP1_THREADS_RUSTFLAGS=-L native=$WASI_LIB/noeh" >> $GITHUB_ENV
-              ls -f $WASI_SYSROOT
               ls -f $WASI_LIB
-      - name: Check clang version
-        run: clang --version
+              $WASI_SDK/bin/clang --version
       - name: Add target
         run: rustup target add wasm32-wasip1-threads
       - name: Install wasmtime as test runner.
