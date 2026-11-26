@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [2.0.0] - 2026-11-26
+
+### Added
+
+- WESL support for WGSL. Validation now goes through [wesl-rs](https://github.com/webgpu-tools/wesl-rs) on top of naga, with support for imports and conditional compilation (`@if`). Variant defines are passed as WESL features.
+- New settings `wgsl.packageRoot` and `wgsl.packages` to resolve WESL `package::` and external `name::` imports.
+- WGSL symbol parsing using tree-sitter-wesl, with an intrinsics database generated from the WGSL spec and language-specific formatting for descriptions.
+- Preamble support for all languages with new settings `hlsl.preamble` and `wgsl.preamble`. Glslang errors located in the preamble are now reported in the preamble file.
+- New settings `glsl.autoMapBindings` and `glsl.autoMapLocations`, passed to glslang.
+- Disassembly support for glslang and dxc. `textDocument/compilationResult` takes a new `disassemble` parameter to return human-readable SPIR-V or DXIL.
+- HLSL namespace parsing and completion. Namespaces are treated as scopes and no longer pollute the global symbol list.
+- `__SHADER_SENSE__` define added to the symbol list.
+- HLSL `in` and `out` modifiers on symbols.
+- Glslang bumped to support source entry points.
+
+### Fixed
+
+- Forced GLSL version is now applied to both the preprocess and parse stages ([#61](https://github.com/antaalt/shader-sense/issues/61)).
+- Semantic tokens were sent for code inside comments.
+- Function calls now check argument types so that only matching overloads are resolved.
+- Setting `validate` to false did not clear diagnostics after the configuration changed.
+- Changing the entry point or stage, for example by switching variant, now forces a recompilation.
+- Server failed to return a SPIR-V compilation result because of an invalid condition.
+- An empty string setting was read as `Some("")` instead of `None`, which gave an invalid path after canonicalization.
+- Potential undefined behavior due to alignment in unsafe code.
+- DXC did not recognize the same file written with different path formats, which broke `#pragma once`.
+- Includes failing in some cases.
+- Diagnostic logs printed the wrong URI.
+- Incorrect value in the HLSL `lerp` documentation.
+
+### Changed
+
+- **BREAKING** Renamed `url` to `uri` in the protocol: `ShaderVariant.url` is now `ShaderVariant.uri`, and `DependencyTreeRequestResult.path` is now `DependencyTreeRequestResult.uri`.
+- `textDocument/compilationResult` returns a plain string instead of base64 when the result is disassembled or WGSL.
+- Faster handling of large diagnostic and symbol lists through fewer copies, and cheaper cache cloning.
+- Naga version bumped to reduce dependencies.
+- Bumped WASI SDK, and increased glslang memory for WASI.
+- CI now caches build steps, builds only the necessary packages, and publishes a nightly release.
+
 ## [1.6.2] - 2026-09-20
 
 ### Fixed
@@ -523,7 +562,8 @@ Initial release of this extension
 
 
 <!-- Below are link for above changelog titles-->
-[unreleased]: https://github.com/antaalt/shader-sense/compare/v1.6.2...HEAD
+[unreleased]: https://github.com/antaalt/shader-sense/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/antaalt/shader-sense/compare/v1.6.2..v2.0.0
 [1.6.2]: https://github.com/antaalt/shader-sense/compare/v1.6.1..v1.6.2
 [1.6.1]: https://github.com/antaalt/shader-sense/compare/v1.6.0..v1.6.1
 [1.6.0]: https://github.com/antaalt/shader-sense/compare/v1.5.0..v1.6.0

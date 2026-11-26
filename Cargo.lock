@@ -1743,7 +1743,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense"
-version = "1.6.1"
+version = "2.0.0"
 dependencies = [
  "criterion",
  "glslang",
@@ -1764,7 +1764,7 @@ dependencies = [
 
 [[package]]
 name = "shader-sense-cli"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "colored",
  "shader-sense",
@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "shader_language_server"
-version = "1.6.2"
+version = "2.0.0"
 dependencies = [
  "base64",
  "cfg-if",
