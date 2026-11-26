@@ -5,6 +5,7 @@ version = "0.8.0"
 repository = "https://github.com/antaalt/shader-sense"
 keywords = ["shader", "validate", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
+authors.workspace = true
 edition.workspace = true
 license-file.workspace = true
 

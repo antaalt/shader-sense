@@ -27,7 +27,6 @@ hassle-rs = { git="https://github.com/antaalt/hassle-rs.git", branch="fix-crash-
 version = "1.6.1" # shader-sense version
 edition = "2021"
 license-file = "./LICENSE"
-repository = "https://github.com/antaalt/shader-sense"
 authors = ["antaalt"]
 rust-version = "1.89" # Minimal version required for wasm C ABI https://github.com/wasm-bindgen/wasm-bindgen/issues/3454
 

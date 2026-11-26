@@ -5,6 +5,7 @@ version = "1.6.2"
 repository = "https://github.com/antaalt/shader-sense/tree/main/shader-language-server"
 keywords = ["shader", "lsp", "hlsl", "glsl", "wgsl"]
 categories = ["development-tools", "graphics"]
+authors.workspace = true
 edition.workspace = true
 license-file.workspace = true
 rust-version.workspace = true
